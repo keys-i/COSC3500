@@ -72,9 +72,10 @@ multiply24x4(int count, const float *a, const float *b, float *out) {
     __m256 s00, s01, s02, s10, s11, s12, s20, s21, s22, s30, s31, s32;
     s00 = s01 = s02 = s10 = s11 = s12 = s20 = s21 = s22 = s30 = s31 = s32 =
         _mm256_setzero_ps();
+    // Packed rows and each depth step stay 32-byte aligned
     for (int k = 0; k < count; ++k, a += 24, b += 4) {
-        const __m256 a0 = _mm256_loadu_ps(a), a1 = _mm256_loadu_ps(a + 8);
-        const __m256 a2 = _mm256_loadu_ps(a + 16);
+        const __m256 a0 = _mm256_load_ps(a), a1 = _mm256_load_ps(a + 8);
+        const __m256 a2 = _mm256_load_ps(a + 16);
         accumulate(a0, a1, a2, b, s00, s01, s02);
         accumulate(a0, a1, a2, b + 1, s10, s11, s12);
         accumulate(a0, a1, a2, b + 2, s20, s21, s22);
@@ -112,6 +113,7 @@ matrixMultiplyColumns(int N, const floatType *A, const floatType *B,
     const float *a = reinterpret_cast<const float *>(A);
     const float *b = reinterpret_cast<const float *>(B);
     float *c = reinterpret_cast<float *>(C);
+    // Direct sums cover uneven edges and a failed scratch allocation
     const auto scalar = [&](int row, int col) {
         floatType sum = 0;
         for (int k = 0; k < N; ++k)

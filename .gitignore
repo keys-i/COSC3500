@@ -21,6 +21,8 @@ CMakeUserPresets.json
 
 # Private course material
 /COSC3500_*.pdf
+/assign/Makefile
+/assign/slurm/
 /output/
 /tmp/
 

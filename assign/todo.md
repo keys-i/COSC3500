@@ -40,12 +40,18 @@ Rangpur GradeBot, supplied `-O2` build, three runs per CPU/CUDA version; ratio i
 
 | Version | Median ratio | Maximum error | Runs |
 | --- | ---: | ---: | ---: |
-| Normal CPU, 48-column block | 0.518 | 3.788e-09 | 3 |
-| Strassen, 32-column block | 0.508 | 1.266e-08 | 3 |
-| CUDA, 64×64 tile | 1.013 | 1.844e-08 | 3 |
-| MPI, two nodes with one four-core rank each | 0.370–0.371 | 3.732e-09 | 1 per rank |
+| Normal CPU, aligned packed-A loads | 0.456 | 3.788e-09 | 3 |
+| Strassen, aligned packed-A loads | 0.449 | 1.266e-08 | 3 |
+| CUDA, 64×64 tile | 1.027 | 1.844e-08 | 3 |
+| MPI, two nodes with one four-core rank each | 0.347 / 0.390 | 3.732e-09 | 1 per rank |
 
-The 128×64 CUDA tile regressed to 1.038; the 48-column Strassen leaf regressed to 0.516, so both were restored. Removing the normal CPU compiler barrier and unroll directive gave a 0.526 median, then the 48-column block improved it to 0.518. None of the requested ratios has been reached. At the measured MKL rate, normal CPU needs roughly 30% more throughput to reach 0.4; Strassen needs roughly 69% more to reach 0.3. MPI's ratio varied with MKL throughput: an earlier two-node run returned 0.344 while the final clean run returned 0.370–0.371
+An isolated `perf` run spent 85.17% of its CPU samples in `multiply24x4` and 11.82% in `matrixMultiplyColumns`. The packed A buffer and each 24-float microkernel stride are 32-byte aligned, so changing its three loads to aligned AVX loads improved normal CPU from 0.518 to 0.456 and Strassen from 0.508 to 0.450. Removing the Strassen register barrier and unroll directive left it at 0.449; those changes also made the loop simpler
+
+Nsight Compute measured 82.97% SM utilisation, 2.25% DRAM utilisation and 42.66% achieved occupancy in the CUDA kernel. CUDA still runs at about 221 matrices/s; its ratio varies with the cuBLAS reference rate. Two-node MPI ran at 8.41 matrices/s with the aligned CPU kernel. An equal-count `MPI_Allgather` trial fell to 7.95 matrices/s, so the `MPI_Allgatherv` path was restored
+
+The combined course GradeBot run `617864` on `a100-8` and `a100-9` used the supplied `-O2` build and returned grade `7.00` for CPU, GPU and MPI on both ranks at `N=2048`. The largest errors were `3.732e-09`, `1.844e-08` and `3.732e-09` respectively
+
+The 128×64 CUDA tile regressed to 1.038; the 48-column Strassen leaf regressed to 0.516, so both were restored. None of the requested ratios has been reached. MPI's earlier ratio varied with MKL throughput: one two-node run returned 0.344 and another returned 0.370–0.371
 
 ## Earlier CPU benchmarks
 
@@ -74,7 +80,7 @@ At the restored baseline's MKL rate, `0.40x` needs `5.765` matrices/s: another `
 ## Rejected
 
 - [x] Slower strided kernels and tile/unroll variants
-- [x] Restricted parameters, `Ofast`, unsupported `tune=znver2`, const-reference/raw-float B variants and aligned-access variants
+- [x] Restricted parameters, `Ofast`, unsupported `tune=znver2`, const-reference/raw-float B variants and earlier aligned-access variants outside the packed-A microkernel
 - [x] Close/spread binding at `N=2048` — spread helped only at `N=4096`
 - [x] Thread-private packed A — wrong answers
 - [x] Unroll 2 reported no benefit; the normal loop now leaves the choice to the compiler
@@ -92,6 +98,7 @@ At the restored baseline's MKL rate, `0.40x` needs `5.765` matrices/s: another `
 - [x] Confirmed the `-O2` normal CPU version on four cores and compared three-run medians
 - [x] Compared three-run CPU and CUDA medians and maximum errors
 - [x] GradeBot passed `N=127` for normal CPU, Strassen, CUDA and MPI; the largest error was `3.265e-08`
+- [x] Rechecked the header-only MPI fallback at `N=127` on two nodes; maximum error `3.194e-08`
 - [ ] Check empty and awkward sizes, then the full range on four cores
 
 ## Grade estimates
