@@ -1,0 +1,62 @@
+# == Machine files ==
+.DS_Store
+.cache/
+CMakeUserPresets.json
+.spack-env/
+
+# == Private course material ==
+/COSC3500_*.pdf
+/output/
+
+# == Build output ===
+# -- CMake, Ninja, Conan and CTest --
+[Bb]uild/
+cmake-build-*/
+CMakeFiles/
+[Tt]esting/
+_deps/
+compile_commands.json
+
+# -- C/C++ and CUDA products --
+*.[oad]
+*.obj
+*.lo
+*.so
+*.so.*
+*.dylib
+*.gch
+*.pch
+*.ptx
+*.cubin
+*.fatbin
+/proj/*/main
+
+# == Analysis output ==
+# -- Coverage, PGO and BOLT --
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+*.fdata
+
+# -- perf, Nsight, HPCToolkit, Score-P and MUST --
+perf.data*
+*.nsys-rep
+*.ncu-rep
+*.qdrep
+hpctoolkit-*/
+scorep-*/
+MUST_Output*
+
+# == Runtime output ==
+# -- Slurm, sanitizers and crash dumps --
+*.out
+*.err
+*.log
+core.[0-9]*
+vgcore.*
+
+# -- Centralised raw output --
+/results/*
+!/results/.gitkeep
