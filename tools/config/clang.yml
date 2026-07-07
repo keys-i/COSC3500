@@ -1,0 +1,26 @@
+format:
+  based_on_style: LLVM
+  indent_width: 4
+  column_limit: 80
+  sort_includes: CaseSensitive
+tidy:
+  checks: -*,clang-analyzer-*,bugprone-*,cert-*,concurrency-*
+  parallel_checks: mpi-*,openmp-*,performance-*,portability-*
+  warnings_as_errors: true
+  header_filter: (^|/)(benches|include|proj|src|tests)/
+compiler:
+  warnings: -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wundef
+  warnings_conversion: -Wconversion -Wsign-conversion -Wdouble-promotion
+  warnings_control: -Wimplicit-fallthrough -Wnull-dereference
+  warnings_polymorphism: -Wnon-virtual-dtor -Woverloaded-virtual
+  warnings_style: -Wold-style-cast -Wcast-align
+  peak: -O3
+  profile: -O3 -g -fno-omit-frame-pointer
+  sanitizer_common: -O1 -g -fno-omit-frame-pointer
+  clang_scalar: -fno-vectorize -fno-slp-vectorize
+  gcc_scalar: -fno-tree-loop-vectorize -fno-tree-slp-vectorize
+  asan_ubsan: -fsanitize=address,undefined -fno-sanitize-recover=all
+  tsan: -fsanitize=thread
+  msan: -fsanitize=memory -fsanitize-memory-track-origins=2
+  llvm_coverage: -fprofile-instr-generate -fcoverage-mapping
+  gcc_coverage: --coverage
