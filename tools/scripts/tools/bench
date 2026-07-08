@@ -1,0 +1,262 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+# shellcheck source=tools/scripts/tools/lib.sh
+. "$SCRIPT_DIR/lib.sh"
+
+CONFIG="$HPC_ROOT/tools/config/benchmark.yml"
+BENCHMARK_KEYS=smoke.warmups,smoke.samples,smoke.process_runs
+BENCHMARK_KEYS+=,smoke.minimum_case_ms
+BENCHMARK_KEYS+=,standard.warmups,standard.samples,standard.process_runs
+BENCHMARK_KEYS+=,standard.minimum_case_ms
+BENCHMARK_KEYS+=,publication.warmups,publication.samples
+BENCHMARK_KEYS+=,publication.process_runs,publication.minimum_case_ms
+BENCHMARK_KEYS+=,control.bootstrap_resamples,control.raw_dir
+BENCHMARK_KEYS+=,control.summary_dir,control.cluster_presets
+BENCHMARK_KEYS+=,control.blocked_modes,control.pgo_dir
+config_validate_nested "$CONFIG" "$BENCHMARK_KEYS"
+
+case ${1:-} in
+    --help | help)
+        printf 'usage: %s ' "${0##*/}"
+        printf '%s\n' \
+            'self-test|gates|smoke|standard|publication|compare|bolt [options]'
+        exit 0
+        ;;
+esac
+
+action=${1:-smoke}
+(($# == 0)) || shift
+preset=profile
+target=m0
+threads=1
+ranks=1
+final_run=false
+while (($# > 0)); do
+    case $1 in
+        --preset)
+            (($# >= 2)) || die "--preset requires a value"
+            preset=$2
+            shift 2
+            ;;
+        --target)
+            (($# >= 2)) || die "--target requires a value"
+            target=$2
+            shift 2
+            ;;
+        --threads)
+            (($# >= 2)) || die "--threads requires a value"
+            threads=$2
+            shift 2
+            ;;
+        --ranks)
+            (($# >= 2)) || die "--ranks requires a value"
+            ranks=$2
+            shift 2
+            ;;
+        --final)
+            final_run=true
+            shift
+            ;;
+        *) die "unknown benchmark option: $1" ;;
+    esac
+done
+benchmark_actions=self-test,gates,smoke,standard,publication,compare,bolt
+benchmark_actions+=,pgo-generate,pgo-use
+validate_choice "$action" "$benchmark_actions" "benchmark action"
+validate_positive_integer "$threads" threads
+validate_positive_integer "$ranks" ranks
+
+case $action in
+    pgo-generate | pgo-use)
+        test "${HPC_PGO_DISPATCH:-0}" = 1 || die "use pgo gen or pgo use"
+        ;;
+esac
+
+run_pgo_generate() {
+    require_target "$target"
+    test "$target" = m0 ||
+        die "no representative PGO training driver exists for $target"
+    local pgo_dir
+    pgo_dir="$HPC_ROOT/$(config_get_nested "$CONFIG" control pgo_dir)"
+    configure_preset pgo-generate --fresh
+    build_preset pgo-generate --target "$target"
+    local binary="$HPC_ROOT/build/pgo-generate/bin/$target"
+    for _ in 1 2 3 4 5; do
+        run "$binary"
+    done
+    local compiler_id
+    compiler_id=$(compiler_field pgo-generate CMAKE_CXX_COMPILER_ID)
+    if [[ $compiler_id == *Clang* ]]; then
+        local profdata
+        if ! profdata=$(find_llvm_tool llvm-profdata); then
+            die "llvm-profdata is required to merge Clang PGO data"
+        fi
+        local profile_files=()
+        while IFS= read -r file; do
+            profile_files+=("$file")
+        done < <(find "$pgo_dir" -name '*.profraw' -type f -print)
+        ((${#profile_files[@]} > 0)) ||
+            die "Clang training produced no .profraw files"
+        run "$profdata" merge \
+            -output="$pgo_dir/default.profdata" \
+            "${profile_files[@]}"
+    fi
+    pass "PGO training data generated"
+}
+
+run_pgo_use() {
+    require_target "$target"
+    test "$target" = m0 || die "no PGO training run exists for $target"
+    configure_preset pgo-use --fresh
+    build_preset pgo-use --target "$target" hpc_bench
+    run ctest --test-dir "$HPC_ROOT/build/pgo-use" --output-on-failure
+    pass "PGO-use build and correctness smoke"
+}
+
+expect_rejection() {
+    local name=$1
+    local expected=$2
+    shift 2
+    local log="$HPC_BUILD_ROOT/benchmark-gates/$name.txt"
+    run mkdir -p "${log%/*}"
+    print_command "$@"
+    if "$@" >"$log" 2>&1; then
+        die "bench guard should reject: $name"
+    fi
+    grep -Fq "$expected" "$log" ||
+        die "bench guard missed: $name"
+    pass "bench guard: $name"
+}
+
+run_gate_tests() {
+    configure_preset asan-ubsan --fresh
+    build_preset asan-ubsan --target m0 hpc_bench
+    expect_rejection profile-mode "unknown cluster preset: profile" \
+        "$SCRIPT_DIR/bench" smoke --preset profile --target m0 --final
+    expect_rejection sanitizer "won't time a sanitizer build" \
+        "$SCRIPT_DIR/bench" smoke --preset asan-ubsan --target m0
+}
+
+case $action in
+    self-test)
+        ensure_built "$preset" hpc_bench
+        run "$(build_dir "$preset")/bench/hpc_bench" --self-test
+        exit 0
+        ;;
+    gates)
+        run_gate_tests
+        exit 0
+        ;;
+    pgo-generate)
+        run_pgo_generate
+        exit 0
+        ;;
+    pgo-use)
+        run_pgo_use
+        exit 0
+        ;;
+    bolt)
+        if test "$target" = m0; then
+            skip "BOLT: m0 is too small to measure"
+            exit 0
+        fi
+        skip "BOLT: no target is ready for BOLT"
+        exit 0
+        ;;
+    compare)
+        skip "compare: nothing to compare yet"
+        exit 0
+        ;;
+esac
+
+require_preset "$preset"
+require_target "$target"
+test "$target" = m0 || die "only m0 has a benchmark"
+ensure_configured "$preset"
+build_preset "$preset" --target "$target" hpc_bench
+
+mode=$(cache_value "$preset" HPC_MODE)
+sanitizer=$(cache_value "$preset" HPC_SANITIZER)
+coverage=$(cache_value "$preset" HPC_COVERAGE)
+test "$sanitizer" = none || die "won't time a sanitizer build"
+test "$coverage" = none || die "won't time a coverage build"
+
+if test "$final_run" = true; then
+    cluster_presets=$(config_get_nested "$CONFIG" control cluster_presets)
+    validate_choice "$preset" "$cluster_presets" "cluster preset"
+    blocked_modes=$(config_get_nested "$CONFIG" control blocked_modes)
+    case ",$blocked_modes," in
+        *",$mode,"*)
+            die "build mode $mode isn't for final timing"
+            ;;
+    esac
+    git_is_dirty && die "final timing needs a clean worktree"
+    test -n "${SLURM_JOB_ID:-}" ||
+        die "final timing needs a Slurm allocation"
+    marker="$(build_dir "$preset")/configured-host.txt"
+    grep -Fxq "slurm_job_id=$SLURM_JOB_ID" "$marker" ||
+        die "build was not configured in this allocation"
+    die "m0 checks that the program starts; it isn't a timing workload"
+fi
+
+warmups=$(config_get_nested "$CONFIG" "$action" warmups)
+samples=$(config_get_nested "$CONFIG" "$action" samples)
+process_runs=$(config_get_nested "$CONFIG" "$action" process_runs)
+minimum_case_ms=$(config_get_nested "$CONFIG" "$action" minimum_case_ms)
+bootstrap_resamples=$(
+    config_get_nested "$CONFIG" control bootstrap_resamples
+)
+validate_positive_integer "$warmups" warmups
+validate_positive_integer "$samples" samples
+validate_positive_integer "$process_runs" process_runs
+validate_positive_integer "$minimum_case_ms" minimum_case_ms
+validate_positive_integer "$bootstrap_resamples" bootstrap_resamples
+
+raw_dir="$HPC_ROOT/$(config_get_nested "$CONFIG" control raw_dir)"
+summary_dir="$HPC_ROOT/$(config_get_nested "$CONFIG" control summary_dir)"
+run mkdir -p "$raw_dir" "$summary_dir"
+timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+raw="$raw_dir/$target-$preset-$timestamp.csv"
+summary="$summary_dir/$target-$preset-$timestamp.csv"
+binary=$(target_binary "$preset" "$target")
+helper="$(build_dir "$preset")/bench/hpc_bench"
+compiler=$(cache_value "$preset" CMAKE_CXX_COMPILER)
+compiler_id=$(compiler_field "$preset" CMAKE_CXX_COMPILER_ID)
+compiler_version=$(compiler_field "$preset" CMAKE_CXX_COMPILER_VERSION)
+commit=$(git_commit)
+binary_hash=$(sha256_file "$binary")
+host=$(hostname -s)
+cpu=$(cpu_name)
+flags="mode=$mode;sanitizer=$sanitizer;coverage=$coverage;"
+flags+="lto=$(cache_value "$preset" HPC_ENABLE_LTO)"
+
+run "$helper" \
+    --binary "$binary" \
+    --target "$target" \
+    --preset "$preset" \
+    --compiler "$compiler_id:$compiler" \
+    --compiler-version "$compiler_version" \
+    --flags "$flags" \
+    --git-commit "$commit" \
+    --binary-sha256 "$binary_hash" \
+    --host "$host" \
+    --cpu "$cpu" \
+    --backend process-smoke \
+    --timestamp "$timestamp" \
+    --mode end-to-end \
+    --size 0 \
+    --seed 0 \
+    --threads "$threads" \
+    --ranks "$ranks" \
+    --warmup "$warmups" \
+    --samples "$samples" \
+    --process-run "$process_runs" \
+    --minimum-case-ms "$minimum_case_ms" \
+    --bootstrap-resamples "$bootstrap_resamples" \
+    --verify \
+    --output "$raw" \
+    --summary "$summary"
+run "$helper" --validate-csv "$raw" "$summary"
+pass "$action program-start check only"

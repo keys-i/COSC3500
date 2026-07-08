@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+# shellcheck source=tools/scripts/tools/lib.sh
+. "$SCRIPT_DIR/lib.sh"
+
+tool_config_validate
+
+action=${1:-all}
+if (($# > 0)); then
+    shift
+fi
+preset=profile
+target=m0
+while (($# > 0)); do
+    case $1 in
+        --preset)
+            (($# >= 2)) || die "--preset requires a value"
+            preset=$2
+            shift 2
+            ;;
+        --target)
+            (($# >= 2)) || die "--target requires a value"
+            target=$2
+            shift 2
+            ;;
+        *) die "unknown exploration option: $1" ;;
+    esac
+done
+explore_actions=topology,binary,symbols,elf,layout
+explore_actions+=,assembly,mca,exegesis,all
+validate_choice "$action" "$explore_actions" \
+    "exploration action"
+require_target "$target"
+require_preset "$preset"
+binary=
+compiler_id=
+llvm_family=false
+case $action in
+    topology | mca | exegesis) ;;
+    *)
+        ensure_built "$preset" "$target"
+        binary=$(target_binary "$preset" "$target")
+        compiler_id=$(compiler_field "$preset" CMAKE_CXX_COMPILER_ID)
+        [[ $compiler_id == *Clang* ]] && llvm_family=true
+        ;;
+esac
+output_root="$HPC_ROOT/$(tool_config_get explore output_dir)"
+output="$output_root/$(date -u +%Y%m%dT%H%M%SZ)-$target-explore"
+
+ensure_output() {
+    test -d "$output" || run mkdir -p "$output"
+}
+
+binary_tool() {
+    local llvm_name=$1
+    local gnu_name=$2
+    if test "$llvm_family" = true; then
+        find_llvm_tool "$llvm_name"
+    else
+        command -v "$gnu_name" 2>/dev/null
+    fi
+}
+
+run_topology() {
+    local lstopo_tool
+    if ! lstopo_tool=$(find_tool LSTOPO lstopo lstopo-no-graphics); then
+        skip "lstopo unavailable"
+        return 0
+    fi
+    ensure_output
+    print_command "$lstopo_tool" --of console
+    "$lstopo_tool" --of console >"$output/topology.txt"
+    print_command "$lstopo_tool" "$output/topology.svg"
+    "$lstopo_tool" "$output/topology.svg"
+    pass "topology"
+}
+
+run_binary() {
+    local size_tool
+    if ! size_tool=$(binary_tool llvm-size size); then
+        skip "no size tool for $compiler_id"
+        return 0
+    fi
+    ensure_output
+    print_command "$size_tool" "$binary"
+    "$size_tool" "$binary" >"$output/size.txt"
+    pass "binary sections"
+}
+
+run_symbols() {
+    local nm_tool
+    if ! nm_tool=$(binary_tool llvm-nm nm); then
+        skip "no nm tool for $compiler_id"
+        return 0
+    fi
+    ensure_output
+    if test "$llvm_family" = true; then
+        print_command "$nm_tool" --print-size --size-sort --demangle "$binary"
+        "$nm_tool" --print-size --size-sort --demangle \
+            "$binary" >"$output/symbols.txt"
+    else
+        print_command "$nm_tool" -S --size-sort -C "$binary"
+        "$nm_tool" -S --size-sort -C "$binary" >"$output/symbols.txt"
+    fi
+    pass "symbols"
+}
+
+run_elf() {
+    if test "$(uname -s)" != Linux; then
+        skip "ELF inspection unsupported platform"
+        return 0
+    fi
+    local readelf_tool
+    if ! readelf_tool=$(binary_tool llvm-readelf readelf); then
+        skip "no readelf tool for $compiler_id"
+        return 0
+    fi
+    ensure_output
+    print_command "$readelf_tool" --all "$binary"
+    "$readelf_tool" --all "$binary" >"$output/elf.txt"
+    pass "ELF"
+}
+
+run_layout() {
+    if test "$(uname -s)" != Linux; then
+        skip "pahole unsupported platform"
+        return 0
+    fi
+    if ! command -v pahole >/dev/null 2>&1; then
+        skip "pahole unavailable"
+        return 0
+    fi
+    ensure_output
+    print_command pahole "$binary"
+    pahole "$binary" >"$output/layout.txt"
+    pass "DWARF layout"
+}
+
+run_assembly() {
+    local objdump_tool
+    if ! objdump_tool=$(binary_tool llvm-objdump objdump); then
+        skip "no objdump tool for $compiler_id"
+        return 0
+    fi
+    ensure_output
+    local lines
+    lines=$(tool_config_get explore disassembly_lines)
+    validate_positive_integer "$lines" disassembly_lines
+    local symbol=main
+    if test "$(uname -s)" = Darwin; then
+        symbol=_main
+    fi
+    if test "$llvm_family" = true; then
+        print_command "$objdump_tool" \
+            --disassemble-symbols="$symbol" --demangle --source "$binary"
+        "$objdump_tool" --disassemble-symbols="$symbol" \
+            --demangle --source "$binary" \
+            >"$output/assembly-full.txt"
+    else
+        print_command "$objdump_tool" \
+            --disassemble="$symbol" --demangle --source "$binary"
+        "$objdump_tool" --disassemble="$symbol" --demangle --source "$binary" \
+            >"$output/assembly-full.txt"
+    fi
+    grep -q "<$symbol>" "$output/assembly-full.txt" ||
+        die "couldn't find $symbol in the disassembly"
+    sed -n "1,${lines}p" "$output/assembly-full.txt" >"$output/assembly.txt"
+    pass "short disassembly"
+}
+
+run_mca() {
+    if test -z "${MCA_INPUT:-}"; then
+        skip "llvm-mca: set MCA_INPUT to a small kernel assembly file"
+        return 0
+    fi
+    test -f "$MCA_INPUT" || die "MCA_INPUT does not exist: $MCA_INPUT"
+    local mca_tool
+    if ! mca_tool=$(find_llvm_tool llvm-mca); then
+        skip "llvm-mca unavailable"
+        return 0
+    fi
+    ensure_output
+    print_command "$mca_tool" "$MCA_INPUT"
+    "$mca_tool" "$MCA_INPUT" >"$output/mca.txt"
+    pass "llvm-mca"
+}
+
+run_exegesis() {
+    if test -z "${EXEGESIS_OPCODE_NAME:-}"; then
+        skip "llvm-exegesis: set EXEGESIS_OPCODE_NAME for an explicit probe"
+        return 0
+    fi
+    local exegesis_tool
+    if ! exegesis_tool=$(find_llvm_tool llvm-exegesis); then
+        skip "llvm-exegesis unavailable"
+        return 0
+    fi
+    ensure_output
+    local maximum
+    maximum=$(tool_config_get explore exegesis_max_configs)
+    validate_positive_integer "$maximum" exegesis_max_configs
+    run "$exegesis_tool" --mode=latency --opcode-name="$EXEGESIS_OPCODE_NAME" \
+        --max-configs-per-opcode="$maximum" \
+        --benchmarks-file="$output/exegesis.yaml"
+    pass "llvm-exegesis (instructions only, not a speed test)"
+}
+
+if test "$action" = all; then
+    for item in topology binary symbols elf layout assembly mca; do
+        "run_$item"
+    done
+else
+    "run_$action"
+fi
+if test -d "$output"; then
+    pass "reports: ${output#"$HPC_ROOT"/}"
+fi

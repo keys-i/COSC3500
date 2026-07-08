@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+# shellcheck source=tools/scripts/tools/lib.sh
+. "$SCRIPT_DIR/lib.sh"
+
+tool_config_validate
+
+(($# > 0)) && test -n "$1" ||
+    die "usage: san au|t|m"
+case $1 in
+    --help)
+        printf 'usage: %s au|t|m\n' "${0##*/}"
+        exit 0
+        ;;
+    au) action=asan-ubsan ;;
+    t) action=tsan ;;
+    m) action=msan ;;
+    *) die "unknown san action: $1" ;;
+esac
+shift
+(($# == 0)) || die "san accepts exactly one of au, t, or m"
+
+validate_choice "$action" \
+    "$(tool_config_get security sanitizers)" sanitizer
+if test "$action" = msan; then
+    if test "$(uname -s)" != Linux; then
+        skip "MSan requires a complete Clang/Linux runtime"
+        exit 0
+    fi
+    if test "${HPC_MSAN_READY:-0}" != 1; then
+        skip "MSan unavailable: instrumented C++ runtime not declared"
+        exit 0
+    fi
+fi
+
+configure_preset "$action" --fresh
+build_preset "$action" --target m0 hpc_bench
+if test "$action" = asan-ubsan && test "$(uname -s)" = Linux; then
+    run env ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+        UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+        ctest --test-dir "$HPC_ROOT/build/$action" --output-on-failure
+else
+    run ctest --test-dir "$HPC_ROOT/build/$action" --output-on-failure
+fi
+pass "$action"

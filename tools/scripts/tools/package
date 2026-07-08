@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+# shellcheck source=tools/scripts/tools/lib.sh
+. "$SCRIPT_DIR/lib.sh"
+
+(($# <= 1)) || die "usage: package [a1]"
+target=${1:-a1}
+test "$target" = a1 || die "only the a1 submission package is defined"
+source_dir="$HPC_ROOT/assign/1"
+required_files=(
+    matrixMultiply.cpp
+    matrixMultiplyGPU.cu
+    matrixMultiplyMPI.cpp
+    slurm.zip
+)
+for name in "${required_files[@]}"; do
+    path="$source_dir/$name"
+    test -f "$path" ||
+        die "missing assignment file: ${path#"$HPC_ROOT"/}"
+    test ! -L "$path" || die "submission file may not be a symlink: $name"
+done
+
+implementation_files=(
+    "$source_dir/matrixMultiply.cpp"
+    "$source_dir/matrixMultiplyGPU.cu"
+    "$source_dir/matrixMultiplyMPI.cpp"
+)
+
+command -v rg >/dev/null 2>&1 || die "packaging a1 needs rg"
+
+output_pattern='(std::(cout|cerr|clog)|(^|[^A-Za-z])'
+output_pattern+='(printf|fprintf|puts|fwrite)[[:space:]]*\(|ofstream|fstream)'
+if rg -n "$output_pattern" \
+    "${implementation_files[@]}"; then
+    die "assignment code writes output; remove it before packaging"
+fi
+if rg -n 'MPI_(Init|Init_thread|Finalize)[[:space:]]*\(' \
+    "$source_dir/matrixMultiplyMPI.cpp"; then
+    die "assignment MPI code calls Init or Finalize; the harness owns those"
+fi
+if rg -ni '(mavx2|mavx512|__m256|__m512|avx2|avx512|immintrin)' \
+    "${implementation_files[@]}"; then
+    die "assignment code uses AVX2 or AVX-512, which isn't allowed"
+fi
+if rg -ni '(mkl|cblas|cublas|thrust|eigen)' "${implementation_files[@]}"; then
+    die "assignment code calls an outside maths library"
+fi
+
+while IFS= read -r header; do
+    case ${header##*/} in
+        matrixMultiply.h | matrixMultiplyGPU.h | matrixMultiplyMPI.h) ;;
+        *) die "assignment files can't include this header: $header" ;;
+    esac
+done < <(
+    sed -n \
+        's/^[[:space:]]*#[[:space:]]*include[[:space:]]*"\([^"]*\)".*/\1/p' \
+        "${implementation_files[@]}"
+)
+
+stage="$HPC_BUILD_ROOT/submission/a1"
+case $stage in
+    "$HPC_BUILD_ROOT"/submission/a1) ;;
+    *) die "unsafe package path" ;;
+esac
+if test -e "$stage"; then
+    test ! -L "$stage" || die "package path can't be a symlink"
+    run cmake -E remove_directory "$stage"
+fi
+run mkdir -p "$stage"
+for name in "${required_files[@]}"; do
+    run cp "$source_dir/$name" "$stage/$name"
+done
+
+count=$(find "$stage" -type f | wc -l | tr -d ' ')
+test "$count" = 4 || die "a1 package should contain exactly four files"
+pass "a1 package ready: ${stage#"$HPC_ROOT"/}"

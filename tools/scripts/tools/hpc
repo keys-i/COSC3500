@@ -1,0 +1,317 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+# shellcheck source=tools/scripts/tools/lib.sh
+. "$SCRIPT_DIR/lib.sh"
+
+tool_config_validate
+
+(($# > 0)) || die "hpc requires a command"
+command_name=$1
+shift
+hpc_commands=doctor,nodes,alloc,submit,queue,job,cancel,env
+validate_choice "$command_name" "$hpc_commands" "HPC command"
+
+cluster=rangpur
+action=run
+target=m0
+preset=
+mode=serial
+threads=1
+ranks=1
+nodes=1
+gpus=0
+constraint="unset"
+time_limit=$(tool_config_get hpc maximum_time)
+job_id=
+while (($# > 0)); do
+    case $1 in
+        --cluster | --action | --target | --preset | --mode | --threads | \
+            --ranks | --nodes | --gpus | --constraint | --time | --job)
+            (($# >= 2)) || die "$1 requires a value"
+            option=$1
+            value=$2
+            shift 2
+            case $option in
+                --cluster) cluster=$value ;;
+                --action) action=$value ;;
+                --target) target=$value ;;
+                --preset) preset=$value ;;
+                --mode) mode=$value ;;
+                --threads) threads=$value ;;
+                --ranks) ranks=$value ;;
+                --nodes) nodes=$value ;;
+                --gpus) gpus=$value ;;
+                --constraint) constraint=$value ;;
+                --time) time_limit=$value ;;
+                --job) job_id=$value ;;
+            esac
+            ;;
+        *) die "unknown HPC option: $1" ;;
+    esac
+done
+
+validate_choice "$cluster" "$(tool_config_get hpc clusters)" cluster
+validate_choice "$action" "$(tool_config_get hpc actions)" action
+validate_choice "$mode" "$(tool_config_get hpc modes)" mode
+validate_positive_integer "$threads" threads
+validate_positive_integer "$ranks" ranks
+validate_positive_integer "$nodes" nodes
+case $gpus in
+    '' | *[!0-9]*) die "gpus must be a non-negative integer" ;;
+esac
+case $constraint in
+    unset | [a-z0-9-]*) ;;
+    *) die "invalid constraint: $constraint" ;;
+esac
+case $time_limit in
+    *[!0-9:-]* | '') die "invalid time limit: $time_limit" ;;
+esac
+
+if test -z "$preset"; then
+    preset="$cluster-check"
+fi
+
+doctor() {
+    local output="$HPC_BUILD_ROOT/doctor-$cluster"
+    run mkdir -p "$output"
+    local report="$output/doctor.txt"
+    local cxx=${CXX:-}
+    if test -z "$cxx"; then
+        if test "$cluster" = rangpur; then
+            cxx=clang++
+        else
+            cxx=g++
+        fi
+    fi
+    {
+        printf 'cluster=%s\n' "$cluster"
+        printf 'hostname=%s\n' "$(hostname)"
+        printf 'os=%s\n' "$(uname -sr)"
+        printf 'architecture=%s\n' "$(uname -m)"
+        printf 'git_commit=%s\n' "$(git_commit)"
+        if git_is_dirty; then
+            printf 'git_state=dirty\n'
+        else
+            printf 'git_state=clean\n'
+        fi
+        printf 'slurm_job_id=%s\n' "${SLURM_JOB_ID:-none}"
+        printf 'bunya_module=%s\n' "$(tool_config_get hpc bunya_module)"
+        printf 'cmake=%s\n' "$(
+            command -v cmake 2>/dev/null || printf unavailable
+        )"
+        printf 'ninja=%s\n' "$(
+            command -v ninja 2>/dev/null || printf unavailable
+        )"
+        printf 'compiler=%s\n' "$(
+            command -v "$cxx" 2>/dev/null || printf unavailable
+        )"
+
+        if command -v "$cxx" >/dev/null 2>&1; then
+            "$cxx" --version | head -n 2
+            printf '%s\n' \
+                '#include <cstdio>' \
+                '#include <string>' \
+                'int main() {' \
+                '  std::printf("__cplusplus=%ld\n",' \
+                '      static_cast<long>(__cplusplus));' \
+                '#ifdef __GLIBCXX__' \
+                '  std::printf("__GLIBCXX__=%d\n", __GLIBCXX__);' \
+                '#else' \
+                '  std::printf("__GLIBCXX__=absent\n");' \
+                '#endif' \
+                '#ifdef _LIBCPP_VERSION' \
+                '  std::printf("_LIBCPP_VERSION=%d\n", _LIBCPP_VERSION);' \
+                '#else' \
+                '  std::printf("_LIBCPP_VERSION=absent\n");' \
+                '#endif' \
+                '}' >"$output/probe.cpp"
+            print_command "$cxx" -std=c++20 \
+                "$output/probe.cpp" -o "$output/probe"
+            if "$cxx" -std=c++20 "$output/probe.cpp" -o "$output/probe"; then
+                "$output/probe"
+                printf 'cxx20=PASS\n'
+                print_command "$cxx" -std=c++20 -E -x c++ -v /dev/null
+                "$cxx" -std=c++20 -E -x c++ -v /dev/null \
+                    >"$output/include-search.stdout" \
+                    2>"$output/include-search.txt"
+                "$cxx" -print-search-dirs >"$output/library-search.txt"
+                if test "$(uname -s)" = Darwin; then
+                    otool -L "$output/probe" >"$output/linked-runtime.txt"
+                elif command -v ldd >/dev/null 2>&1; then
+                    ldd "$output/probe" >"$output/linked-runtime.txt"
+                fi
+                if "$cxx" -std=c++20 -fopenmp \
+                    "$output/probe.cpp" -o "$output/openmp-probe" \
+                    >/dev/null 2>&1; then
+                    printf 'openmp=available\n'
+                else
+                    printf 'openmp=unavailable\n'
+                fi
+            else
+                printf 'cxx20=FAIL\n'
+            fi
+        else
+            printf 'cxx20=SKIP: compiler unavailable\n'
+        fi
+
+        if command -v mpicxx >/dev/null 2>&1; then
+            printf 'mpi=%s\n' "$(command -v mpicxx)"
+            mpicxx --version | head -n 1
+        else
+            printf 'mpi=unavailable\n'
+        fi
+        if command -v nvcc >/dev/null 2>&1; then
+            printf 'cuda=%s\n' "$(command -v nvcc)"
+            nvcc --version | tail -n 1
+        else
+            printf 'cuda=unavailable\n'
+        fi
+        if command -v nvidia-smi >/dev/null 2>&1; then
+            nvidia-smi -L
+        else
+            printf 'gpu=unavailable\n'
+        fi
+        local tool
+        for tool in \
+            perf valgrind clang-tidy cppcheck shellcheck shfmt actionlint \
+            lstopo llvm-mca llvm-exegesis llvm-bolt perf2bolt hpcrun \
+            scorep scalasca; do
+            if command -v "$tool" >/dev/null 2>&1; then
+                printf 'tool.%s=%s\n' "$tool" "$(command -v "$tool")"
+            else
+                printf 'tool.%s=unavailable\n' "$tool"
+            fi
+        done
+    } >"$report"
+    run cat "$report"
+    if grep -q '^cxx20=FAIL$' "$report"; then
+        die "C++20 compile-link-run probe failed"
+    fi
+    pass "doctor report: ${report#"$HPC_ROOT"/}"
+}
+
+require_slurm_command() {
+    command -v "$1" >/dev/null 2>&1 ||
+        die "$1 is unavailable; this command requires Slurm"
+}
+
+resource_options() {
+    printf '%s\n' \
+        "--nodes=$nodes" \
+        "--ntasks=$ranks" \
+        "--cpus-per-task=$threads" \
+        "--time=$time_limit"
+    local partition account
+    partition=$(tool_config_get hpc "${cluster}_partition")
+    account=$(tool_config_get hpc "${cluster}_account")
+    test "$partition" = unset || printf '%s\n' "--partition=$partition"
+    test "$account" = unset || printf '%s\n' "--account=$account"
+    test "$constraint" = unset || printf '%s\n' "--constraint=$constraint"
+    test "$gpus" = 0 || printf '%s\n' "--gpus=$gpus"
+}
+
+validate_resources() {
+    if test "$cluster" = bunya && test "$constraint" = unset; then
+        die "Bunya requires an explicit epyc3, epyc4, or epyc5 constraint"
+    fi
+    if test "$cluster" = bunya; then
+        validate_choice "$constraint" \
+            "$(tool_config_get hpc bunya_constraints)" constraint
+    fi
+    case $mode in
+        serial)
+            test "$ranks" = 1 && test "$threads" = 1 && test "$gpus" = 0 ||
+                die "serial mode requires one rank, one thread, and no GPU"
+            ;;
+        openmp)
+            test "$ranks" = 1 && test "$gpus" = 0 ||
+                die "OpenMP mode requires one rank and no GPU"
+            ;;
+        mpi)
+            test "$ranks" -gt 1 && test "$gpus" = 0 ||
+                die "MPI mode requires multiple ranks and no GPU"
+            ;;
+        cuda)
+            test "$gpus" -gt 0 || die "CUDA mode requires at least one GPU"
+            ;;
+    esac
+}
+
+case $command_name in
+    doctor) doctor ;;
+    nodes)
+        require_slurm_command sinfo
+        run sinfo -N -o '%N %P %t %c %m %f %G'
+        ;;
+    alloc)
+        validate_resources
+        require_slurm_command salloc
+        allocation_options=()
+        while IFS= read -r option; do
+            allocation_options+=("$option")
+        done < <(resource_options)
+        run salloc "${allocation_options[@]}"
+        ;;
+    submit)
+        validate_resources
+        require_target "$target"
+        require_preset "$preset"
+        require_slurm_command sbatch
+        if test "$target" = m0 && test "$mode" != serial; then
+            die "m0 runs serially only"
+        fi
+        result_dir="$HPC_ROOT/$(tool_config_get hpc results_dir)"
+        run mkdir -p "$result_dir"
+        job_options=()
+        while IFS= read -r option; do
+            job_options+=("$option")
+        done < <(resource_options)
+        script="$HPC_ROOT/tools/scripts/slurm/$cluster.sbatch"
+        exported_variables="ALL,HPC_ACTION=$action,HPC_TARGET=$target,"
+        exported_variables+="HPC_PRESET=$preset,HPC_MODE=$mode,"
+        exported_variables+="HPC_THREADS=$threads,HPC_RANKS=$ranks,"
+        exported_variables+="HPC_CONSTRAINT=$constraint"
+        run sbatch "${job_options[@]}" \
+            --job-name="cosc3500-$target-$action" \
+            --output="$result_dir/%x-%j.out" \
+            --error="$result_dir/%x-%j.err" \
+            --export="$exported_variables" \
+            "$script"
+        ;;
+    queue)
+        require_slurm_command squeue
+        run squeue -u "${USER:?USER is required}"
+        ;;
+    job)
+        case $job_id in
+            '' | *[!0-9]*) die "job requires --job <numeric-id>" ;;
+        esac
+        require_slurm_command scontrol
+        run scontrol show job "$job_id"
+        ;;
+    cancel)
+        case $job_id in
+            '' | *[!0-9]*) die "cancel requires --job <numeric-id>" ;;
+        esac
+        require_slurm_command scancel
+        run scancel "$job_id"
+        ;;
+    env)
+        printf 'cluster=%s\n' "$cluster"
+        printf 'slurm_job_id=%s\n' "${SLURM_JOB_ID:-none}"
+        if command -v module >/dev/null 2>&1; then
+            module list
+        else
+            skip "environment modules unavailable"
+        fi
+        for tool in clang++ g++ mpicxx nvcc; do
+            if command -v "$tool" >/dev/null 2>&1; then
+                command -v "$tool"
+            else
+                skip "$tool unavailable"
+            fi
+        done
+        ;;
+esac
