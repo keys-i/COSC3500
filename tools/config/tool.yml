@@ -1,0 +1,35 @@
+check:
+  source_roots: proj,src,include,assign,benches
+  source_extensions: cpp,cc,cxx,hpp,h,cu,cuh
+  shell_roots: tools/scripts,proj,assign
+  test_labels: smoke,unit
+coverage:
+  output_dir: results/coverage
+  exclude_regex: (^|/)(build|tools|usr)/
+security:
+  sanitizers: asan-ubsan,tsan,msan
+actionlint:
+  workflow_dir: .github/workflows
+explore:
+  output_dir: results/profiles
+  disassembly_lines: 240
+  exegesis_max_configs: 10
+profile:
+  output_dir: results/profiles
+  perf_events: cycles,instructions,branches,branch-misses
+  perf_memory_events: cache-references,cache-misses,page-faults
+  perf_system_events: context-switches,cpu-migrations
+  perf_frequency: 99
+  callgrind_collect_jumps: true
+hpc:
+  clusters: rangpur,bunya
+  actions: run,check,bench,profile
+  modes: serial,openmp,mpi,cuda
+  bunya_module: foss/2025a
+  bunya_constraints: epyc3,epyc4,epyc5
+  rangpur_partition: unset
+  rangpur_account: unset
+  bunya_partition: unset
+  bunya_account: unset
+  maximum_time: 02:00:00
+  results_dir: results/slurm

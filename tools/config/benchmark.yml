@@ -1,0 +1,22 @@
+smoke:
+  warmups: 1
+  samples: 3
+  process_runs: 1
+  minimum_case_ms: 100
+standard:
+  warmups: 3
+  samples: 15
+  process_runs: 3
+  minimum_case_ms: 250
+publication:
+  warmups: 5
+  samples: 30
+  process_runs: 5
+  minimum_case_ms: 1000
+control:
+  bootstrap_resamples: 10000
+  raw_dir: results/raw
+  summary_dir: results/summary
+  cluster_presets: rangpur-peak,bunya-peak
+  blocked_modes: check,profile,coverage,bolt-input
+  pgo_dir: build/pgo-generate/pgo
