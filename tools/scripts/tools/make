@@ -26,11 +26,16 @@ selected_preset() {
 case $command_name in
     bench)
         expect_arguments 1 "usage: make bench <action>"
+        bench_args=()
+        if test -n "${HPC_MAKE_ARGS:-}"; then
+            read -r -a bench_args <<<"$HPC_MAKE_ARGS"
+        fi
         exec "$SCRIPT_DIR/bench" "$argument_1" \
             --preset "${HPC_MAKE_PRESET:-profile}" \
             --target "${HPC_MAKE_TARGET:-m0}" \
             --threads "${HPC_MAKE_THREADS:-1}" \
-            --ranks "${HPC_MAKE_RANKS:-1}"
+            --ranks "${HPC_MAKE_RANKS:-1}" \
+            "${bench_args[@]}"
         ;;
     pgo)
         expect_arguments 1 "usage: make pgo <gen|use>"
