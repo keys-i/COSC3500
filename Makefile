@@ -53,27 +53,52 @@ else
 
 .PHONY: help configure build m0 m1 m2 a1 run test lint analyze \
 	topology binary exegesis perf callgrind hpctoolkit scorep scalasca papi \
-	report bolt submit package-a1 \
-	codeql
+	report bolt submit package-a1 codeql
 
 help:
 	@printf '%s\n' \
-		'make configure PRESET=mac-check' \
-		'make build TARGET=m0 PRESET=mac-check' \
-		'make run TARGET=m0 PRESET=mac-check ARGS="..."' \
-		'make test|lint|analyze|check' \
-		'make fmt [fix]' \
-		'make san au|t|m' \
-		'make cov [llvm|gcov|clean|report]' \
-		'make profile [perf-stat|callgrind|...]' \
-		'make explore [all|topology|binary|...]' \
-		'make bench smoke PRESET=profile TARGET=m0' \
-		'make bench self-test|gates PRESET=profile' \
-		'make pgo gen|use TARGET=m0' \
-		'make hpc [doctor|nodes|queue|...] CLUSTER=rangpur' \
-		'make package [a1]' \
-		'make clean PRESET=mac-check' \
-		'make clean all'
+		'COSC3500 commands' \
+		'' \
+		'Build' \
+		'  make configure PRESET=mac-check' \
+		'      Configure one CMake preset.' \
+		'  make build TARGET=m0 PRESET=mac-check' \
+		'      Build one program.' \
+		'  make run TARGET=m0 PRESET=mac-check ARGS="..."' \
+		'      Build and run one program.' \
+		'  make test PRESET=mac-check' \
+		'      Build everything, then run CTest.' \
+		'' \
+		'Checks' \
+		'  make fmt | make fmt fix' \
+		'      Check or apply formatting.' \
+		'  make check [lint|analyze|test|all]' \
+		'      Run one check group; default: all.' \
+		'  make codeql PRESET=bunya-check' \
+		'      Build the C++ inputs used by CodeQL.' \
+		'  make san au|t|m' \
+		'      Run ASan+UBSan, TSan, or MSan.' \
+		'  make cov [llvm|gcov|clean|report]' \
+		'      Build or inspect one coverage lane.' \
+		'' \
+		'Performance' \
+		'  make bench self-test|gates' \
+		'  make bench smoke|standard|publication PRESET=profile' \
+		'  make pgo gen|use TARGET=m0' \
+		'  make report TARGET=m0 PRESET=profile' \
+		'  make profile perf-stat|perf-record|callgrind|...' \
+		'  make explore all|topology|binary|assembly|...' \
+		'  make bolt TARGET=m2' \
+		'' \
+		'Cluster and files' \
+		'  make hpc doctor|nodes|queue|... CLUSTER=rangpur' \
+		'  make submit CLUSTER=rangpur TARGET=m0 MODE=serial' \
+		'  make package a1' \
+		'  make clean PRESET=mac-check | make clean all' \
+		'' \
+		'Defaults' \
+		'  PRESET=mac-check TARGET=m0 CLUSTER=rangpur MODE=serial' \
+		'  THREADS=1 RANKS=1 NODES=1 GPUS=0 CONSTRAINT=unset'
 
 configure:
 	@. tools/scripts/tools/lib.sh; require_preset "$$HPC_MAKE_PRESET"

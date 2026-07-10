@@ -176,6 +176,7 @@ if(BUILD_TESTING)
             "clean|all"
             "fmt|fix"
             "san|au"
+            "codeql"
         )
         foreach(make_case IN LISTS make_command_cases)
             string(REPLACE "|" ";" make_arguments "${make_case}")
