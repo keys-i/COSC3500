@@ -196,7 +196,7 @@ require_preset() {
     presets=$(cmake --list-presets=configure -S "$HPC_ROOT" 2>/dev/null) ||
         die "cannot read CMake presets"
     printf '%s\n' "$presets" | grep -Fqx "  \"$preset\"" ||
-        die "unknown public preset: $preset"
+        die "unknown preset: $preset"
 }
 
 require_target() {

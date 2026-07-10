@@ -30,7 +30,7 @@ if test "$action" = msan; then
         exit 0
     fi
     if test "${HPC_MSAN_READY:-0}" != 1; then
-        skip "MSan unavailable: instrumented C++ runtime not declared"
+        skip "MSan: no instrumented C++ runtime is configured"
         exit 0
     fi
 fi

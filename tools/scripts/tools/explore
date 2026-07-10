@@ -109,7 +109,7 @@ run_symbols() {
 
 run_elf() {
     if test "$(uname -s)" != Linux; then
-        skip "ELF inspection unsupported platform"
+        skip "ELF inspection is Linux-only"
         return 0
     fi
     local readelf_tool

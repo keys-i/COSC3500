@@ -108,7 +108,7 @@ run_pgo_generate() {
 
 run_pgo_use() {
     require_target "$target"
-    test "$target" = m0 || die "no PGO training run exists for $target"
+    test "$target" = m0 || die "no PGO training run for $target yet"
     configure_preset pgo-use --fresh
     build_preset pgo-use --target "$target" hpc_bench
     run ctest --test-dir "$HPC_ROOT/build/pgo-use" --output-on-failure

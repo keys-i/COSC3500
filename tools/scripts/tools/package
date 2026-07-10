@@ -7,7 +7,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 (($# <= 1)) || die "usage: package [a1]"
 target=${1:-a1}
-test "$target" = a1 || die "only the a1 submission package is defined"
+test "$target" = a1 || die "a1 is the only package target"
 source_dir="$HPC_ROOT/assign/1"
 required_files=(
     matrixMultiply.cpp
@@ -38,7 +38,7 @@ if rg -n "$output_pattern" \
 fi
 if rg -n 'MPI_(Init|Init_thread|Finalize)[[:space:]]*\(' \
     "$source_dir/matrixMultiplyMPI.cpp"; then
-    die "assignment MPI code calls Init or Finalize; the harness owns those"
+    die "MPI_Init and MPI_Finalize belong in the supplied harness"
 fi
 if rg -ni '(mavx2|mavx512|__m256|__m512|avx2|avx512|immintrin)' \
     "${implementation_files[@]}"; then
