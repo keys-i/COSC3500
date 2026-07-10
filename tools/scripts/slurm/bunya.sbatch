@@ -101,5 +101,7 @@ case $HPC_ACTION in
         ;;
 esac
 
-mkdir -p "$SLURM_SUBMIT_DIR/results"
-rsync -a "$work_root/results/" "$SLURM_SUBMIT_DIR/results/"
+if test -d "$work_root/results"; then
+    mkdir -p "$SLURM_SUBMIT_DIR/results"
+    rsync -a "$work_root/results/" "$SLURM_SUBMIT_DIR/results/"
+fi
