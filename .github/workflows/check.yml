@@ -1,0 +1,128 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / ${{ matrix.compiler }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            compiler: GCC 14
+            preset: bunya-check
+            cc: gcc-14
+            cxx: g++-14
+            packages: g++-14 ninja-build
+          - os: ubuntu-24.04
+            compiler: Clang 18
+            preset: rangpur-check
+            cc: clang-18
+            cxx: clang++-18
+            packages: clang-18 ninja-build
+          - os: macos-15
+            compiler: AppleClang
+            preset: mac-check
+            cc: clang
+            cxx: clang++
+            packages: none
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Refresh Linux package index
+        if: runner.os == 'Linux'
+        run: sudo apt-get update
+      - name: Install Linux compiler
+        if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get install --yes --no-install-recommends
+          ${{ matrix.packages }}
+      - name: Build and run CTest
+        run: make test PRESET=${{ matrix.preset }}
+      - name: Exercise CMake clean
+        run: make clean PRESET=${{ matrix.preset }}
+
+  quality:
+    name: Formatting and lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      ACTIONLINT: /home/runner/go/bin/actionlint
+      CC: clang-18
+      CLANG_FORMAT: clang-format-18
+      CLANG_TIDY: clang-tidy-18
+      CXX: clang++-18
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Refresh package index
+        run: sudo apt-get update
+      - name: Install linters
+        run: >-
+          sudo apt-get install --yes --no-install-recommends
+          clang-18 clang-format-18 clang-tidy-18 cppcheck ninja-build
+          shellcheck shfmt
+      - name: Install actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - name: Check formatting
+        run: make fmt PRESET=rangpur-check
+      - name: Run linters
+        run: make check lint PRESET=rangpur-check
+
+  coverage:
+    name: Coverage / ${{ matrix.kind }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: LLVM
+            preset: coverage-clang
+            coverage: llvm
+            cc: clang-18
+            cxx: clang++-18
+            packages: clang-18 llvm-18 ninja-build
+          - kind: GCC
+            preset: coverage-gcc
+            coverage: gcov
+            cc: gcc-14
+            cxx: g++-14
+            packages: g++-14 ninja-build
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Refresh package index
+        run: sudo apt-get update
+      - name: Install coverage compiler
+        run: >-
+          sudo apt-get install --yes --no-install-recommends
+          ${{ matrix.packages }}
+      - name: Generate coverage report
+        run: make cov ${{ matrix.coverage }} PRESET=${{ matrix.preset }}
