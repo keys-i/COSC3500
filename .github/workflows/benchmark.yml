@@ -1,0 +1,105 @@
+name: Bench
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Harness / ${{ matrix.compiler }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            compiler: GCC 14
+            cc: gcc-14
+            cxx: g++-14
+            packages: g++-14 ninja-build
+          - os: ubuntu-24.04
+            compiler: Clang 18
+            cc: clang-18
+            cxx: clang++-18
+            packages: clang-18 ninja-build
+          - os: macos-15
+            compiler: AppleClang
+            cc: clang
+            cxx: clang++
+            packages: none
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Refresh Linux package index
+        if: runner.os == 'Linux'
+        run: sudo apt-get update
+      - name: Install Linux compiler
+        if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get install --yes --no-install-recommends
+          ${{ matrix.packages }}
+      - name: Self-test benchmark statistics and CSV
+        run: make bench self-test PRESET=profile
+      - name: Run smoke bench
+        run: make bench smoke PRESET=profile TARGET=m0
+      - name: Check bench guards
+        run: make bench gates TARGET=m0
+
+  pgo:
+    name: PGO smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CC: clang-18
+      CXX: clang++-18
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Refresh package index
+        run: sudo apt-get update
+      - name: Install Clang and LLVM
+        run: >-
+          sudo apt-get install --yes --no-install-recommends
+          clang-18 llvm-18 ninja-build
+      - name: Generate training profile
+        run: make pgo gen TARGET=m0
+      - name: Build and test profile-use binary
+        run: make pgo use TARGET=m0
+
+  bolt-input:
+    name: BOLT input build smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CC: clang-18
+      CXX: clang++-18
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Refresh package index
+        run: sudo apt-get update
+      - name: Install compiler
+        run: >-
+          sudo apt-get install --yes --no-install-recommends
+          clang-18 ninja-build
+      - name: Build BOLT input
+        run: make test PRESET=bolt-input
