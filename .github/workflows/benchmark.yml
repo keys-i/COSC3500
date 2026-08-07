@@ -54,11 +54,29 @@ jobs:
           sudo apt-get install --yes --no-install-recommends
           ${{ matrix.packages }}
       - name: Self-test benchmark statistics and CSV
-        run: make bench self-test PRESET=profile
+        run: >-
+          ./tools/scripts/tools/summary bench-self-test --
+          make bench self-test PRESET=profile
       - name: Run smoke bench
-        run: make bench smoke PRESET=profile TARGET=m0
+        run: >-
+          ./tools/scripts/tools/summary bench-smoke --
+          make bench smoke PRESET=profile TARGET=m0
       - name: Check bench guards
-        run: make bench gates TARGET=m0
+        run: >-
+          ./tools/scripts/tools/summary bench-gates --
+          make bench gates TARGET=m0
+      - name: Save benchmark results
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: bench-${{ matrix.os }}-${{ matrix.compiler }}
+          path: |
+            results/actions/
+            results/raw/
+            results/summary/
+          if-no-files-found: ignore
+          retention-days: 7
 
   pgo:
     name: PGO smoke test
@@ -79,9 +97,25 @@ jobs:
           sudo apt-get install --yes --no-install-recommends
           clang-18 llvm-18 ninja-build
       - name: Generate training profile
-        run: make pgo gen TARGET=m0
+        run: >-
+          ./tools/scripts/tools/summary pgo-generate --
+          make pgo gen TARGET=m0
       - name: Build and test profile-use binary
-        run: make pgo use TARGET=m0
+        run: >-
+          ./tools/scripts/tools/summary pgo-use --
+          make pgo use TARGET=m0
+      - name: Save PGO results
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: bench-pgo
+          path: |
+            results/actions/
+            results/raw/
+            results/summary/
+          if-no-files-found: ignore
+          retention-days: 7
 
   bolt-input:
     name: BOLT input build smoke
@@ -102,4 +136,17 @@ jobs:
           sudo apt-get install --yes --no-install-recommends
           clang-18 ninja-build
       - name: Build BOLT input
-        run: make test PRESET=bolt-input
+        run: >-
+          ./tools/scripts/tools/summary bolt-input --
+          make test PRESET=bolt-input
+      - name: Save BOLT input logs
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: bench-bolt-input
+          path: |
+            results/actions/
+            build/bolt-input/reports/
+          if-no-files-found: ignore
+          retention-days: 7

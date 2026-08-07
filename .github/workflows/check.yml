@@ -57,9 +57,22 @@ jobs:
           sudo apt-get install --yes --no-install-recommends
           ${{ matrix.packages }}
       - name: Build and run CTest
-        run: make test PRESET=${{ matrix.preset }}
+        run: >-
+          ./tools/scripts/tools/summary check-test --
+          make test PRESET=${{ matrix.preset }}
       - name: Exercise CMake clean
-        run: make clean PRESET=${{ matrix.preset }}
+        run: >-
+          ./tools/scripts/tools/summary check-clean --
+          make clean PRESET=${{ matrix.preset }}
+      - name: Save check logs
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: check-${{ matrix.os }}-${{ matrix.compiler }}
+          path: results/actions/
+          if-no-files-found: ignore
+          retention-days: 7
 
   quality:
     name: Formatting and lint
@@ -86,9 +99,24 @@ jobs:
       - name: Install actionlint
         run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - name: Check formatting
-        run: make fmt PRESET=rangpur-check
+        run: >-
+          ./tools/scripts/tools/summary check-format --
+          make fmt PRESET=rangpur-check
       - name: Run linters
-        run: make check lint PRESET=rangpur-check
+        run: >-
+          ./tools/scripts/tools/summary check-lint --
+          make check lint PRESET=rangpur-check
+      - name: Save lint logs
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: check-quality
+          path: |
+            results/actions/
+            build/rangpur-check/reports/
+          if-no-files-found: ignore
+          retention-days: 7
 
   coverage:
     name: Coverage / ${{ matrix.kind }}
@@ -125,4 +153,17 @@ jobs:
           sudo apt-get install --yes --no-install-recommends
           ${{ matrix.packages }}
       - name: Generate coverage report
-        run: make cov ${{ matrix.coverage }} PRESET=${{ matrix.preset }}
+        run: >-
+          ./tools/scripts/tools/summary coverage-${{ matrix.coverage }} --
+          make cov ${{ matrix.coverage }} PRESET=${{ matrix.preset }}
+      - name: Save coverage reports
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: coverage-${{ matrix.coverage }}
+          path: |
+            results/actions/
+            results/coverage/
+          if-no-files-found: ignore
+          retention-days: 7
