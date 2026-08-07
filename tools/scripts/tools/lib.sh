@@ -6,6 +6,7 @@ HPC_ROOT=$(cd "$HPC_SCRIPT_DIR/../../.." && pwd -P)
 HPC_BUILD_ROOT="$HPC_ROOT/build"
 HPC_CLANG_CONFIG="$HPC_ROOT/tools/config/clang.yml"
 HPC_TOOL_CONFIG="$HPC_ROOT/tools/config/tool.yml"
+HPC_VALIDATED_PRESETS=,
 HPC_CLANG_CONFIG_KEYS=format.based_on_style,format.indent_width
 HPC_CLANG_CONFIG_KEYS+=,format.column_limit
 HPC_CLANG_CONFIG_KEYS+=,format.sort_includes,tidy.checks,tidy.warnings_as_errors
@@ -192,11 +193,15 @@ require_preset() {
     case $preset in
         '' | *[!a-z0-9-]*) die "invalid preset name: $preset" ;;
     esac
+    case $HPC_VALIDATED_PRESETS in
+        *",$preset,"*) return 0 ;;
+    esac
     local presets
     presets=$(cmake --list-presets=configure -S "$HPC_ROOT" 2>/dev/null) ||
         die "cannot read CMake presets"
     printf '%s\n' "$presets" | grep -Fqx "  \"$preset\"" ||
         die "unknown preset: $preset"
+    HPC_VALIDATED_PRESETS+="$preset,"
 }
 
 require_target() {
@@ -316,6 +321,15 @@ find_llvm_tool() {
         fi
     fi
     return 1
+}
+
+is_gnu_cxx() {
+    "$1" -dM -E -x c++ /dev/null 2>/dev/null |
+        awk '
+            $2 == "__GNUC__" { gcc = 1 }
+            $2 == "__clang__" { clang = 1 }
+            END { exit !(gcc && !clang) }
+        '
 }
 
 list_source_files() {
