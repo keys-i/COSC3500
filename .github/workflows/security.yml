@@ -48,11 +48,22 @@ jobs:
           sudo apt-get install --yes --no-install-recommends
           g++-14 ninja-build
       - name: Build for CodeQL
-        run: make codeql PRESET=bunya-check
+        run: >-
+          ./tools/scripts/tools/summary codeql-build --
+          make codeql PRESET=bunya-check
       - name: Analyse
         # v4.37.8
         uses: >-
           github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28
+      - name: Save CodeQL build logs
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: security-codeql
+          path: results/actions/
+          if-no-files-found: ignore
+          retention-days: 7
 
   static:
     name: Static analysis
@@ -75,7 +86,20 @@ jobs:
           sudo apt-get install --yes --no-install-recommends
           clang-18 clang-tools-18 g++-14 ninja-build
       - name: Run Clang Static Analyzer and GCC fanalyzer
-        run: make check analyze PRESET=rangpur-check
+        run: >-
+          ./tools/scripts/tools/summary security-static --
+          make check analyze PRESET=rangpur-check
+      - name: Save static-analysis logs
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: security-static
+          path: |
+            results/actions/
+            build/scan-build/reports/
+          if-no-files-found: ignore
+          retention-days: 7
 
   sanitizers:
     name: ${{ matrix.name }}
@@ -104,7 +128,18 @@ jobs:
           sudo apt-get install --yes --no-install-recommends
           clang-18 ninja-build
       - name: Run sanitizer
-        run: make san ${{ matrix.san }}
+        run: >-
+          ./tools/scripts/tools/summary san-${{ matrix.san }} --
+          make san ${{ matrix.san }}
+      - name: Save sanitizer logs
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: security-san-${{ matrix.san }}
+          path: results/actions/
+          if-no-files-found: ignore
+          retention-days: 7
 
   optional:
     name: Optional checks
@@ -116,7 +151,16 @@ jobs:
         with:
           persist-credentials: false
       - name: Try MSan
-        run: make san m
+        run: ./tools/scripts/tools/summary san-msan -- make san m
+      - name: Save MSan log
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: security-msan
+          path: results/actions/
+          if-no-files-found: ignore
+          retention-days: 7
 
   valgrind:
     name: Valgrind / ${{ matrix.tool }}
@@ -141,4 +185,17 @@ jobs:
           sudo apt-get install --yes --no-install-recommends
           clang-18 ninja-build valgrind
       - name: Run Valgrind tool
-        run: make profile ${{ matrix.tool }}
+        run: >-
+          ./tools/scripts/tools/summary valgrind-${{ matrix.tool }} --
+          make profile ${{ matrix.tool }}
+      - name: Save Valgrind reports
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: security-valgrind-${{ matrix.tool }}
+          path: |
+            results/actions/
+            results/profiles/
+          if-no-files-found: ignore
+          retention-days: 7

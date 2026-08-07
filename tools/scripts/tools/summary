@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+root=$(cd "$script_dir/../../.." && pwd -P)
+
+usage() {
+    printf 'usage: summary <label> -- <command> [args ...]\n' >&2
+    exit 2
+}
+
+test "$#" -ge 3 || usage
+label=$1
+shift
+test "$1" = -- || usage
+shift
+
+case $label in
+    '' | *[!A-Za-z0-9._-]*) usage ;;
+esac
+
+log_dir="$root/results/actions"
+log="$log_dir/$label.log"
+mkdir -p "$log_dir"
+
+{
+    printf '+ '
+    printf '%q ' "$@"
+    printf '\n'
+} | tee "$log"
+
+set +e
+"$@" 2>&1 | tee -a "$log"
+statuses=("${PIPESTATUS[@]}")
+set -e
+
+status=${statuses[0]}
+if test "${statuses[1]}" -ne 0; then
+    printf 'could not save action log: %s\n' "$log" >&2
+    test "$status" -ne 0 || status=${statuses[1]}
+fi
+printf 'exit status: %s\n' "$status" | tee -a "$log"
+
+if test -n "${GITHUB_STEP_SUMMARY:-}" && test -w "$GITHUB_STEP_SUMMARY"; then
+    {
+        printf '## `%s`\n\n' "$label"
+        if test "$status" -eq 0; then
+            printf '**PASS** — exit 0\n\n'
+        else
+            printf '**FAIL** — exit %s\n\n' "$status"
+        fi
+        printf 'Last 40 log lines:\n\n'
+        tail -n 40 "$log" | sed 's/^/    /'
+        printf '\n'
+    } >>"$GITHUB_STEP_SUMMARY"
+fi
+
+exit "$status"

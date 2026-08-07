@@ -32,6 +32,22 @@ jobs:
           sudo apt-get install --yes --no-install-recommends
           clang-18 dwarves hwloc llvm-18 ninja-build
       - name: Collect compiler optimisation report
-        run: make report PRESET=profile TARGET=m0
+        run: >-
+          ./tools/scripts/tools/summary explore-report --
+          make report PRESET=profile TARGET=m0
       - name: Collect local reports
-        run: make explore all PRESET=profile TARGET=m0
+        run: >-
+          ./tools/scripts/tools/summary explore-all --
+          make explore all PRESET=profile TARGET=m0
+      - name: Save exploration reports
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: explore-linux
+          path: |
+            results/actions/
+            results/profiles/
+            build/profile/reports/
+          if-no-files-found: ignore
+          retention-days: 7
