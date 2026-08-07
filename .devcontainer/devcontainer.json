@@ -1,0 +1,6 @@
+{
+  "name": "COSC3500",
+  "image": "mcr.microsoft.com/devcontainers/cpp:1-noble",
+  "updateContentCommand": "make test PRESET=profile",
+  "waitFor": "updateContentCommand"
+}
