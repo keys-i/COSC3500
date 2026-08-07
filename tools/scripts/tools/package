@@ -64,6 +64,9 @@ case $stage in
     "$HPC_BUILD_ROOT"/submission/a1) ;;
     *) die "unsafe package path" ;;
 esac
+test ! -L "$HPC_BUILD_ROOT" || die "build/ can't be a symlink"
+test ! -L "$HPC_BUILD_ROOT/submission" ||
+    die "build/submission can't be a symlink"
 if test -e "$stage"; then
     test ! -L "$stage" || die "package path can't be a symlink"
     run cmake -E remove_directory "$stage"

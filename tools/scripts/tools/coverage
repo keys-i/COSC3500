@@ -111,8 +111,7 @@ fi
 
 preset=${preset:-coverage-gcc}
 gxx=${CXX:-g++}
-if ! command -v "$gxx" >/dev/null 2>&1 ||
-    ! "$gxx" --version 2>&1 | grep -Eq 'GCC|gcc'; then
+if ! command -v "$gxx" >/dev/null 2>&1 || ! is_gnu_cxx "$gxx"; then
     skip "gcov coverage: GNU GCC unavailable"
     exit 0
 fi

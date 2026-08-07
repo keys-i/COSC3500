@@ -13,29 +13,21 @@ expect_arguments() {
     test "$argument_count" = "$1" || die "$2"
 }
 
-selected_preset() {
-    local fallback=$1
-    case ${HPC_MAKE_PRESET_ORIGIN:-file} in
-        command\ line | environment | override)
-            printf '%s\n' "${HPC_MAKE_PRESET:-$fallback}"
-            ;;
-        *) printf '%s\n' "$fallback" ;;
-    esac
-}
-
 case $command_name in
     bench)
         expect_arguments 1 "usage: make bench <action>"
-        bench_args=()
+        set --
         if test -n "${HPC_MAKE_ARGS:-}"; then
+            bench_args=()
             read -r -a bench_args <<<"$HPC_MAKE_ARGS"
+            set -- "${bench_args[@]}"
         fi
         exec "$SCRIPT_DIR/bench" "$argument_1" \
             --preset "${HPC_MAKE_PRESET:-profile}" \
             --target "${HPC_MAKE_TARGET:-m0}" \
             --threads "${HPC_MAKE_THREADS:-1}" \
             --ranks "${HPC_MAKE_RANKS:-1}" \
-            "${bench_args[@]}"
+            "$@"
         ;;
     pgo)
         expect_arguments 1 "usage: make pgo <gen|use>"
@@ -73,7 +65,12 @@ case $command_name in
         else
             action=${argument_1:-perf-stat}
         fi
-        preset=$(selected_preset profile)
+        preset=profile
+        case ${HPC_MAKE_PRESET_ORIGIN:-file} in
+            command\ line | environment | override)
+                preset=${HPC_MAKE_PRESET:-profile}
+                ;;
+        esac
         exec "$SCRIPT_DIR/$command_name" "$action" \
             --preset "$preset" --target "${HPC_MAKE_TARGET:-m0}"
         ;;

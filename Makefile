@@ -56,10 +56,15 @@ else
 	report bolt submit package-a1 codeql
 
 help:
-	@printf '%s\n' \
-		'COSC3500 commands' \
+	@bold= reset=; \
+	if test -t 1; then \
+		bold=$$(printf '\033[1m'); \
+		reset=$$(printf '\033[0m'); \
+	fi; \
+	printf '%s\n' \
+		"$${bold}=== COSC3500 Commands ===$${reset}" \
 		'' \
-		'Build' \
+		"$${bold}Build$${reset}" \
 		'  make configure PRESET=mac-check' \
 		'      Configure one CMake preset.' \
 		'  make build TARGET=m0 PRESET=mac-check' \
@@ -69,7 +74,7 @@ help:
 		'  make test PRESET=mac-check' \
 		'      Build everything, then run CTest.' \
 		'' \
-		'Checks' \
+		"$${bold}Checks$${reset}" \
 		'  make fmt | make fmt fix' \
 		'      Check or apply formatting.' \
 		'  make check [lint|analyze|test|all]' \
@@ -81,7 +86,7 @@ help:
 		'  make cov [llvm|gcov|clean|report]' \
 		'      Build or inspect one coverage lane.' \
 		'' \
-		'Performance' \
+		"$${bold}Performance$${reset}" \
 		'  make bench self-test|gates' \
 		'  make bench smoke|standard|publication PRESET=profile' \
 		'  make pgo gen|use TARGET=m0' \
@@ -90,13 +95,13 @@ help:
 		'  make explore all|topology|binary|assembly|...' \
 		'  make bolt TARGET=m2' \
 		'' \
-		'Cluster and files' \
+		"$${bold}Cluster and files$${reset}" \
 		'  make hpc doctor|nodes|queue|... CLUSTER=rangpur' \
 		'  make submit CLUSTER=rangpur TARGET=m0 MODE=serial' \
 		'  make package a1' \
 		'  make clean PRESET=mac-check | make clean all' \
 		'' \
-		'Defaults' \
+		"$${bold}Defaults$${reset}" \
 		'  PRESET=mac-check TARGET=m0 CLUSTER=rangpur MODE=serial' \
 		'  THREADS=1 RANKS=1 NODES=1 GPUS=0 CONSTRAINT=unset'
 
@@ -122,41 +127,20 @@ test: configure
 	cmake --build --preset "$$HPC_MAKE_PRESET"
 	ctest --test-dir "build/$$HPC_MAKE_PRESET" --output-on-failure
 
-lint:
-	+$(MAKE) check lint PRESET="$$HPC_MAKE_PRESET"
+lint analyze:
+	+$(MAKE) check $@ PRESET="$$HPC_MAKE_PRESET"
 
-analyze:
-	+$(MAKE) check analyze PRESET="$$HPC_MAKE_PRESET"
-
-topology:
-	+$(MAKE) explore topology PRESET="$$HPC_MAKE_PRESET" TARGET="$$HPC_MAKE_TARGET"
-
-binary:
-	+$(MAKE) explore binary PRESET="$$HPC_MAKE_PRESET" TARGET="$$HPC_MAKE_TARGET"
-
-exegesis:
-	+$(MAKE) explore exegesis PRESET="$$HPC_MAKE_PRESET" TARGET="$$HPC_MAKE_TARGET"
+topology binary exegesis:
+	+$(MAKE) explore $@ PRESET="$$HPC_MAKE_PRESET" \
+		TARGET="$$HPC_MAKE_TARGET"
 
 perf:
 	+$(MAKE) profile perf-stat PRESET="$$HPC_MAKE_PRESET" \
 		TARGET="$$HPC_MAKE_TARGET"
 
-callgrind:
-	+$(MAKE) profile callgrind PRESET="$$HPC_MAKE_PRESET" \
+callgrind hpctoolkit scorep scalasca papi:
+	+$(MAKE) profile $@ PRESET="$$HPC_MAKE_PRESET" \
 		TARGET="$$HPC_MAKE_TARGET"
-
-hpctoolkit:
-	+$(MAKE) profile hpctoolkit PRESET="$$HPC_MAKE_PRESET" \
-		TARGET="$$HPC_MAKE_TARGET"
-
-scorep:
-	+$(MAKE) profile scorep PRESET="$$HPC_MAKE_PRESET" TARGET="$$HPC_MAKE_TARGET"
-
-scalasca:
-	+$(MAKE) profile scalasca PRESET="$$HPC_MAKE_PRESET" TARGET="$$HPC_MAKE_TARGET"
-
-papi:
-	+$(MAKE) profile papi PRESET="$$HPC_MAKE_PRESET" TARGET="$$HPC_MAKE_TARGET"
 
 report: configure
 	@. tools/scripts/tools/lib.sh; require_target "$$HPC_MAKE_TARGET"

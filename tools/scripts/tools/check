@@ -32,6 +32,13 @@ while IFS= read -r file; do
     source_files+=("$file")
 done < <(list_source_files)
 
+cpp_sources=()
+for file in "${source_files[@]}"; do
+    case $file in
+        *.cc | *.cpp | *.cxx) cpp_sources+=("$file") ;;
+    esac
+done
+
 shell_files=()
 while IFS= read -r file; do
     shell_files+=("$file")
@@ -41,14 +48,7 @@ run_lint() {
     ensure_configured "$preset"
     local tidy
     if tidy=$(find_llvm_tool clang-tidy); then
-        local tidy_sources=()
-        local file
-        for file in "${source_files[@]}"; do
-            case $file in
-                *.cc | *.cpp | *.cxx) tidy_sources+=("$file") ;;
-            esac
-        done
-        if ((${#tidy_sources[@]} > 0)); then
+        if ((${#cpp_sources[@]} > 0)); then
             local warnings_as_errors=
             local tidy_checks
             tidy_checks=$(clang_config_get tidy checks)
@@ -59,7 +59,7 @@ run_lint() {
             run "$tidy" --checks="$tidy_checks" \
                 --warnings-as-errors="$warnings_as_errors" \
                 --header-filter="$(clang_config_get tidy header_filter)" \
-                -p "$(build_dir "$preset")" "${tidy_sources[@]}"
+                -p "$(build_dir "$preset")" "${cpp_sources[@]}"
             pass "clang-tidy"
         fi
     else
@@ -112,12 +112,14 @@ run_analyze() {
         find_tool SCAN_BUILD scan-build scan-build-21 scan-build-18
     ); then
         local analysis_dir="$HPC_BUILD_ROOT/scan-build"
-        run "$scan_build" --status-bugs cmake --fresh \
+        local reports="$analysis_dir/reports"
+        run mkdir -p "$reports"
+        run "$scan_build" --status-bugs -o "$reports" cmake --fresh \
             -S "$HPC_ROOT" -B "$analysis_dir" -G Ninja \
             -DBUILD_TESTING=OFF -DHPC_MODE=check \
             -DHPC_WARNINGS_AS_ERRORS=OFF
-        run "$scan_build" --status-bugs cmake --build "$analysis_dir" \
-            --target m0 hpc_bench
+        run "$scan_build" --status-bugs -o "$reports" \
+            cmake --build "$analysis_dir" --target m0 hpc_bench
         pass "Clang Static Analyzer"
     else
         skip "scan-build unavailable"
@@ -125,16 +127,9 @@ run_analyze() {
 
     local gxx
     if gxx=$(find_tool GXX g++-14 g++); then
-        if "$gxx" --version 2>&1 | grep -Eq 'GCC|gcc'; then
-            local analyzer_sources=()
-            local file
-            for file in "${source_files[@]}"; do
-                case $file in
-                    *.cc | *.cpp | *.cxx) analyzer_sources+=("$file") ;;
-                esac
-            done
+        if is_gnu_cxx "$gxx"; then
             run "$gxx" -std=c++20 -Wall -Wextra -Wpedantic \
-                -fanalyzer -fsyntax-only "${analyzer_sources[@]}"
+                -fanalyzer -fsyntax-only "${cpp_sources[@]}"
             pass "GCC -fanalyzer"
         else
             skip "GCC -fanalyzer unavailable: $gxx is not GNU GCC"

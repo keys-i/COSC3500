@@ -62,8 +62,7 @@ case $gpus in
     '' | *[!0-9]*) die "gpus must be a non-negative integer" ;;
 esac
 case $constraint in
-    unset | [a-z0-9-]*) ;;
-    *) die "invalid constraint: $constraint" ;;
+    '' | *[!a-z0-9-]*) die "invalid constraint: $constraint" ;;
 esac
 case $time_limit in
     *[!0-9:-]* | '') die "invalid time limit: $time_limit" ;;
