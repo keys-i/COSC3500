@@ -184,11 +184,19 @@ command fails.
 - [Clusters](docs/cluster.md): compilers, modules, Slurm and binding.
 - [Infrastructure](docs/infra.md): the full path from Make to CodeQL.
 
-[checks-badge]: /keys-i/COSC3500/actions/workflows/check.yml/badge.svg
-[checks-workflow]: /keys-i/COSC3500/actions/workflows/check.yml
-[bench-badge]: /keys-i/COSC3500/actions/workflows/benchmark.yml/badge.svg
-[bench-workflow]: /keys-i/COSC3500/actions/workflows/benchmark.yml
-[security-badge]: /keys-i/COSC3500/actions/workflows/security.yml/badge.svg
-[security-workflow]: /keys-i/COSC3500/actions/workflows/security.yml
-[explore-badge]: /keys-i/COSC3500/actions/workflows/explore.yml/badge.svg
-[explore-workflow]: /keys-i/COSC3500/actions/workflows/explore.yml
+[checks-badge]:
+  https://github.com/keys-i/COSC3500/actions/workflows/check.yml/badge.svg
+[checks-workflow]:
+  https://github.com/keys-i/COSC3500/actions/workflows/check.yml
+[bench-badge]:
+  https://github.com/keys-i/COSC3500/actions/workflows/benchmark.yml/badge.svg
+[bench-workflow]:
+  https://github.com/keys-i/COSC3500/actions/workflows/benchmark.yml
+[security-badge]:
+  https://github.com/keys-i/COSC3500/actions/workflows/security.yml/badge.svg
+[security-workflow]:
+  https://github.com/keys-i/COSC3500/actions/workflows/security.yml
+[explore-badge]:
+  https://github.com/keys-i/COSC3500/actions/workflows/explore.yml/badge.svg
+[explore-workflow]:
+  https://github.com/keys-i/COSC3500/actions/workflows/explore.yml
