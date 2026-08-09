@@ -1,67 +1,50 @@
 # Infrastructure
 
-## Targets
+> [!NOTE]
+> This is a small lab, not a platform. Make routes commands, CMake owns the
+> build, CTest owns tests, and Bash joins tools together. No package manager,
+> service or framework sits in the C++ build path.
 
-- [x] `m0`: serial formative program
-- [ ] `m1`: serial, compiler SIMD disabled
-- [ ] `m2`: parallel milestone
-- [ ] `a1`: local assignment driver
-
-`m0` is the only current entrypoint. CMake picks up the others when their
-`main.cpp` files appear.
-
-| Target | Kind | Main rule | Output |
-| --- | --- | --- | --- |
-| `m0` | Formative | Serial; scalar in peak-like modes | `bin/m0` |
-| `m1` | Serial | No OpenMP, MPI, CUDA, or SIMD | `bin/m1` |
-| `m2` | Parallel | Add only measured parallel code | `bin/m2` |
-| `a1` | Assignment | GradeBot build rules win | `bin/a1` |
-
-Every output path above sits below `build/<preset>/`.
-
-## How it hangs together
+## Execution path
 
 ```mermaid
 flowchart LR
-    Dev[Developer] --> Make[GNU Make]
-    Make --> CMake[CMake presets]
-    Make --> Scripts[Bash tools]
+    User[make] --> CMake[CMake preset]
+    User --> Tool[Bash tool]
     CMake --> Ninja[Ninja]
     Ninja --> Bin[build/preset/bin]
-    Ninja --> Tests[CTest]
-    Scripts --> Build[build/preset/reports]
-    Scripts --> Results[results]
-    Make --> HPC[Slurm controller]
-    HPC --> Job[Rangpur or Bunya job]
+    Ninja --> CTest[CTest]
+    Tool --> Build[build/preset/reports]
+    Tool --> Results[results]
+    User --> HPC[Slurm controller]
+    HPC --> Job[Rangpur or Bunya]
     Job --> CMake
     Job --> Results
-    Actions[GitHub Actions] --> Make
+    Actions[GitHub Actions] --> User
 ```
 
-Make dispatches commands; CMake configures targets, Ninja builds, and CTest
-runs tests. Bash handles checks, measurements, reports, and Slurm.
+The boundaries are deliberate:
 
-## Layers
-
-| Layer | Files | What it does |
-| --- | --- | --- |
-| Programs | `proj/`, later `assign/` | Coursework source and entrypoints |
-| Build | `CMakeLists.txt`, `CMakePresets.json` | Targets and build modes |
-| Build rules | `tools/config/toolchains/` | Flags, target rules, reports |
-| Commands | `Makefile` | Short command interface |
-| Automation | `tools/scripts/tools/` | Bash checks and tooling |
-| Cluster jobs | `tools/scripts/slurm/`, `proj/*/*.slurm` | Slurm execution |
-| Measurement | `benches/` | C++ harness and target adapters |
-| CI | `.github/workflows/` | Hosted checks, not speed claims |
+| Layer | Owns |
+| --- | --- |
+| `proj/`, later `assign/` | Coursework code and entrypoints |
+| `CMakeLists.txt`, `CMakePresets.json` | Targets, modes, build trees |
+| `tools/config/toolchains/` | Flags, target policy, reports |
+| `Makefile` | Short commands for humans and CI |
+| `tools/scripts/tools/` | Checks, sanitisers, measurement, reports |
+| `tools/scripts/slurm/` | Shared cluster jobs |
+| `proj/*/*.slurm` | Small target-owned jobs |
+| `benches/` | C++ timing, statistics and target adapters |
+| `.github/workflows/` | Hosted checks, never course speed claims |
 
 ## Build model
 
-The checked-in presets use CMake 3.25 or newer, C++20, Ninja, and an
-out-of-source build. CMake also writes `compile_commands.json` below the
-selected build directory. CMake downloads nothing while configuring: no
-`FetchContent`, Git clone, or package-manager bootstrap.
+The build requires CMake 3.25+, C++20 and Ninja. Every preset writes to
+`build/<preset>/`; in-source builds fail. `compile_commands.json` stays in
+that build tree. Configure does no network work: no `FetchContent`, clone or
+package bootstrap.
 
-The root build has one target helper:
+One helper creates production entrypoints:
 
 ```cmake
 hpc_add_entrypoint(
@@ -71,69 +54,79 @@ hpc_add_entrypoint(
 )
 ```
 
-That helper checks the target name against its kind, fixes the executable
-name, writes it under `bin/`, and attaches only the interface targets created
-for the active mode.
+It checks the target/kind pair, fixes the output name, writes to `bin/`, then
+attaches only the flags built for that mode. The only production names are
+`m0`, `m1`, `m2` and `a1`; a target exists only when its `main.cpp` exists.
 
-| Interface target | Created when | Carries |
+| Kind | Contract |
+| --- | --- |
+| `formative` | Serial `m0`; scalar in peak-like modes |
+| `serial` | `m1`; no OpenMP, MPI, CUDA or compiler SIMD |
+| `parallel` | `m2`; parallel features only when real code needs them |
+| `assignment` | `a1`; supplied GradeBot rules beat local policy |
+
+### Interface targets
+
+| Target | Built when | Carries |
 | --- | --- | --- |
-| `hpc_warnings` | `check` | Probed warnings, debug info, optional `-Werror` |
+| `hpc_warnings` | `check` | Probed warnings, symbols, optional `-Werror` |
 | `hpc_peak` | Peak-like modes | `-O3`, `NDEBUG` |
 | `hpc_profile` | `profile` | `-O3 -g -fno-omit-frame-pointer` |
-| `hpc_security` | Sanitiser selected | One compatible sanitiser lane |
-| `hpc_coverage` | Coverage selected | LLVM or GCC coverage flags |
+| `hpc_security` | One sanitiser selected | One compatible runtime |
+| `hpc_coverage` | One coverage mode selected | LLVM or GCC coverage |
 
-`m0` and future `m1` peak-like builds explicitly disable loop and SLP
-vectorisation. Clang uses `-fno-vectorize -fno-slp-vectorize`; GCC uses
-`-fno-tree-loop-vectorize -fno-tree-slp-vectorize`. This keeps the baseline
-scalar.
+Future `m1` builds disable loop and SLP vectorisation in every mode. `m0`
+does the same in peak, PGO and BOLT-input modes. Clang uses
+`-fno-vectorize -fno-slp-vectorize`; GCC uses
+`-fno-tree-loop-vectorize -fno-tree-slp-vectorize`.
 
 ### Modes
 
-| `HPC_MODE` | Optimisation | Instrumentation | Use |
+| `HPC_MODE` | Optimisation | Extra machinery | Job |
 | --- | --- | --- | --- |
-| `check` | Compiler default | Warnings and symbols | Editing and CI |
-| `profile` | `-O3` | Symbols and frame pointers | CPU profiling |
+| `check` | Compiler default | Warnings, symbols | Edit and CI |
+| `profile` | `-O3` | Symbols, frame pointers | CPU profile |
 | `peak` | `-O3` | None | Clean timing |
 | `coverage` | Compiler default | One coverage runtime | Test reach |
-| `pgo-generate` | `-O3` | Profile counters | Training run |
-| `pgo-use` | `-O3` | Uses matching profile | PGO candidate |
-| `bolt-input` | `-O3` | Symbols and ELF relocations | BOLT input |
+| `pgo-generate` | `-O3` | Profile counters | Train |
+| `pgo-use` | `-O3` | Matching profile | Test candidate |
+| `bolt-input` | `-O3` | Symbols, ELF relocations | Feed BOLT |
 
-CMake rejects mixed modes such as coverage in a peak build or a sanitiser
-outside `check`. LTO is accepted only for peak and PGO modes, is checked with
-`CheckIPOSupported`, and is not applied to `a1`.
+Mixed builds fail early. Coverage needs coverage mode. Sanitisers need check
+mode. LTO is allowed only for peak and PGO modes, checked before use, and
+never attached to `a1`.
+
+The cluster peak presets require `SLURM_JOB_ID`. They are allocation-gated
+clean `-O3` builds; they do not currently add `-march=native`. Bunya's job
+checks its requested EPYC feature. Rangpur records the allocation but does not
+yet lock a CPU family.
 
 ### Presets
 
-| Preset family | Compiler or role |
+| Family | Compiler or purpose |
 | --- | --- |
 | `mac-check`, `mac-peak` | AppleClang 21 on ARM64 |
 | `rangpur-check`, `rangpur-peak` | Clang 21; peak needs Slurm |
 | `bunya-check`, `bunya-peak` | GCC 14; peak needs Slurm |
-| `profile` | Optimised binary with usable stacks |
+| `profile` | Optimised code with usable stacks |
 | `asan-ubsan`, `tsan`, `msan` | Separate sanitiser builds |
 | `coverage-clang`, `coverage-gcc` | Separate coverage runtimes |
-| `pgo-generate`, `pgo-use` | One matching PGO directory |
-| `bolt-input` | Linux ELF candidate input |
-
-The cluster peak presets refuse to configure without `SLURM_JOB_ID`. Native
-CPU matching is then checked by the Slurm scripts inside the allocation.
+| `pgo-generate`, `pgo-use` | One compiler-specific profile path |
+| `bolt-input` | Linux ELF input candidate |
 
 ## Configuration
 
-There are three small nested YAML files:
-
 | File | Owns |
 | --- | --- |
-| `tools/config/clang.yml` | Format, tidy, compiler, and sanitiser flags |
-| `tools/config/tool.yml` | Checks, coverage, security, profiling, HPC |
-| `tools/config/benchmark.yml` | Tiers, outputs, gates, bootstrap, PGO |
+| `tools/config/clang.yml` | Format, tidy, compiler and sanitiser flags |
+| `tools/config/tool.yml` | Checks, coverage, profiling and Slurm policy |
+| `tools/config/benchmark.yml` | Tiers, outputs, gates, bootstrap and PGO |
 
-The Bash reader rejects unknown and duplicate keys. It uses no Python or
-`yq`. Configuration is parsed outside timed regions.
+These are small nested YAML documents. The Bash reader rejects duplicate and
+unknown keys; it does not pull in Python or `yq`. Parsing happens outside timed
+regions.
 
-Compiler selection lives separately:
+Compiler selection is kept apart from flag policy:
 
 ```text
 tools/config/toolchains/compiler/
@@ -142,123 +135,131 @@ tools/config/toolchains/compiler/
 └── rangpur-clang21.cmake
 ```
 
-## Where commands go
+## Command routing
 
-Commands use `make <word> <action>`. The positional parser passes one action
-to the matching script.
+Run `make help` for the full list. Each broad command has one script and one
+job:
 
-| Command | Runs | Writes |
+| Command | Script | Writes |
 | --- | --- | --- |
-| `make check ...` | `tools/scripts/tools/check` | Build tree only |
-| `make fmt [fix]` | `tools/scripts/tools/fmt` | Source only with `fix` |
-| `make san au\|t\|m` | `tools/scripts/tools/san` | Sanitiser build |
-| `make cov ...` | `tools/scripts/tools/coverage` | `results/coverage/` |
-| `make bench ...` | `tools/scripts/tools/bench` | Raw and summary CSV |
-| `make pgo gen\|use` | `tools/scripts/tools/bench` | PGO data |
-| `make profile ...` | `tools/scripts/tools/profile` | Profile reports |
-| `make explore ...` | `tools/scripts/tools/explore` | Binary reports |
-| `make hpc <command>` | `tools/scripts/tools/hpc` | Doctor or Slurm state |
-| `make submit` | Slurm controller | `results/slurm/` |
-| `make package a1` | `tools/scripts/tools/package` | Staged files only |
-| `make clean [all]` | Shared safe cleaner | Selected or all output |
+| `make check` | `check` | Build tree |
+| `make fmt` | `fmt` | Source only with `fix` |
+| `make san` | `san` | One sanitiser build |
+| `make cov` | `coverage` | `results/coverage/` |
+| `make bench` | `bench` | Raw and summary CSV |
+| `make profile` | `profile` | Reports when the tool writes one |
+| `make explore` | `explore` | Topology and binary reports |
+| `make hpc` | `hpc` | Doctor output or Slurm state |
+| `make package a1` | `package` | Four staged files |
+| `make clean` | Shared cleaner | Selected build or all output |
 
-Shared shell helpers handle validation, command printing, and safe cleaning.
-They remain compatible with macOS Bash 3.2.
+The scripts target macOS Bash 3.2, validate names and paths, print child
+commands and preserve their exit codes. Missing optional tools say `SKIP`;
+installed tools that fail return failure.
 
-## Checks and diagnosis
+## Checks
 
-| Lane | Main command | Rule |
+| Question | Command | Tool family |
 | --- | --- | --- |
-| Format | `make fmt` | Clang format plus 80-column text check |
-| Lint | `make check lint` | Tidy, cppcheck, ShellCheck, shfmt, actionlint |
-| Static | `make check analyze` | `scan-build` and GCC `-fanalyzer` |
-| Tests | `make test` | CTest for the selected preset |
-| Memory/UB | `make san au` | ASan, UBSan, and leak checks |
-| Host races | `make san t` | TSan in its own build |
-| Uninitialised reads | `make san m` | MSan only with a complete runtime |
-| Coverage | `make cov llvm` or `gcov` | One compiler family per build |
-| Linux memory tools | `make profile memcheck` | Small Valgrind cases |
-| Counters | `make profile perf-stat` | Separate from clean timing |
-| Binary inspection | `make explore binary` | Sections, symbols, runtime |
+| Is source formatted? | `make fmt` | ClangFormat, 80 columns |
+| Is it suspicious? | `make check lint` | Tidy, cppcheck, shell linters |
+| Can static analysis find a path? | `make check analyze` | Clang, GCC |
+| Does it run? | `make test` | CTest |
+| Is memory use valid? | `make san au` | ASan, UBSan, leak checks |
+| Are host threads racing? | `make san t` | TSan |
+| Are reads initialised? | `make san m` | Complete MSan runtime only |
+| What code did tests hit? | `make cov llvm` | LLVM coverage |
+| Where are cycles going? | `make profile perf-stat` | Linux `perf` |
+| What got linked? | `make explore binary` | Native binary tools |
 
-Optional tools print `SKIP` when missing or unsupported. A failed installed
-tool fails the command.
+No check build is used as a speed result.
 
 ## Benchmark path
 
-The dependency-free C++ harness builds as:
+The dependency-free harness builds at:
 
 ```text
 build/<preset>/bench/hpc_bench
 ```
 
-Each program gets a small adapter such as `benches/m0.cpp`; shared timing and
-CSV code stays in `benches/bench.cpp`. The current adapter measures process
-startup only. See [Performance](performance.md) for the exact timer, sample
-counts, bootstrap calculation, and limits.
+Shared timing, CSV and statistics live in `benches/bench.cpp`; each program
+gets a small adapter such as `benches/m0.cpp`. The current adapter measures
+process start-up only. [Performance](performance.md) has the timer, tier
+maths, bootstrap method and comparison rules.
 
 ## Cluster path
-
-The controller validates resource counts and exports them to one shared job:
 
 ```text
 make submit
     -> tools/scripts/tools/hpc
     -> tools/scripts/slurm/<cluster>.sbatch
-    -> srun with explicit binding
+    -> CMake + srun inside the allocation
 ```
 
-Target-owned jobs, such as `proj/m0/m0.slurm`, stay beside the target. Machine
-and resource details are in [Clusters](cluster.md).
+Rangpur builds in the submitted tree. Bunya loads `foss/2025a`, copies the
+tree to `/scratch`, builds there and copies results back. Resource shapes and
+compiler probes are in [Clusters](cluster.md).
 
 ## GitHub
 
-| Workflow | Runs | Checks |
-| --- | --- | --- |
-| `check.yml` | Build, quality, coverage | Linux/macOS build and checks |
-| `benchmark.yml` | Harness, PGO, BOLT input | Benchmark setup still runs |
-| `security.yml` | CodeQL, static analysis, sanitisers | Finds code defects |
-| `explore.yml` | Linux binary and topology reports | Report generation |
+| Workflow | Does |
+| --- | --- |
+| `check.yml` | Linux/macOS builds, format, lint, tests, coverage |
+| `benchmark.yml` | Harness, CSV gates, PGO and BOLT-input smoke |
+| `security.yml` | Private-repo CodeQL, static analysis, sanitisers |
+| `explore.yml` | Linux topology and binary reports |
 
-Actions call Make targets and pin every action to a full commit SHA. Workflow
-permissions default to read-only contents. The CodeQL job adds the narrow
-permissions needed to upload C/C++ results to private code scanning. It uses
-a manual GCC 14 build and the `security-extended` query suite.
+Actions call Make targets, use read-only contents by default and pin actions
+to full commit SHAs. CodeQL gets only the security-event permission needed to
+upload C/C++ findings. Its manual GCC 14 build runs the
+`security-extended` query suite.
 
-All jobs use GitHub-hosted runners. There is no self-hosted runner, Pages,
-release, deployment, or public benchmark upload.
+`tools/scripts/tools/summary` streams each command to the normal log and
+copies its exit state and last 40 lines into the job summary. Workflows upload
+the wrapper logs and reports as private artefacts for seven days. There are no
+self-hosted runners, Pages, releases, deployments or public benchmark
+uploads.
 
-### Dependency graph
+### Codespaces
 
-Dependency submission accepts Package URLs, but this repo has no vcpkg,
-Conan, or other package manifest. There is no package/version data to send.
+`.devcontainer/devcontainer.json` uses the Ubuntu Noble C++ image. Its
+`updateContentCommand` runs `make test PRESET=profile`; prebuild waits for that
+command, so `m0` and CTest have run before the codespace opens.
 
-Dependabot checks the pinned GitHub Actions weekly and keeps at most three
-version-update pull requests open. Security alerts and security updates are
-enabled in the repository settings.
+### Dependencies and purls
 
-As checked on 24 August 2026, Actions allow only GitHub-owned, SHA-pinned
-actions.
+Dependabot checks pinned GitHub Actions weekly and caps open version-update
+pull requests at three. That is the only checked-in package ecosystem today.
+
+The C++ build has no vcpkg, Conan, Spack or downloaded third-party package,
+so there is no C++ dependency snapshot worth submitting. GitHub's dependency
+submission API accepts purl-labelled packages from any registered ecosystem.
+CMake 4.3 also added experimental SPDX SBOM export with `PACKAGE_URL`, but
+this repo supports CMake 3.25 and does not install a package. Wiring either in
+now would add machinery without reporting a third-party dependency.
+
+Add dependency submission when a real versioned C++ dependency arrives.
 
 <details>
-<summary><strong>Generated output map</strong></summary>
+<summary><strong>Generated output</strong></summary>
 
-| Path | Contents |
+| Path | Contains |
 | --- | --- |
 | `build/<preset>/bin/` | Coursework programs |
 | `build/<preset>/bench/` | Benchmark helper |
 | `build/<preset>/reports/` | Compiler reports |
-| `build/<preset>/configured-host.txt` | Configure-time build identity |
+| `build/<preset>/configured-host.txt` | Configure identity |
 | `results/raw/` | Raw benchmark rows |
-| `results/summary/` | Aggregate benchmark rows |
+| `results/summary/` | Aggregate rows |
 | `results/coverage/` | LLVM or GCC coverage |
 | `results/profiles/` | Profiler and binary reports |
 | `results/slurm/` | Shared Slurm logs |
+| `results/actions/` | Wrapped Actions logs |
 | `build/submission/a1/` | Checked local assignment package |
 
 </details>
 
-## Assignment files
+## Assignment boundary
 
-`make package a1` stages the three implementation files and `slurm.zip` in
-`build/submission/a1/`. It does not upload them.
+`make package a1` stages only three implementation files and `slurm.zip` in
+`build/submission/a1/`. It does not upload anything.

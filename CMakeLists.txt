@@ -68,7 +68,7 @@ endif()
 if(HPC_REQUIRE_SLURM_ALLOCATION AND configured_slurm_job_id STREQUAL "")
     message(
         FATAL_ERROR
-        "Native cluster presets require a Slurm allocation"
+        "Cluster peak presets require a Slurm allocation"
     )
 endif()
 

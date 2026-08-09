@@ -1,30 +1,34 @@
 # Clusters
 
-## Pick the right machine
+## Use the right box
 
-| Machine | Good for | Not for |
+| Machine | Use it for | Do not use it for |
 | --- | --- | --- |
-| Apple M-series | Local checks and diagnosis | Final cluster numbers |
-| Rangpur | Course milestone and GradeBot work | Bunya-native comparisons |
-| Bunya | Extra CPU, OpenMP, and MPI analysis | Login-node timing |
+| Apple M-series | Local checks and diagnosis | Course timings |
+| Rangpur | Milestones and GradeBot work | Bunya comparisons |
+| Bunya | Extra CPU, OpenMP and MPI runs | Login-node timing |
 
-Comparisons stay on one machine type. A Mac-versus-Rangpur graph mostly
-measures two different computers, not two implementations.
+Keep apples with apples. A Mac-versus-Rangpur chart mostly measures two
+different computers.
 
-## Cluster controller
+> [!CAUTION]
+> Do not benchmark on a login node. The number is junk and the run consumes
+> shared capacity.
 
-`make hpc` only talks to Slurm and the module environment. Local building,
-checking, timing, and profiling stay in their own commands.
+## Slurm controller
 
-| Command | What it asks for |
+`make hpc` talks to Slurm and reports the current module environment. It does
+not build locally, install modules or load Bunya's toolchain for you.
+
+| Command | Does |
 | --- | --- |
-| `make hpc doctor CLUSTER=rangpur` | Compiler, runtime, tools, and C++20 |
-| `make hpc nodes CLUSTER=rangpur` | Node state and advertised features |
-| `make hpc queue` | Your Slurm queue |
-| `make hpc env CLUSTER=bunya` | Modules and compiler paths |
-| `make submit ...` | One checked `sbatch` submission |
+| `make hpc doctor CLUSTER=rangpur` | Runs the compiler and C++20 probe |
+| `make hpc nodes CLUSTER=rangpur` | Shows node state and features |
+| `make hpc env CLUSTER=bunya` | Shows current modules and compiler paths |
+| `make hpc queue` | Shows your queue |
+| `make submit ...` | Checks the request, then calls `sbatch` |
 
-Commands that need more than one argument use the controller directly:
+Use the script directly when the command needs more arguments:
 
 ```bash
 ./tools/scripts/tools/hpc job --cluster rangpur --job 123456
@@ -37,61 +41,63 @@ Commands that need more than one argument use the controller directly:
   --threads 32
 ```
 
-It checks cluster names, modes, counts, constraints, and Slurm commands before
-calling `sbatch`. It does not install software or upload coursework.
+Bad cluster names, modes, counts and constraints are rejected before Slurm is
+called. Nothing here uploads coursework.
 
-## The `doctor` report
+## Compiler probe
 
 ```bash
 make hpc doctor CLUSTER=rangpur
 ```
 
-This writes `build/doctor-rangpur/doctor.txt` and a tiny compile probe. It
-records:
+The report lands at `build/doctor-rangpur/doctor.txt`. It records:
 
-- hostname, OS, architecture, Git state, and Slurm job ID;
+- hostname, OS, architecture, Git state and Slurm job ID;
 - compiler path and version;
-- `__cplusplus`, `__GLIBCXX__`, and `_LIBCPP_VERSION`;
-- compiler include and library search paths;
-- the linked C++ runtime;
-- OpenMP, MPI, CUDA, GPU, and tool availability.
+- `__cplusplus`, `__GLIBCXX__` and `_LIBCPP_VERSION`;
+- include search, library search and linked C++ runtime;
+- an OpenMP compile probe;
+- whether MPI, CUDA, a GPU and optional tools are visible.
 
-`doctor` passes only if its C++20 probe compiles, links, and runs. Check the
-linked runtime as well as the compiler version.
+MPI and CUDA entries are discovery checks, not working-program tests.
+`doctor` passes only after its C++20 program compiles, links and runs.
 
-## Toolchains seen so far
+## Compiler snapshot
 
-These versions were reported on 24 August 2026. Treat them as a snapshot;
-run `doctor` before relying on them.
+These versions were reported on 24 August 2026. They are notes, not a lock
+file. Run the probe on the node you actually got.
 
-| Machine | Compiler | Use |
+| Machine | Compiler | Job |
 | --- | --- | --- |
-| Mac | AppleClang 21.0.0 | Local checks and diagnosis |
-| Rangpur | Clang 21.1.8 | Main C++20 milestone compiler |
-| Rangpur | GCC 8.5 | Compatibility check only |
-| Bunya login | GCC 11.5 | Do not use for final Bunya runs |
-| Bunya module | GCC 14 expected by the preset | Main Bunya compiler |
-| Bunya module | Clang 15.0.5 available | Secondary CPU comparison |
+| Mac | AppleClang 21.0.0 | Local work |
+| Rangpur | Clang 21.1.8 | Main milestone compiler |
+| Rangpur | GCC 8.5 | Old-toolchain check only |
+| Bunya default | GCC 11.5 | Not the main benchmark compiler |
+| Bunya `foss/2025a` | GCC 14 expected | Main Bunya compiler |
+| Bunya module | Clang 15.0.5 available | Secondary CPU check |
+
+Check Clang's standard library as well as its version. A new compiler using
+an old `libstdc++` still has the old library's limits.
 
 ## Mac
 
-AppleClang is the local default. Use `mac-check` for normal work and
-`mac-peak` only for local experiments. Homebrew paths are discovered with
-`brew --prefix`; nothing assumes `/usr/local` or `/opt/homebrew`.
+AppleClang is the local default. `mac-check` is for normal work; `mac-peak`
+is for local experiments. Homebrew paths come from `brew --prefix`, so the
+scripts do not guess `/usr/local` or `/opt/homebrew`.
 
 > [!WARNING]
-> The Mac is ARM64. AVX source must not enter its target graph. Local NEON and
-> Instruments results are useful clues, not course performance evidence.
+> The Mac is ARM64. AVX source must not enter its target graph. NEON and
+> Instruments can point at a hot spot, but they are not Rangpur evidence.
 
 ## Rangpur
 
-The quickest `m0` cluster check is its own five-minute job:
+Run the five-minute `m0` smoke job:
 
 ```bash
 sbatch proj/m0/m0.slurm
 ```
 
-The shared job goes through the controller:
+Or use the shared controller:
 
 ```bash
 make submit \
@@ -102,29 +108,26 @@ make submit \
   MODE=serial
 ```
 
-The job prints allocation details, `lscpu`, optional `lstopo` and NUMA data,
-loaded modules, and compiler versions. It cleans the selected build, builds
-inside the allocation, then launches with `srun --cpu-bind=cores`.
+The shared job records the allocation, `lscpu`, optional topology and NUMA
+data, modules and compiler versions. It cleans and builds inside the
+allocation, then launches with `srun --cpu-bind=cores`.
 
-> [!CAUTION]
-> `rangpur-peak` refuses to configure outside Slurm. Build and run native code
-> in the same allocation and node class. For future `m2` work, AVX2 needs a
-> confirmed CPU feature check; AVX-512 is out on Rangpur.
+`rangpur-peak` is a clean `-O3` build and refuses to configure outside Slurm.
+It does **not** add `-march=native` today. If native tuning is added for `m2`,
+compile and run it on the same fixed node class. Rangpur may use confirmed
+AVX2 for `m2`; AVX-512 stays out.
 
 ## Bunya
 
-The Bunya job starts with:
+The submitted Bunya job does this before building:
 
 ```bash
 module purge
 module load foss/2025a
 ```
 
-That keeps GCC and OpenMPI in one module stack. The preset expects GCC 14;
-check the exact loaded version in the job log. Clang 15 is a secondary CPU
-check, not the main Bunya compiler.
-
-Pick exactly one CPU family:
+For an interactive allocation, do the same before `doctor`, `env` or CMake.
+That keeps GCC and OpenMPI from one module stack.
 
 ```bash
 make submit \
@@ -136,28 +139,29 @@ make submit \
   CONSTRAINT=epyc4
 ```
 
-Accepted constraints are `epyc3`, `epyc4`, and `epyc5`. The script checks
-that Slurm gave it the requested family. It then:
+Pick one of `epyc3`, `epyc4` or `epyc5`. The job checks the allocation really
+has that feature, then:
 
-1. copies the private tree to `/scratch` without `build/`, `results/`, PDFs,
-   or `.DS_Store` files;
-2. configures and builds under the loaded `foss/2025a` stack;
+1. copies the private tree to `/scratch`, excluding builds, results, PDFs and
+   `.DS_Store`;
+2. builds under `foss/2025a`;
 3. runs with explicit `srun` binding;
-4. copies `results/` back to the submission directory.
+4. copies new `results/` back to the submission directory.
 
-`bunya-peak` also refuses to configure outside Slurm. Build and run native
-code on the same EPYC family.
+`bunya-peak` is also an allocation-gated clean `-O3` build. Native CPU flags
+are not wired in yet. If they are added, keep one build directory per EPYC
+family and never carry the binary to another family.
 
 ## Resource shapes
 
-| Mode | Nodes | Tasks | CPUs per task | GPUs | Binding |
+| Mode | Nodes | Tasks | CPUs/task | GPUs | Binding |
 | --- | ---: | ---: | ---: | ---: | --- |
 | `serial` | 1 | 1 | 1 | 0 | cores |
 | `openmp` | 1 | 1 | `THREADS` | 0 | cores |
 | `mpi` | `NODES` | `RANKS` | `THREADS` | 0 | cores |
 | `cuda` | `NODES` | `RANKS` | `THREADS` | `GPUS` | closest GPU |
 
-For future OpenMP work, jobs set:
+OpenMP jobs start with:
 
 ```bash
 OMP_DYNAMIC=FALSE
@@ -166,34 +170,34 @@ OMP_PLACES=cores
 OMP_PROC_BIND=close
 ```
 
-Start with `close`. Compare `spread` only when a bandwidth or NUMA result says
-it is worth doing. Sweep physical cores as `1, 2, 4, ...`; do not assume more
-threads means more speed.
+Start at `close`. Try `spread` only when bandwidth or NUMA data gives you a
+reason. Sweep physical cores as `1, 2, 4, ...`; more threads do not owe you a
+speed-up.
 
-For MPI, keep the compiler, C++ runtime, OpenMP runtime, MPI library, and
-launcher from one module stack. Use rank-local elapsed intervals and reduce
+For MPI, use the compiler, C++ runtime, OpenMP runtime, MPI library and
+launcher from one module stack. Time locally on each rank and reduce duration
 with `MPI_MAX`.
 
-## CUDA
+## CUDA later
 
-There is no CUDA target or preset yet. Leave it off until a real `.cu` file
-and a result check exist. Inside an allocated GPU job:
+There is no CUDA target yet. Leave it off until a real `.cu` file and a result
+check exist. Inside a GPU allocation:
 
-1. inspect available modules;
-2. load one CUDA module;
+1. inspect the available CUDA modules;
+2. load one module;
 3. run `nvcc --version`;
-4. inspect the allocated GPU and its compute capability;
-5. probe the intended host compiler;
+4. inspect the actual GPU and compute capability;
+5. probe the host compiler;
 6. set `CMAKE_CUDA_ARCHITECTURES` explicitly.
 
 Never pass `--allow-unsupported-compiler`. For `a1`, the supplied course
-build wins over a locally newer toolkit or architecture.
+build beats a locally newer toolkit.
 
-## Profilers on a cluster
+## Profilers
 
-Start with internal phase timing, then compiler reports, then `perf stat`.
-Move to sampling or tracing only when there is a specific question.
+Start with phase timing, then compiler reports, then `perf stat`. Sample or
+trace only after you have a specific question.
 
-Optional profiling tools print `SKIP` when unavailable. A tool that starts and
-fails fails the command. Managed clusters may block hardware counters; record
-that limitation.
+Missing optional tools say `SKIP`. If an installed tool starts then falls
+over, the command fails. Cluster policy may block counters; record that
+instead of inventing substitute data.
