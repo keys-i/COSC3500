@@ -5,16 +5,16 @@
 [![Security][security-badge]][security-workflow]
 [![Explore][explore-badge]][explore-workflow]
 
-Build and measure COSC3500 C++20 programs on a Mac, Rangpur, and Bunya.
+C++20 coursework builds for macOS, Rangpur and Bunya.
 
 > [!IMPORTANT]
-> This repo contains private coursework, inputs, logs, and results. Keep it
-> private.
+> Private coursework lives here. Keep the repo, inputs, logs and results
+> private too.
 
 ## Setup
 
-You need CMake 3.25+, Ninja, GNU Make, Bash, and a C++20 compiler. On macOS,
-the checked-in Brewfile installs the local tools.
+You need CMake 3.25+, Ninja, GNU Make, Bash and a C++20 compiler. On macOS,
+the Brewfile installs the local tools.
 
 ```bash
 git clone https://github.com/keys-i/COSC3500.git
@@ -28,115 +28,117 @@ make check PRESET=mac-check
 ```
 
 > [!NOTE]
-> CMake does not download dependencies. Cluster builds use the modules
-> already installed on that cluster.
+> CMake downloads nothing. Cluster builds use whatever is already installed
+> in the selected module stack.
+
+> [!TIP]
+> Codespaces runs `make test PRESET=profile` during its prebuild. A new space
+> opens after `m0` has built and CTest has passed.
 
 ## Programs
 
-| Target | Entrypoint | Output | Status |
+| Target | Entrypoint | Binary | State |
 | --- | --- | --- | --- |
 | `m0` | `proj/m0/main.cpp` | `build/<preset>/bin/m0` | Ready |
 | `m1` | `proj/m1/main.cpp` | `build/<preset>/bin/m1` | Not added |
 | `m2` | `proj/m2/main.cpp` | `build/<preset>/bin/m2` | Not added |
 | `a1` | `assign/1/main.cpp` | `build/<preset>/bin/a1` | Not added |
 
-- [x] `m0`: serial baseline
+- [x] `m0`: serial smoke baseline
 - [ ] `m1`: scalar milestone, compiler SIMD off
 - [ ] `m2`: measured parallel work
 - [ ] `a1`: local assignment driver
 
-Targets appear when their entrypoint exists.
+A target exists only when its `main.cpp` exists.
 
 ## Structure
 
 ```text
 .
-├── benches/                      # C++ benchmark runner and m0 adapter
+├── .devcontainer/                 # Codespaces image and prebuild
+├── benches/                       # C++ timing, CSV, stats, adapters
 │   ├── bench.cpp
 │   ├── bench.hpp
 │   └── m0.cpp
-├── docs/                         # Measurement, cluster, and build notes
+├── docs/                          # Build, cluster, measurement notes
 │   ├── cluster.md
 │   ├── infra.md
 │   └── performance.md
-├── proj/m0/                      # Milestone 0 source and Slurm job
+├── proj/m0/                       # Milestone 0 source and Slurm job
 │   ├── m0.slurm
 │   └── main.cpp
 ├── tools/
-│   ├── config/                   # YAML, Brewfile, and CMake toolchains
-│   │   ├── toolchains/compiler/  # One compiler file per machine
-│   │   ├── benchmark.yml
-│   │   ├── clang.yml
-│   │   └── tool.yml
+│   ├── config/                    # YAML, Brewfile, CMake policy
+│   │   └── toolchains/compiler/   # One compiler file per machine
 │   └── scripts/
-│       ├── slurm/                # Shared Rangpur and Bunya jobs
-│       └── tools/                # Small Bash commands behind Make
-├── CMakeLists.txt                # Targets and build rules
-├── CMakePresets.json             # Reproducible build directories
-└── Makefile                      # Commands you type
+│       ├── slurm/                 # Shared Rangpur and Bunya jobs
+│       └── tools/                 # Bash commands behind Make
+├── CMakeLists.txt                 # Targets and build rules
+├── CMakePresets.json              # Reproducible build directories
+└── Makefile                       # Commands you type
 ```
 
-Generated files stay in `build/` and `results/`.
+Generated files stay under `build/` and `results/`.
 
 ## Guide
 
-Run commands from the repo root. The pattern is `make <command> <action>`.
+Run commands from the repo root. `make help` prints the short list.
 
 ### Build and check
 
-| Command | What it does |
+| Command | Does |
 | --- | --- |
-| `make help` | Prints the common commands. |
-| `make configure PRESET=...` | Configures one CMake preset. |
-| `make build TARGET=... PRESET=...` | Builds one program. |
-| `make m0 PRESET=...` | Short form for building a named program. |
-| `make run TARGET=... PRESET=...` | Builds, then runs the program. |
-| `make test PRESET=...` | Builds everything and runs CTest. |
-| `make fmt` | Checks Clang format and the 80-column limit. |
-| `make fmt fix` | Formats C, C++, and CUDA source. |
-| `make check [action]` | Runs lint, analysis, tests, or all three. |
-| `make lint` | Short form for `make check lint`. |
-| `make analyze` | Short form for `make check analyze`. |
-| `make codeql PRESET=...` | Builds the C++ database inputs used by CodeQL. |
-| `make san au\|t\|m` | Runs ASan+UBSan, TSan, or MSan. |
-| `make cov [action]` | Runs LLVM or GCC coverage. |
-| `make clean PRESET=...` | Runs CMake clean for one preset. |
-| `make clean all` | Removes this repo's `build/` and `results/`. |
-| `make package a1` | Checks and stages four assignment files locally. |
+| `make configure PRESET=...` | Configures one preset |
+| `make build TARGET=... PRESET=...` | Builds one program |
+| `make m0 PRESET=...` | Short form for a named program |
+| `make run TARGET=... PRESET=...` | Builds, then runs it |
+| `make test PRESET=...` | Builds everything, then runs CTest |
+| `make fmt` | Checks clang-format and the 80-column limit |
+| `make fmt fix` | Formats owned C, C++ and CUDA source |
+| `make check [lint\|analyze\|test\|all]` | Runs one check group |
+| `make san au\|t\|m` | Runs ASan+UBSan, TSan or MSan |
+| `make cov [llvm\|gcov\|clean\|report]` | Handles one coverage lane |
+| `make codeql PRESET=...` | Builds the inputs CodeQL scans |
+| `make clean PRESET=...` | Runs CMake clean for one preset |
+| `make clean all` | Removes this repo's `build/` and `results/` |
+| `make package a1` | Checks and stages four assignment files |
 
 > [!TIP]
-> GNU Make treats `--fix` as its own option. Write `make fmt fix`, or use
-> `make -- fmt --fix` when you want the dashed spelling.
+> GNU Make reads `--fix` as one of its own options. Use `make fmt fix`, or
+> write `make -- fmt --fix` for the dashed form.
 
 ### Measure and inspect
 
-| Command | What it does |
+| Command | Does |
 | --- | --- |
-| `make bench <action>` | Checks or runs the benchmark harness. |
-| `make pgo gen\|use` | Generates or consumes compiler profiles. |
-| `make report TARGET=...` | Runs a separate optimisation-report compile. |
-| `make profile <tool>` | Runs exactly one profiler. |
-| `make explore <action>` | Records topology or inspects a binary. |
-| `make bolt` | Tries the optional BOLT path; currently skips `m0`. |
-| `make perf` | Short form for `make profile perf-stat`. |
-| `make callgrind` | Short form for `make profile callgrind`. |
-| `make topology` | Short form for `make explore topology`. |
-| `make binary` | Short form for `make explore binary`. |
-| `make exegesis` | Runs an explicit instruction probe only. |
+| `make bench self-test` | Checks maths, CSV and process launch |
+| `make bench gates` | Checks timing guards for peak and sanitiser builds |
+| `make bench smoke\|standard\|publication` | Runs one timing tier |
+| `make pgo gen\|use TARGET=...` | Trains or consumes a profile |
+| `make report TARGET=...` | Runs a separate compiler-report build |
+| `make profile <tool>` | Runs one profiler |
+| `make explore <action>` | Records topology or inspects a binary |
+| `make perf` | Short form for `make profile perf-stat` |
+| `make callgrind` | Short form for the Callgrind profile |
+| `make topology` | Short form for topology capture |
+| `make binary` | Short form for binary inspection |
+| `make exegesis` | Runs an explicit instruction probe |
+| `make bolt TARGET=...` | Tries BOLT; currently skips `m0` |
 
 > [!WARNING]
-> `m0` measures process start-up, not algorithm speed. See
-> [Performance](docs/performance.md).
+> `m0` timings are process-start numbers, not algorithm numbers. Read
+> [Performance](docs/performance.md) before quoting one.
 
 ### Cluster
 
-| Command | What it does |
+| Command | Does |
 | --- | --- |
-| `make hpc doctor CLUSTER=...` | Probes the compiler and cluster tools. |
-| `make hpc nodes CLUSTER=...` | Shows Slurm nodes and features. |
-| `make hpc queue` | Shows your jobs. |
-| `make submit ...` | Validates resources, then calls `sbatch`. |
-| `sbatch proj/m0/m0.slurm` | Runs the small Rangpur `m0` job. |
+| `make hpc doctor CLUSTER=...` | Probes the current compiler environment |
+| `make hpc nodes CLUSTER=...` | Shows Slurm nodes and features |
+| `make hpc queue` | Shows your jobs |
+| `make hpc env CLUSTER=...` | Shows current modules and compiler paths |
+| `make submit ...` | Checks resources, then calls `sbatch` |
+| `sbatch proj/m0/m0.slurm` | Runs the small Rangpur `m0` job |
 
 ```bash
 make hpc doctor CLUSTER=rangpur
@@ -147,37 +149,17 @@ make submit CLUSTER=bunya TARGET=m0 PRESET=bunya-check MODE=serial \
 ```
 
 > [!CAUTION]
-> Compile and run native peak builds in the same Slurm allocation and CPU
-> class. Do not benchmark on a login node.
+> Peak presets require a Slurm allocation. They are clean `-O3` builds, not
+> native-ISA builds. Do not benchmark on a login node.
 
 <details>
-<summary><strong>Actions accepted by each command</strong></summary>
+<summary><strong>Common Make variables</strong></summary>
 
-| Command | Actions |
-| --- | --- |
-| `make check` | `lint`, `analyze`, `test`, `all` |
-| `make bench` | `self-test`, `gates`, `smoke`, `standard` |
-| `make bench` | `publication`, `compare`, `bolt` |
-| `make pgo` | `gen`, `use` |
-| `make cov` | `llvm`, `gcov`, `clean`, `report` |
-| `make san` | `au`, `t`, `m` |
-| `make explore` | `all`, `topology`, `binary`, `symbols` |
-| `make explore` | `elf`, `layout`, `assembly`, `mca`, `exegesis` |
-| `make profile` | `perf-stat`, `perf-record`, `perf-c2c` |
-| `make profile` | Valgrind and optional HPC/GPU profilers |
-| `make hpc` | `doctor`, `nodes`, `alloc`, `submit` |
-| `make hpc` | `queue`, `job`, `cancel`, `env` |
-
-</details>
-
-<details>
-<summary><strong>Common variables</strong></summary>
-
-| Variable | Default | Values or use |
+| Variable | Default | Use |
 | --- | --- | --- |
 | `PRESET` | `mac-check` | CMake preset |
 | `TARGET` | `m0` | `m0`, `m1`, `m2`, `a1` |
-| `ARGS` | empty | Program or tool arguments |
+| `ARGS` | empty | Extra program arguments |
 | `CLUSTER` | `rangpur` | `rangpur`, `bunya` |
 | `ACTION` | `run` | `run`, `check`, `bench`, `profile` |
 | `MODE` | `serial` | `serial`, `openmp`, `mpi`, `cuda` |
@@ -185,20 +167,22 @@ make submit CLUSTER=bunya TARGET=m0 PRESET=bunya-check MODE=serial \
 | `RANKS` | `1` | MPI ranks |
 | `NODES` | `1` | Slurm nodes |
 | `GPUS` | `0` | Slurm GPUs |
-| `CONSTRAINT` | `unset` | `epyc3`, `epyc4`, `epyc5` on Bunya |
+| `CONSTRAINT` | `unset` | Bunya EPYC family |
 
 </details>
 
-Missing or unsupported tools print `SKIP`. Failures from installed tools
-return a non-zero exit status.
+Missing tools say `SKIP`. If an installed tool starts then falls over, the
+command fails.
+
+> [!NOTE]
+> GitHub jobs put the wrapped command's exit state and last 40 log lines in
+> the job summary. Uploaded wrapper logs and reports are kept for seven days.
 
 ## Read next
 
-- [Performance](docs/performance.md): timers, samples, statistics, and
-  measurement limits.
-- [Clusters](docs/cluster.md): Rangpur, Bunya, modules, Slurm, and binding.
-- [Infrastructure](docs/infra.md): every layer from Make to CodeQL and
-  Dependabot.
+- [Performance](docs/performance.md): timers, samples, statistics and limits.
+- [Clusters](docs/cluster.md): compilers, modules, Slurm and binding.
+- [Infrastructure](docs/infra.md): the full path from Make to CodeQL.
 
 [checks-badge]: /keys-i/COSC3500/actions/workflows/check.yml/badge.svg
 [checks-workflow]: /keys-i/COSC3500/actions/workflows/check.yml
