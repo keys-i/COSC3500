@@ -6,7 +6,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <fcntl.h>
 #include <fstream>
 #include <iomanip>
@@ -18,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <sys/wait.h>
+#include <system_error>
 #include <time.h>
 #include <unistd.h>
 #include <utility>
@@ -91,10 +91,10 @@ struct Statistics {
 
 [[nodiscard]] std::uint64_t now_ns() {
 #if defined(__linux__) && defined(CLOCK_MONOTONIC_RAW)
-    timespec value{};
-    if (clock_gettime(CLOCK_MONOTONIC_RAW, &value) == 0) {
-        return static_cast<std::uint64_t>(value.tv_sec) * 1'000'000'000ULL +
-               static_cast<std::uint64_t>(value.tv_nsec);
+    timespec raw_time{};
+    if (clock_gettime(CLOCK_MONOTONIC_RAW, &raw_time) == 0) {
+        return static_cast<std::uint64_t>(raw_time.tv_sec) * 1'000'000'000ULL +
+               static_cast<std::uint64_t>(raw_time.tv_nsec);
     }
 #endif
     const auto value = std::chrono::steady_clock::now().time_since_epoch();
@@ -169,6 +169,8 @@ bootstrap_median_interval(const std::vector<double> &values,
         throw std::runtime_error(
             "bootstrap requires samples and at least 100 resamples");
     }
+    // A fixed seed makes confidence intervals reproducible.
+    // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp)
     std::mt19937_64 generator(0x35007502ULL);
     std::uniform_int_distribution<std::size_t> pick(0U, values.size() - 1U);
     std::vector<double> medians;
@@ -228,8 +230,8 @@ calculate_statistics(const std::vector<double> &values,
     int status = 0;
     while (waitpid(process, &status, 0) == -1) {
         if (errno != EINTR) {
-            throw std::runtime_error(std::string("waitpid failed: ") +
-                                     std::strerror(errno));
+            throw std::system_error(errno, std::generic_category(),
+                                    "waitpid failed");
         }
     }
     if (WIFEXITED(status)) {
@@ -241,8 +243,8 @@ calculate_statistics(const std::vector<double> &values,
 [[nodiscard]] int spawn_silent(const std::string &binary) {
     const int null_file = open("/dev/null", O_WRONLY);
     if (null_file == -1) {
-        throw std::runtime_error(std::string("open /dev/null failed: ") +
-                                 std::strerror(errno));
+        throw std::system_error(errno, std::generic_category(),
+                                "open /dev/null failed");
     }
 
     posix_spawn_file_actions_t actions{};
@@ -260,8 +262,8 @@ calculate_statistics(const std::vector<double> &values,
     posix_spawn_file_actions_destroy(&actions);
     close(null_file);
     if (spawn_result != 0) {
-        throw std::runtime_error(std::string("posix_spawn failed: ") +
-                                 std::strerror(spawn_result));
+        throw std::system_error(spawn_result, std::generic_category(),
+                                "posix_spawn failed");
     }
     return wait_for_child(process);
 }
@@ -270,8 +272,7 @@ calculate_statistics(const std::vector<double> &values,
 spawn_capture(const std::string &binary) {
     int descriptors[2] = {-1, -1};
     if (pipe(descriptors) != 0) {
-        throw std::runtime_error(std::string("pipe failed: ") +
-                                 std::strerror(errno));
+        throw std::system_error(errno, std::generic_category(), "pipe failed");
     }
 
     posix_spawn_file_actions_t actions{};
@@ -292,8 +293,8 @@ spawn_capture(const std::string &binary) {
     close(descriptors[1]);
     if (spawn_result != 0) {
         close(descriptors[0]);
-        throw std::runtime_error(std::string("posix_spawn failed: ") +
-                                 std::strerror(spawn_result));
+        throw std::system_error(spawn_result, std::generic_category(),
+                                "posix_spawn failed");
     }
 
     std::string output;
@@ -307,8 +308,8 @@ spawn_capture(const std::string &binary) {
         } else if (errno != EINTR) {
             close(descriptors[0]);
             static_cast<void>(wait_for_child(process));
-            throw std::runtime_error(std::string("read failed: ") +
-                                     std::strerror(errno));
+            throw std::system_error(errno, std::generic_category(),
+                                    "read failed");
         }
     }
     close(descriptors[0]);
@@ -326,21 +327,23 @@ spawn_capture(const std::string &binary) {
 }
 
 [[nodiscard]] std::size_t parse_size(const std::string &value,
-                                     const std::string &name) {
+                                     const std::string_view name) {
     std::size_t consumed = 0;
     const unsigned long long parsed = std::stoull(value, &consumed);
     if (consumed != value.size() || parsed == 0ULL) {
-        throw std::runtime_error(name + " must be a positive integer");
+        throw std::runtime_error(std::string(name) +
+                                 " must be a positive integer");
     }
     return static_cast<std::size_t>(parsed);
 }
 
 [[nodiscard]] std::uint64_t parse_u64(const std::string &value,
-                                      const std::string &name) {
+                                      const std::string_view name) {
     std::size_t consumed = 0;
     const unsigned long long parsed = std::stoull(value, &consumed);
     if (consumed != value.size()) {
-        throw std::runtime_error(name + " must be an unsigned integer");
+        throw std::runtime_error(std::string(name) +
+                                 " must be an unsigned integer");
     }
     return static_cast<std::uint64_t>(parsed);
 }
@@ -595,13 +598,6 @@ void validate_csv_file(const std::string &path,
     }
 }
 
-[[nodiscard]] int validate_csv(const char *raw, const char *summary) {
-    validate_csv_file(raw, raw_csv_header, 26U);
-    validate_csv_file(summary, summary_csv_header, 18U);
-    std::cout << "PASS: raw and summary CSV structure\n";
-    return 0;
-}
-
 } // namespace
 
 int main(const int argc, char *argv[]) {
@@ -610,7 +606,10 @@ int main(const int argc, char *argv[]) {
             return self_test();
         }
         if (argc == 4 && std::string_view(argv[1]) == "--validate-csv") {
-            return validate_csv(argv[2], argv[3]);
+            validate_csv_file(argv[2], raw_csv_header, 26U);
+            validate_csv_file(argv[3], summary_csv_header, 18U);
+            std::cout << "PASS: raw and summary CSV structure\n";
+            return 0;
         }
         return run_benchmark(argc, argv, hpc::bench::program());
     } catch (const std::exception &error) {
