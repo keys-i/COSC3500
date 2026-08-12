@@ -7,8 +7,8 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 tool_config_validate
 
-(($# > 0)) && test -n "$1" ||
-    die "usage: san au|t|m"
+(($# > 0)) || die "usage: san au|t|m"
+test -n "$1" || die "usage: san au|t|m"
 case $1 in
     --help)
         printf 'usage: %s au|t|m\n' "${0##*/}"
