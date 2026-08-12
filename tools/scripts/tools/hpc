@@ -221,16 +221,20 @@ validate_resources() {
     fi
     case $mode in
         serial)
-            test "$ranks" = 1 && test "$threads" = 1 && test "$gpus" = 0 ||
+            if test "$ranks" != 1 || test "$threads" != 1 ||
+                test "$gpus" != 0; then
                 die "serial mode requires one rank, one thread, and no GPU"
+            fi
             ;;
         openmp)
-            test "$ranks" = 1 && test "$gpus" = 0 ||
+            if test "$ranks" != 1 || test "$gpus" != 0; then
                 die "OpenMP mode requires one rank and no GPU"
+            fi
             ;;
         mpi)
-            test "$ranks" -gt 1 && test "$gpus" = 0 ||
+            if test "$ranks" -le 1 || test "$gpus" != 0; then
                 die "MPI mode requires multiple ranks and no GPU"
+            fi
             ;;
         cuda)
             test "$gpus" -gt 0 || die "CUDA mode requires at least one GPU"

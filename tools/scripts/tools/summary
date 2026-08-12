@@ -43,7 +43,7 @@ printf 'exit status: %s\n' "$status" | tee -a "$log"
 
 if test -n "${GITHUB_STEP_SUMMARY:-}" && test -w "$GITHUB_STEP_SUMMARY"; then
     {
-        printf '## `%s`\n\n' "$label"
+        printf "## \`%s\`\n\n" "$label"
         if test "$status" -eq 0; then
             printf '**PASS** — exit 0\n\n'
         else
