@@ -4,6 +4,7 @@
 [![Benchmarks][bench-badge]][bench-workflow]
 [![Security][security-badge]][security-workflow]
 [![Explore][explore-badge]][explore-workflow]
+[![Open in GitHub Codespaces][codespaces-badge]][codespaces-link]
 
 C++20 coursework builds for macOS, Rangpur and Bunya.
 
@@ -200,3 +201,5 @@ command fails.
   https://github.com/keys-i/COSC3500/actions/workflows/explore.yml/badge.svg
 [explore-workflow]:
   https://github.com/keys-i/COSC3500/actions/workflows/explore.yml
+[codespaces-badge]: https://github.com/codespaces/badge.svg
+[codespaces-link]: https://codespaces.new/keys-i/COSC3500?quickstart=1
