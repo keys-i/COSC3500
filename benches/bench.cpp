@@ -452,16 +452,17 @@ void require_valid_program(const Options &options,
         static_cast<std::uint64_t>(options.minimum_case_ms) * 1'000'000ULL;
     const std::uint64_t start = now_ns();
     std::uint64_t operations = 0;
-    std::uint64_t finish = start;
-    do {
+    for (;;) {
         if (spawn_silent(options.binary) != 0) {
             throw std::runtime_error("timed " + options.target +
                                      " execution failed");
         }
         ++operations;
-        finish = now_ns();
-    } while (finish - start < minimum_ns);
-    return Sample{process_run, sample_number, finish - start, operations};
+        const std::uint64_t elapsed_ns = now_ns() - start;
+        if (elapsed_ns >= minimum_ns) {
+            return Sample{process_run, sample_number, elapsed_ns, operations};
+        }
+    }
 }
 
 void write_raw(const Options &options, const std::vector<Sample> &samples,
