@@ -232,6 +232,7 @@ cpu=$(cpu_name)
 flags="mode=$mode;sanitizer=$sanitizer;coverage=$coverage;"
 flags+="lto=$(cache_value "$preset" HPC_ENABLE_LTO)"
 
+cd "$HPC_ROOT"
 run "$helper" \
     --binary "$binary" \
     --target "$target" \
@@ -256,7 +257,7 @@ run "$helper" \
     --minimum-case-ms "$minimum_case_ms" \
     --bootstrap-resamples "$bootstrap_resamples" \
     --verify \
-    --output "$raw" \
-    --summary "$summary"
-run "$helper" --validate-csv "$raw" "$summary"
+    --output "${raw##*/}" \
+    --summary "${summary##*/}"
+run "$helper" --validate-csv "${raw##*/}" "${summary##*/}"
 pass "$action program-start check only"

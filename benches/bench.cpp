@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <fcntl.h>
 #include <fstream>
 #include <iomanip>
@@ -27,13 +28,13 @@ extern char **environ;
 
 namespace {
 
-constexpr std::string_view raw_csv_header =
+constexpr char raw_csv_header[] =
     "timestamp,git_commit,binary_sha256,target,preset,compiler,compiler_"
     "version,flags,host,cpu,"
     "gpu,backend,input_size,seed,threads,ranks,process_run,sample,elapsed_ns,"
     "operations,bytes,"
     "ns_per_operation,operations_per_second,checksum,valid,note";
-constexpr std::string_view summary_csv_header =
+constexpr char summary_csv_header[] =
     "target,variant,input_size,count,minimum,median,mean,maximum,mad,standard_"
     "deviation,p5,p95,"
     "coefficient_of_variation,ci95_low,ci95_high,speedup,speedup_ci95_low,"
@@ -348,6 +349,22 @@ spawn_capture(const std::string &binary) {
     return static_cast<std::uint64_t>(parsed);
 }
 
+[[nodiscard]] std::string result_csv_path(const std::string_view directory,
+                                          const char *const name) {
+    if (name == nullptr || *name == '\0' ||
+        std::strstr(name, "..") != nullptr ||
+        std::strchr(name, '/') != nullptr ||
+        std::strchr(name, '\\') != nullptr) {
+        throw std::runtime_error("CSV output must be a file name");
+    }
+    const std::string_view file_name(name);
+    if (file_name.size() < 5U ||
+        file_name.substr(file_name.size() - 4U) != ".csv") {
+        throw std::runtime_error("CSV output must end in .csv");
+    }
+    return std::string(directory) + '/' + name;
+}
+
 [[nodiscard]] Options parse_options(const int argc, char *argv[],
                                     const hpc::bench::Program &program) {
     Options options;
@@ -388,9 +405,9 @@ spawn_capture(const std::string &binary) {
         } else if (name == "--timestamp") {
             options.timestamp = value;
         } else if (name == "--output") {
-            options.output = value;
+            options.output = result_csv_path("results/raw", value.c_str());
         } else if (name == "--summary") {
-            options.summary = value;
+            options.summary = result_csv_path("results/summary", value.c_str());
         } else if (name == "--mode") {
             options.mode = value;
         } else if (name == "--size") {
@@ -568,6 +585,15 @@ void write_summary(const Options &options, const std::vector<Sample> &samples) {
         parse_csv_row(std::string(summary_csv_header)).size() != 18U) {
         throw std::runtime_error("CSV header self-test failed");
     }
+    bool traversal_rejected = false;
+    try {
+        static_cast<void>(result_csv_path("results/raw", "../bad.csv"));
+    } catch (const std::runtime_error &) {
+        traversal_rejected = true;
+    }
+    if (!traversal_rejected) {
+        throw std::runtime_error("CSV path self-test failed");
+    }
     if (spawn_silent("/usr/bin/true") != 0) {
         throw std::runtime_error("process-launch self-test failed");
     }
@@ -607,8 +633,10 @@ int main(const int argc, char *argv[]) {
             return self_test();
         }
         if (argc == 4 && std::string_view(argv[1]) == "--validate-csv") {
-            validate_csv_file(argv[2], raw_csv_header, 26U);
-            validate_csv_file(argv[3], summary_csv_header, 18U);
+            validate_csv_file(result_csv_path("results/raw", argv[2]),
+                              raw_csv_header, 26U);
+            validate_csv_file(result_csv_path("results/summary", argv[3]),
+                              summary_csv_header, 18U);
             std::cout << "PASS: raw and summary CSV structure\n";
             return 0;
         }
