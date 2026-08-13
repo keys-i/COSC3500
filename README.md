@@ -4,13 +4,10 @@
 [![Benchmarks][bench-badge]][bench-workflow]
 [![Security][security-badge]][security-workflow]
 [![Explore][explore-badge]][explore-workflow]
-[![Open in GitHub Codespaces][codespaces-badge]][codespaces-link]
 
 C++20 coursework builds for macOS, Rangpur and Bunya.
 
-> [!IMPORTANT]
-> Private coursework lives here. Keep the repo, inputs, logs and results
-> private too.
+[![Open in GitHub Codespaces][codespaces-badge]][codespaces-link]
 
 ## Setup
 
