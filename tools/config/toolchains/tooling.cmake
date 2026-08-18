@@ -33,10 +33,14 @@ function(hpc_add_optimisation_report target source)
     )
 endfunction()
 
+if(NOT TARGET m1_core)
+    return()
+endif()
+
 add_executable(
     hpc_bench
     "${PROJECT_SOURCE_DIR}/benches/bench.cpp"
-    "${PROJECT_SOURCE_DIR}/benches/m0.cpp"
+    "${PROJECT_SOURCE_DIR}/benches/m1.cpp"
 )
 set_target_properties(
     hpc_bench
