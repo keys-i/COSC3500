@@ -15,6 +15,8 @@
         "BUILD_TESTING": true,
         "CMAKE_BUILD_TYPE": "Hpc",
         "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "HPC_BUILD_M0": true,
+        "HPC_BUILD_M1": true,
         "HPC_COVERAGE": "none",
         "HPC_ENABLE_LTO": false,
         "HPC_REQUIRE_SLURM_ALLOCATION": false,
@@ -39,9 +41,23 @@
       }
     },
     {
+      "name": "cluster-base",
+      "hidden": true,
+      "cacheVariables": {
+        "HPC_ENABLE_LUA": false
+      }
+    },
+    {
       "name": "mac-check",
       "inherits": "check-base",
       "toolchainFile": "tools/config/toolchains/compiler/mac-appleclang21.cmake"
+    },
+    {
+      "name": "m0-check",
+      "inherits": "check-base",
+      "cacheVariables": {
+        "HPC_BUILD_M1": false
+      }
     },
     {
       "name": "mac-peak",
@@ -50,12 +66,12 @@
     },
     {
       "name": "rangpur-check",
-      "inherits": "check-base",
+      "inherits": ["check-base", "cluster-base"],
       "toolchainFile": "tools/config/toolchains/compiler/rangpur-clang21.cmake"
     },
     {
       "name": "rangpur-peak",
-      "inherits": "peak-base",
+      "inherits": ["peak-base", "cluster-base"],
       "toolchainFile": "tools/config/toolchains/compiler/rangpur-clang21.cmake",
       "cacheVariables": {
         "HPC_REQUIRE_SLURM_ALLOCATION": true
@@ -63,12 +79,12 @@
     },
     {
       "name": "bunya-check",
-      "inherits": "check-base",
+      "inherits": ["check-base", "cluster-base"],
       "toolchainFile": "tools/config/toolchains/compiler/bunya-gcc14.cmake"
     },
     {
       "name": "bunya-peak",
-      "inherits": "peak-base",
+      "inherits": ["peak-base", "cluster-base"],
       "toolchainFile": "tools/config/toolchains/compiler/bunya-gcc14.cmake",
       "cacheVariables": {
         "HPC_REQUIRE_SLURM_ALLOCATION": true
@@ -143,6 +159,7 @@
     }
   ],
   "buildPresets": [
+    { "name": "m0-check", "configurePreset": "m0-check" },
     { "name": "mac-check", "configurePreset": "mac-check" },
     { "name": "mac-peak", "configurePreset": "mac-peak" },
     { "name": "rangpur-check", "configurePreset": "rangpur-check" },
@@ -165,6 +182,11 @@
       "hidden": true,
       "output": { "outputOnFailure": true },
       "execution": { "noTestsAction": "error" }
+    },
+    {
+      "name": "m0-check",
+      "inherits": "test-base",
+      "configurePreset": "m0-check"
     },
     {
       "name": "mac-check",

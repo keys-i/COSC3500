@@ -1,0 +1,21 @@
+# Three-state wire signal sketch using the generic cellular table.
+[scenario]
+version=4
+kernel=cellular
+
+[world]
+width=7
+height=5
+steps=12
+boundary=bounded
+
+[output]
+snapshot_stride=1
+view=grid
+
+[cellular]
+states=3
+count_state=2
+boundary=bounded
+cells=00000000001111000020100000000000000
+transition=0,0,0,0,0,0,0,0,0,1,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1

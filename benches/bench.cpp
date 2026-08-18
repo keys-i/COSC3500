@@ -26,6 +26,31 @@
 
 extern char **environ;
 
+namespace hpc::bench {
+
+const Program *program(const std::string_view target,
+                       const std::string_view case_name) noexcept {
+    if (target == "m1") {
+        for (const Case &value : m1_cases()) {
+            if (case_name.empty() || case_name == value.name) {
+                return &value.program;
+            }
+        }
+    }
+    return nullptr;
+}
+
+const Case *program_case(const Program &program) noexcept {
+    for (const Case &value : m1_cases()) {
+        if (&value.program == &program) {
+            return &value;
+        }
+    }
+    return nullptr;
+}
+
+} // namespace hpc::bench
+
 namespace {
 
 constexpr char raw_csv_header[] =
@@ -56,6 +81,7 @@ struct Options {
     std::string timestamp;
     std::string output;
     std::string summary;
+    std::string case_name;
     std::string mode = "end-to-end";
     std::uint64_t input_size = 0;
     std::uint64_t seed = 0;
@@ -171,7 +197,7 @@ bootstrap_median_interval(const std::vector<double> &values,
             "bootstrap requires samples and at least 100 resamples");
     }
     // A fixed seed makes confidence intervals reproducible.
-    // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp)
+    // NOLINTNEXTLINE
     std::mt19937_64 generator(0x35007502ULL);
     std::uniform_int_distribution<std::size_t> pick(0U, values.size() - 1U);
     std::vector<double> medians;
@@ -241,7 +267,8 @@ calculate_statistics(const std::vector<double> &values,
     return 128;
 }
 
-[[nodiscard]] int spawn_silent(const std::string &binary) {
+[[nodiscard]] int spawn_silent(const std::string &binary,
+                               const hpc::bench::Program &program) {
     const int null_file = open("/dev/null", O_WRONLY);
     if (null_file == -1) {
         throw std::system_error(errno, std::generic_category(),
@@ -256,7 +283,18 @@ calculate_statistics(const std::vector<double> &values,
     }
     posix_spawn_file_actions_adddup2(&actions, null_file, STDOUT_FILENO);
     posix_spawn_file_actions_adddup2(&actions, null_file, STDERR_FILENO);
-    char *arguments[] = {const_cast<char *>(binary.c_str()), nullptr};
+    const hpc::bench::Case *const case_info = hpc::bench::program_case(program);
+    const std::string_view option =
+        case_info == nullptr ? "" : case_info->option;
+    char *arguments[] = {const_cast<char *>(binary.c_str()),
+                         const_cast<char *>(program.argument.data()),
+                         const_cast<char *>(option.data()), nullptr};
+    if (program.argument.empty()) {
+        arguments[1] = nullptr;
+    }
+    if (option.empty()) {
+        arguments[2] = nullptr;
+    }
     pid_t process = 0;
     const int spawn_result = posix_spawn(&process, binary.c_str(), &actions,
                                          nullptr, arguments, environ);
@@ -270,7 +308,7 @@ calculate_statistics(const std::vector<double> &values,
 }
 
 [[nodiscard]] std::pair<int, std::string>
-spawn_capture(const std::string &binary) {
+spawn_capture(const std::string &binary, const hpc::bench::Program &program) {
     int descriptors[2] = {-1, -1};
     if (pipe(descriptors) != 0) {
         throw std::system_error(errno, std::generic_category(), "pipe failed");
@@ -286,7 +324,18 @@ spawn_capture(const std::string &binary) {
     posix_spawn_file_actions_adddup2(&actions, descriptors[1], STDOUT_FILENO);
     posix_spawn_file_actions_addclose(&actions, descriptors[0]);
     posix_spawn_file_actions_addclose(&actions, descriptors[1]);
-    char *arguments[] = {const_cast<char *>(binary.c_str()), nullptr};
+    const hpc::bench::Case *const case_info = hpc::bench::program_case(program);
+    const std::string_view option =
+        case_info == nullptr ? "" : case_info->option;
+    char *arguments[] = {const_cast<char *>(binary.c_str()),
+                         const_cast<char *>(program.argument.data()),
+                         const_cast<char *>(option.data()), nullptr};
+    if (program.argument.empty()) {
+        arguments[1] = nullptr;
+    }
+    if (option.empty()) {
+        arguments[2] = nullptr;
+    }
     pid_t process = 0;
     const int spawn_result = posix_spawn(&process, binary.c_str(), &actions,
                                          nullptr, arguments, environ);
@@ -382,6 +431,8 @@ spawn_capture(const std::string &binary) {
             options.binary = value;
         } else if (name == "--target") {
             options.target = value;
+        } else if (name == "--case") {
+            options.case_name = value;
         } else if (name == "--preset") {
             options.preset = value;
         } else if (name == "--compiler") {
@@ -442,7 +493,37 @@ spawn_capture(const std::string &binary) {
         throw std::runtime_error("benchmark options do not match the " +
                                  std::string(program.target) + " adapter");
     }
+    const hpc::bench::Case *const case_info = hpc::bench::program_case(program);
+    const std::string_view selected_case =
+        case_info == nullptr ? "default" : case_info->name;
+    if (!options.case_name.empty() && options.case_name != selected_case) {
+        throw std::runtime_error("benchmark case does not match the adapter");
+    }
     return options;
+}
+
+[[nodiscard]] const hpc::bench::Program &select_program(const int argc,
+                                                        char *argv[]) {
+    std::string_view target;
+    std::string_view case_name;
+    for (int index = 1; index + 1 < argc; ++index) {
+        if (std::string_view(argv[index]) == "--target") {
+            target = argv[index + 1];
+        }
+        if (std::string_view(argv[index]) == "--case") {
+            case_name = argv[index + 1];
+        }
+    }
+    if (target.empty()) {
+        throw std::runtime_error("--target is required");
+    }
+    const auto *const value = hpc::bench::program(target, case_name);
+    if (value == nullptr) {
+        throw std::runtime_error(
+            "unknown benchmark case: " + std::string(target) + "/" +
+            std::string(case_name));
+    }
+    return *value;
 }
 
 void require_valid_program(const Options &options,
@@ -451,7 +532,7 @@ void require_valid_program(const Options &options,
         throw std::runtime_error(std::string(program.target) +
                                  " timing requires output verification");
     }
-    const auto result = spawn_capture(options.binary);
+    const auto result = spawn_capture(options.binary, program);
     if (result.first != 0) {
         throw std::runtime_error(std::string(program.target) +
                                  " check run failed");
@@ -463,6 +544,7 @@ void require_valid_program(const Options &options,
 }
 
 [[nodiscard]] Sample measure_sample(const Options &options,
+                                    const hpc::bench::Program &program,
                                     const std::size_t process_run,
                                     const std::size_t sample_number) {
     const std::uint64_t minimum_ns =
@@ -470,11 +552,11 @@ void require_valid_program(const Options &options,
     const std::uint64_t start = now_ns();
     std::uint64_t operations = 0;
     for (;;) {
-        if (spawn_silent(options.binary) != 0) {
+        if (spawn_silent(options.binary, program) != 0) {
             throw std::runtime_error("timed " + options.target +
                                      " execution failed");
         }
-        ++operations;
+        operations += program.operations_per_process;
         const std::uint64_t elapsed_ns = now_ns() - start;
         if (elapsed_ns >= minimum_ns) {
             return Sample{process_run, sample_number, elapsed_ns, operations};
@@ -490,6 +572,11 @@ void write_raw(const Options &options, const std::vector<Sample> &samples,
     }
     output << raw_csv_header << '\n';
     const std::uint64_t checksum = fnv1a(program.expected_output);
+    const hpc::bench::Case *const case_info = hpc::bench::program_case(program);
+    const std::string_view case_name =
+        case_info == nullptr ? "default" : case_info->name;
+    const std::string_view work_unit =
+        case_info == nullptr ? "operations" : case_info->work_unit;
     output << std::setprecision(17);
     for (const Sample &sample : samples) {
         const double ns_per_operation = static_cast<double>(sample.elapsed_ns) /
@@ -510,12 +597,16 @@ void write_raw(const Options &options, const std::vector<Sample> &samples,
                << sample.process_run << ',' << sample.sample << ','
                << sample.elapsed_ns << ',' << sample.operations << ",0,"
                << ns_per_operation << ',' << operations_per_second << ','
-               << checksum << ",true," << csv_escape(std::string(program.note))
+               << checksum << ",true,"
+               << csv_escape("case=" + std::string(case_name) +
+                             ";work_unit=" + std::string(work_unit) + ";" +
+                             std::string(program.note))
                << '\n';
     }
 }
 
-void write_summary(const Options &options, const std::vector<Sample> &samples) {
+void write_summary(const Options &options, const std::vector<Sample> &samples,
+                   const hpc::bench::Program &program) {
     std::vector<double> values;
     values.reserve(samples.size());
     for (const Sample &sample : samples) {
@@ -529,8 +620,11 @@ void write_summary(const Options &options, const std::vector<Sample> &samples) {
         throw std::runtime_error("cannot open summary CSV: " + options.summary);
     }
     output << summary_csv_header << '\n';
-    output << std::setprecision(17) << options.target << ',' << options.backend
-           << ',' << options.input_size << ',' << values.size() << ','
+    const hpc::bench::Case *const case_info = hpc::bench::program_case(program);
+    const std::string_view case_name =
+        case_info == nullptr ? "default" : case_info->name;
+    output << std::setprecision(17) << options.target << ',' << case_name << ','
+           << options.input_size << ',' << values.size() << ','
            << statistics.minimum << ',' << statistics.median << ','
            << statistics.mean << ',' << statistics.maximum << ','
            << statistics.mad << ',' << statistics.standard_deviation << ','
@@ -545,18 +639,18 @@ void write_summary(const Options &options, const std::vector<Sample> &samples) {
     require_valid_program(options, program);
 
     for (std::size_t warmup = 0; warmup < options.warmups; ++warmup) {
-        static_cast<void>(measure_sample(options, 0U, warmup + 1U));
+        static_cast<void>(measure_sample(options, program, 0U, warmup + 1U));
     }
 
     std::vector<Sample> samples;
     samples.reserve(options.samples * options.process_runs);
     for (std::size_t run = 1; run <= options.process_runs; ++run) {
         for (std::size_t sample = 1; sample <= options.samples; ++sample) {
-            samples.push_back(measure_sample(options, run, sample));
+            samples.push_back(measure_sample(options, program, run, sample));
         }
     }
     write_raw(options, samples, program);
-    write_summary(options, samples);
+    write_summary(options, samples, program);
     std::cout << "raw=" << options.output << '\n'
               << "summary=" << options.summary << '\n';
     return 0;
@@ -594,7 +688,15 @@ void write_summary(const Options &options, const std::vector<Sample> &samples) {
     if (!traversal_rejected) {
         throw std::runtime_error("CSV path self-test failed");
     }
-    if (spawn_silent("/usr/bin/true") != 0) {
+    const auto &m1_cases = hpc::bench::m1_cases();
+    if (m1_cases.size() != 7U || m1_cases.front().name != "continuous" ||
+        m1_cases.back().name != "compositor-gate" ||
+        hpc::bench::program("m1", "turn-search") != &m1_cases[4].program) {
+        throw std::runtime_error("benchmark case-table self-test failed");
+    }
+    const hpc::bench::Program true_program{"test", "test", "test", "",
+                                           "",     "",     1U};
+    if (spawn_silent("/usr/bin/true", true_program) != 0) {
         throw std::runtime_error("process-launch self-test failed");
     }
     std::cout
@@ -625,12 +727,28 @@ void validate_csv_file(const std::string &path,
     }
 }
 
+[[nodiscard]] int print_cases(const std::string_view target) {
+    if (target != "m1") {
+        throw std::runtime_error("unknown benchmark target: " +
+                                 std::string(target));
+    }
+    for (const hpc::bench::Case &case_info : hpc::bench::m1_cases()) {
+        std::cout << case_info.name << '|' << case_info.program.backend << '|'
+                  << case_info.work_unit << '|' << case_info.input_size << '|'
+                  << case_info.seed << '\n';
+    }
+    return 0;
+}
+
 } // namespace
 
 int main(const int argc, char *argv[]) {
     try {
         if (argc == 2 && std::string_view(argv[1]) == "--self-test") {
             return self_test();
+        }
+        if (argc == 3 && std::string_view(argv[1]) == "--cases") {
+            return print_cases(argv[2]);
         }
         if (argc == 4 && std::string_view(argv[1]) == "--validate-csv") {
             validate_csv_file(result_csv_path("results/raw", argv[2]),
@@ -640,7 +758,7 @@ int main(const int argc, char *argv[]) {
             std::cout << "PASS: raw and summary CSV structure\n";
             return 0;
         }
-        return run_benchmark(argc, argv, hpc::bench::program());
+        return run_benchmark(argc, argv, select_program(argc, argv));
     } catch (const std::exception &error) {
         std::cerr << "hpc_bench: " << error.what() << '\n';
         return 2;
