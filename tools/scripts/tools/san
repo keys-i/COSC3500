@@ -36,7 +36,7 @@ if test "$action" = msan; then
 fi
 
 configure_preset "$action" --fresh
-build_preset "$action" --target m0 hpc_bench
+build_preset "$action" --target m0 m1 hpc_bench
 if test "$action" = asan-ubsan && test "$(uname -s)" = Linux; then
     run env ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
         UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \

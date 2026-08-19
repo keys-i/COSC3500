@@ -408,49 +408,119 @@ cpu_name() {
     fi
 }
 
+safe_remove_directory() {
+    local directory=$1
+    test -e "$directory" || return 0
+    test -d "$directory" || die "won't remove a non-directory: $directory"
+    test ! -L "$directory" || die "won't remove a symlink: $directory"
+    local resolved
+    resolved=$(cd "$directory" && pwd -P)
+    test "$resolved" = "$directory" || die "unexpected path: $resolved"
+    test "$resolved" != "$HPC_ROOT" || die "won't remove the repo root"
+    test "$resolved" != "${HOME:-__unset__}" ||
+        die "won't remove the home directory"
+    run cmake -E remove_directory "$resolved"
+}
+
+clean_transients() {
+    local directory file
+    for directory in \
+        "$HPC_ROOT/.mypy_cache" \
+        "$HPC_ROOT/.pytest_cache" \
+        "$HPC_ROOT/.ruff_cache" \
+        "$HPC_ROOT/dist" \
+        "$HPC_ROOT/htmlcov"; do
+        safe_remove_directory "$directory"
+    done
+    if test -e "$HPC_ROOT/.coverage"; then
+        test -f "$HPC_ROOT/.coverage" && test ! -L "$HPC_ROOT/.coverage" ||
+            die "won't remove an unsafe .coverage path"
+        run cmake -E rm -f "$HPC_ROOT/.coverage"
+    fi
+    while IFS= read -r directory; do
+        case $directory in
+            "$HPC_ROOT"/*/__pycache__) ;;
+            *) die "unsafe Python cache path: $directory" ;;
+        esac
+        safe_remove_directory "$directory"
+    done < <(
+        find "$HPC_ROOT" \
+            -path "$HPC_ROOT/.git" -prune -o \
+            -path "$HPC_ROOT/.venv" -prune -o \
+            -path "$HPC_BUILD_ROOT" -prune -o \
+            -path "$HPC_ROOT/results" -prune -o \
+            -type d -name __pycache__ -print
+    )
+    while IFS= read -r file; do
+        case $file in
+            "$HPC_ROOT"/*.pyc | "$HPC_ROOT"/*.pyo) ;;
+            *) die "unsafe Python bytecode path: $file" ;;
+        esac
+        run cmake -E rm -f "$file"
+    done < <(
+        find "$HPC_ROOT" \
+            -path "$HPC_ROOT/.git" -prune -o \
+            -path "$HPC_ROOT/.venv" -prune -o \
+            -path "$HPC_BUILD_ROOT" -prune -o \
+            -path "$HPC_ROOT/results" -prune -o \
+            -type f \( -name '*.pyc' -o -name '*.pyo' \) -print
+    )
+    while IFS= read -r directory; do
+        case $directory in
+            "$HPC_ROOT"/*.egg-info) ;;
+            *) die "unsafe Python package path: $directory" ;;
+        esac
+        safe_remove_directory "$directory"
+    done < <(find "$HPC_ROOT" -maxdepth 1 -type d -name '*.egg-info' -print)
+    while IFS= read -r file; do
+        case $file in
+            "$HPC_ROOT"/.DS_Store | "$HPC_ROOT"/*/.DS_Store) ;;
+            *) die "unsafe macOS metadata path: $file" ;;
+        esac
+        run cmake -E rm -f "$file"
+    done < <(
+        find "$HPC_ROOT" \
+            -path "$HPC_ROOT/.git" -prune -o \
+            -path "$HPC_ROOT/.venv" -prune -o \
+            -path "$HPC_BUILD_ROOT" -prune -o \
+            -path "$HPC_ROOT/results" -prune -o \
+            -type f -name .DS_Store -print
+    )
+}
+
 safe_clean() {
     local scope=$1
     if test "$scope" = all; then
-        local directory resolved
-        for directory in "$HPC_BUILD_ROOT" "$HPC_ROOT/results"; do
-            test -e "$directory" || {
+        local directory
+        for directory in \
+            "$HPC_BUILD_ROOT" \
+            "$HPC_ROOT/results" \
+            "$HPC_ROOT/.cache"; do
+            case $directory in
+                "$HPC_BUILD_ROOT" | "$HPC_ROOT/results" | "$HPC_ROOT/.cache")
+                    ;;
+                *) die "unsafe clean path: $directory" ;;
+            esac
+            if test -e "$directory"; then
+                safe_remove_directory "$directory"
+            else
                 skip "directory does not exist: ${directory#"$HPC_ROOT"/}"
-                continue
-            }
-            test -d "$directory" ||
-                die "won't remove a non-directory: $directory"
-            test ! -L "$directory" ||
-                die "won't remove a symlink: $directory"
-            resolved=$(cd "$directory" && pwd -P)
-            test "$resolved" = "$directory" ||
-                die "unexpected path: $resolved"
-            run cmake -E remove_directory "$resolved"
+            fi
         done
+        clean_transients
         return 0
     fi
 
     local preset=$scope
     local directory
     directory=$(build_dir "$preset")
-    test -e "$directory" || {
-        skip "build directory does not exist: ${directory#"$HPC_ROOT"/}"
-        return 0
-    }
-    test -d "$HPC_BUILD_ROOT" || die "missing build root"
-    test ! -L "$HPC_BUILD_ROOT" || die "won't use a symlinked build root"
-    test ! -L "$directory" ||
-        die "won't remove a symlinked build directory"
-    local build_root
-    build_root=$(cd "$HPC_BUILD_ROOT" && pwd -P)
-    local resolved
-    resolved=$(cd "$directory" && pwd -P)
-    case $resolved in
-        "$build_root"/*) ;;
-        *) die "won't remove a path outside build/: $resolved" ;;
-    esac
-    test "$resolved" != "$build_root" || die "won't remove build/"
-    test "$resolved" != "$HPC_ROOT" || die "won't remove the repo root"
-    test "$resolved" != "${HOME:-__unset__}" ||
-        die "won't remove the home directory"
-    run cmake -E remove_directory "$resolved"
+    if test -f "$directory/CMakeCache.txt"; then
+        test ! -L "$HPC_BUILD_ROOT" || die "won't use a symlinked build root"
+        test ! -L "$directory" ||
+            die "won't use a symlinked build directory"
+        run cmake --build "$directory" --target clean
+    else
+        skip "preset is not configured: $preset"
+    fi
+    clean_transients
 }
