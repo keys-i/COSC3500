@@ -8,6 +8,11 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 command_name=${HPC_MAKE_COMMAND:-}
 argument_count=${HPC_MAKE_ARGUMENT_COUNT:-0}
 argument_1=${HPC_MAKE_ARGUMENT_1:-}
+performance_target=${HPC_MAKE_TARGET:-m1}
+
+if test "${HPC_MAKE_TARGET_ORIGIN:-file}" = file; then
+    performance_target=m1
+fi
 
 expect_arguments() {
     test "$argument_count" = "$1" || die "$2"
@@ -24,7 +29,7 @@ case $command_name in
         fi
         exec "$SCRIPT_DIR/bench" "$argument_1" \
             --preset "${HPC_MAKE_PRESET:-profile}" \
-            --target "${HPC_MAKE_TARGET:-m0}" \
+            --target "$performance_target" \
             --threads "${HPC_MAKE_THREADS:-1}" \
             --ranks "${HPC_MAKE_RANKS:-1}" \
             "$@"
@@ -38,7 +43,7 @@ case $command_name in
         esac
         export HPC_PGO_DISPATCH=1
         exec "$SCRIPT_DIR/bench" "$action" \
-            --target "${HPC_MAKE_TARGET:-m0}"
+            --target "$performance_target"
         ;;
     check)
         test "$argument_count" -le 1 ||
@@ -80,7 +85,7 @@ case $command_name in
             --cluster "${HPC_MAKE_CLUSTER:-rangpur}"
         ;;
     package)
-        test "$argument_count" -le 1 || die "usage: make package [a1]"
+        test "$argument_count" -le 1 || die "usage: make package [a1|m1]"
         exec "$SCRIPT_DIR/package" "${argument_1:-a1}"
         ;;
     clean)

@@ -2,7 +2,7 @@ check:
   source_roots: proj,src,include,assign,benches
   source_extensions: cpp,cc,cxx,hpp,h,cu,cuh
   shell_roots: tools/scripts,proj,assign
-  test_labels: smoke,unit
+  test_labels: smoke,unit,integration
 coverage:
   output_dir: results/coverage
   exclude_regex: (^|/)(build|tools|usr)/
