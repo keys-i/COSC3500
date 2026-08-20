@@ -30,15 +30,16 @@ jobs:
       - name: Install exploration tools
         run: >-
           sudo apt-get install --yes --no-install-recommends
-          clang-18 dwarves hwloc llvm-18 ninja-build
+          clang-18 dwarves hwloc libluajit-5.1-dev llvm-18 ninja-build
+          pkg-config
       - name: Collect compiler optimisation report
         run: >-
           ./tools/scripts/tools/summary explore-report --
-          make report PRESET=profile TARGET=m0
+          make report PRESET=profile TARGET=m1
       - name: Collect local reports
         run: >-
           ./tools/scripts/tools/summary explore-all --
-          make explore all PRESET=profile TARGET=m0
+          make explore all PRESET=profile TARGET=m1
       - name: Save exploration reports
         if: always()
         uses: >-

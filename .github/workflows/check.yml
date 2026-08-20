@@ -27,13 +27,13 @@ jobs:
             preset: bunya-check
             cc: gcc-14
             cxx: g++-14
-            packages: g++-14 ninja-build
+            packages: g++-14 libluajit-5.1-dev ninja-build pkg-config
           - os: ubuntu-24.04
             compiler: Clang 18
             preset: rangpur-check
             cc: clang-18
             cxx: clang++-18
-            packages: clang-18 ninja-build
+            packages: clang-18 libluajit-5.1-dev ninja-build pkg-config
           - os: macos-15
             compiler: AppleClang
             preset: mac-check
@@ -56,6 +56,9 @@ jobs:
         run: >-
           sudo apt-get install --yes --no-install-recommends
           ${{ matrix.packages }}
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: brew install luajit pkgconf
       - name: Build and run CTest
         run: >-
           ./tools/scripts/tools/summary check-test --
@@ -95,7 +98,7 @@ jobs:
         run: >-
           sudo apt-get install --yes --no-install-recommends
           clang-18 clang-format-18 clang-tidy-18 cppcheck ninja-build
-          shellcheck shfmt
+          libluajit-5.1-dev pkg-config shellcheck shfmt
       - name: Install actionlint
         run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - name: Check formatting
@@ -131,13 +134,14 @@ jobs:
             coverage: llvm
             cc: clang-18
             cxx: clang++-18
-            packages: clang-18 llvm-18 ninja-build
+            packages: >-
+              clang-18 libluajit-5.1-dev llvm-18 ninja-build pkg-config
           - kind: GCC
             preset: coverage-gcc
             coverage: gcov
             cc: gcc-14
             cxx: g++-14
-            packages: g++-14 ninja-build
+            packages: g++-14 libluajit-5.1-dev ninja-build pkg-config
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
@@ -165,5 +169,48 @@ jobs:
           path: |
             results/actions/
             results/coverage/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  visualiser:
+    name: Visualiser round trip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up uv
+        # v9.0.0
+        uses: >-
+          astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: 0.12.2
+          enable-cache: true
+      - name: Refresh package index
+        run: sudo apt-get update
+      - name: Install system dependencies
+        run: >-
+          sudo apt-get install --yes --no-install-recommends ffmpeg
+          libluajit-5.1-dev ninja-build pkg-config
+      - name: Sync visualiser dependencies
+        run: uv sync --locked
+      - name: Build M1
+        run: make build PRESET=profile TARGET=m1
+      - name: Run visualiser tests
+        run: >-
+          ./tools/scripts/tools/summary visualiser-roundtrip --
+          ctest --test-dir build/profile --output-on-failure
+          -R '^m1\.visualiser-'
+      - name: Save visualiser logs
+        if: always()
+        uses: >-
+          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: check-visualiser
+          path: results/actions/
           if-no-files-found: ignore
           retention-days: 7

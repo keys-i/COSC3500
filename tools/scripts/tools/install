@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+# shellcheck source=tools/scripts/tools/lib.sh
+. "$SCRIPT_DIR/lib.sh"
+
+test "${CODESPACES:-false}" = true ||
+    die "install is for Codespaces; clusters use site modules or Spack"
+test "$(uname -s)" = Linux || die "Codespace install needs Linux"
+command -v apt-get >/dev/null 2>&1 || die "apt-get is unavailable"
+command -v sudo >/dev/null 2>&1 || die "sudo is unavailable"
+command -v uv >/dev/null 2>&1 || die "uv is unavailable"
+
+run sudo apt-get update
+run sudo apt-get install --yes --no-install-recommends \
+    ffmpeg libluajit-5.1-dev ninja-build pkg-config
+run uv sync --locked

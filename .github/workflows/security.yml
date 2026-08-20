@@ -46,7 +46,7 @@ jobs:
       - name: Install compiler
         run: >-
           sudo apt-get install --yes --no-install-recommends
-          g++-14 ninja-build
+          g++-14 libluajit-5.1-dev ninja-build pkg-config
       - name: Build for CodeQL
         run: >-
           ./tools/scripts/tools/summary codeql-build --
@@ -84,7 +84,8 @@ jobs:
       - name: Install analyzers
         run: >-
           sudo apt-get install --yes --no-install-recommends
-          clang-18 clang-tools-18 g++-14 ninja-build
+          clang-18 clang-tools-18 g++-14 libluajit-5.1-dev ninja-build
+          pkg-config
       - name: Run Clang Static Analyzer and GCC fanalyzer
         run: >-
           ./tools/scripts/tools/summary security-static --
@@ -126,7 +127,7 @@ jobs:
       - name: Install compiler
         run: >-
           sudo apt-get install --yes --no-install-recommends
-          clang-18 ninja-build
+          clang-18 libluajit-5.1-dev ninja-build pkg-config
       - name: Run sanitizer
         run: >-
           ./tools/scripts/tools/summary san-${{ matrix.san }} --
@@ -183,7 +184,7 @@ jobs:
       - name: Install Valgrind and compiler
         run: >-
           sudo apt-get install --yes --no-install-recommends
-          clang-18 ninja-build valgrind
+          clang-18 libluajit-5.1-dev ninja-build pkg-config valgrind
       - name: Run Valgrind tool
         run: >-
           ./tools/scripts/tools/summary valgrind-${{ matrix.tool }} --
