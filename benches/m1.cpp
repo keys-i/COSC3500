@@ -18,11 +18,11 @@ const std::array<Case, 7U> &m1_cases() noexcept {
                 "end-to-end",
                 "templates/predator-prey",
                 "steps=20000 characters=2 initial=256 active=256 "
-                "entity_updates=5120000 candidate_checks=44332388 "
-                "sensed_interactions=15892048 births=0 deaths=0 "
+                "entity_updates=5120000 candidate_checks=44332462 "
+                "sensed_interactions=15891770 births=0 deaths=0 "
                 "cell_updates=0 turns=0 search_nodes=0 path_expansions=0 "
                 "timeline_events=0 "
-                "checksum=7552f06ec6612ab7\n",
+                "checksum=3f79b5ca16157376\n",
                 "steady-state serial predator-prey throughput",
                 5'120'000U,
             },
@@ -62,7 +62,7 @@ const std::array<Case, 7U> &m1_cases() noexcept {
                 "entity_updates=10000000 candidate_checks=73716414 "
                 "sensed_interactions=25717368 births=0 deaths=0 "
                 "cell_updates=0 turns=0 search_nodes=0 path_expansions=0 "
-                "timeline_events=0 checksum=fc6d515f46c987a2\n",
+                "timeline_events=0 checksum=a066c6cd48ee70b3\n",
                 "million-agent constant-density continuous workload",
                 10'000'000U,
             },
