@@ -42,14 +42,14 @@ constexpr std::size_t search_max_moves = 128U;
 
 struct TurnRules {
     void *context = nullptr;
-    [[nodiscard]] std::uint64_t (*hash)(void *) noexcept = nullptr;
-    [[nodiscard]] bool (*terminal)(void *, int &) noexcept = nullptr;
-    [[nodiscard]] int (*player)(void *) noexcept = nullptr;
-    [[nodiscard]] std::size_t (*moves)(void *, std::uint32_t *,
-                                       std::size_t) noexcept = nullptr;
-    [[nodiscard]] bool (*apply)(void *, std::uint32_t) noexcept = nullptr;
+    std::uint64_t (*hash)(void *) noexcept = nullptr;
+    bool (*terminal)(void *, int &) noexcept = nullptr;
+    int (*player)(void *) noexcept = nullptr;
+    std::size_t (*moves)(void *, std::uint32_t *,
+                         std::size_t) noexcept = nullptr;
+    bool (*apply)(void *, std::uint32_t) noexcept = nullptr;
     void (*undo)(void *, std::uint32_t) noexcept = nullptr;
-    [[nodiscard]] int (*evaluate)(void *) noexcept = nullptr;
+    int (*evaluate)(void *) noexcept = nullptr;
 };
 
 struct SearchBudget {
