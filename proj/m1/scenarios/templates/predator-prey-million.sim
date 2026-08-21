@@ -1,4 +1,4 @@
-# Million-agent form of the stable continuous throughput scenario.
+# 1m-agent throughput case
 [scenario]
 version=4
 kernel=continuous

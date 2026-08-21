@@ -1,4 +1,3 @@
-# Weighted rules compile once; the continuous loop only sees compact records.
 [scenario]
 version=4
 kernel=continuous

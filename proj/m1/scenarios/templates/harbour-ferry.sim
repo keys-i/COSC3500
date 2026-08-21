@@ -1,4 +1,3 @@
-# A ferry timetable sketch, not a hydrodynamic model.
 [scenario]
 version=4
 kernel=timeline

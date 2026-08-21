@@ -44,10 +44,11 @@ lives in that build directory. No CMake configure step downloads code.
 | `hpc_security` | One compatible sanitiser |
 | `hpc_coverage` | LLVM or GCC coverage, never both |
 
-M1 links `m1_core`: the parser, four kernels, bounded Lua host and native
-search code. Both Clang and GCC builds explicitly disable loop and SLP
-vectorisation for that target. Cluster presets leave Lua off unless a prepared
-user environment is explicitly selected. `m0` remains independent of it.
+M1 links `m1_core`: the parser, four execution modes, bounded Lua host and
+native search code. Both Clang and GCC builds explicitly disable loop and SLP
+vectorisation for that target. Cluster presets leave Lua off unless a
+prepared user environment is explicitly selected. `m0` remains independent
+of it.
 
 | Preset | Use |
 | --- | --- |

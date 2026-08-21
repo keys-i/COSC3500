@@ -1,4 +1,3 @@
-# A colour-and-number card game replay; rules are deliberately external.
 [scenario]
 version=4
 kernel=turn

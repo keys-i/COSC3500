@@ -66,7 +66,7 @@ both loop and SLP vectorisation.
 │   │   ├── config.cpp             # Strict v4 parser and compiler
 │   │   ├── script.cpp             # Bounded LuaJIT rule host
 │   │   ├── search.cpp             # Native board-search kernels
-│   │   └── simulation.cpp         # Four serial kernels
+│   │   └── simulation.cpp         # Four serial execution modes
 │   └── visualise.py               # Offline Pygame/PyAV renderer
 ├── tools/
 │   ├── config/                    # Build and tool policy

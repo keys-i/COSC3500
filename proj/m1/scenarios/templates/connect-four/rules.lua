@@ -1,4 +1,3 @@
--- Original deterministic drop rule, not a game solver or legality engine.
 function on_setup()
     assert(math.random == nil and math.randomseed == nil and print == nil)
 end
