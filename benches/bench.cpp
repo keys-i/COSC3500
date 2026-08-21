@@ -196,7 +196,7 @@ bootstrap_median_interval(const std::vector<double> &values,
         throw std::runtime_error(
             "bootstrap requires samples and at least 100 resamples");
     }
-    // A fixed seed makes confidence intervals reproducible.
+    // Fix the bootstrap seed so repeated reports match
     // NOLINTNEXTLINE
     std::mt19937_64 generator(0x35007502ULL);
     std::uniform_int_distribution<std::size_t> pick(0U, values.size() - 1U);
