@@ -45,13 +45,13 @@ constexpr std::string_view scenario_root{"proj/m1/scenarios/"};
 }
 
 [[nodiscard]] bool regular_file(const std::string &path) noexcept {
-    struct stat information{};
+    struct stat information = {};
     return lstat(path.c_str(), &information) == 0 &&
            S_ISREG(information.st_mode) && !S_ISLNK(information.st_mode);
 }
 
 [[nodiscard]] bool directory(const std::string &path) noexcept {
-    struct stat information{};
+    struct stat information = {};
     return lstat(path.c_str(), &information) == 0 &&
            S_ISDIR(information.st_mode) && !S_ISLNK(information.st_mode);
 }
@@ -75,8 +75,12 @@ find_scenario(const std::string_view selector) {
         return std::nullopt;
     }
 
-    using Directory = std::unique_ptr<DIR, decltype(&closedir)>;
-    Directory entries{opendir(base.c_str()), &closedir};
+    struct DirectoryCloser {
+        void operator()(DIR *const value) const noexcept {
+            static_cast<void>(closedir(value));
+        }
+    };
+    std::unique_ptr<DIR, DirectoryCloser> entries{opendir(base.c_str())};
     if (!entries) {
         return std::nullopt;
     }
@@ -291,7 +295,7 @@ void write_csv_text(std::ostream &output, const std::string_view text) {
 }
 
 [[nodiscard]] bool ensure_directory(const char *const path) noexcept {
-    struct stat information{};
+    struct stat information = {};
     if (lstat(path, &information) == 0) {
         return S_ISDIR(information.st_mode) && !S_ISLNK(information.st_mode);
     }
