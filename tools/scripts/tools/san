@@ -53,6 +53,7 @@ prepare_msan() {
             '-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi' \
             -DLLVM_INCLUDE_TESTS=OFF \
             -DLIBCXX_CXX_ABI=libcxxabi \
+            -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
             -DLIBCXX_INCLUDE_TESTS=OFF \
             -DLIBCXXABI_INCLUDE_TESTS=OFF
         run cmake --build "$build" --parallel --target \
