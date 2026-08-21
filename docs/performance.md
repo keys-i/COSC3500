@@ -10,9 +10,10 @@
 
 ## What gets timed
 
-M1 has four kernels. They do different work, so their counters stay separate.
+M1 has four execution modes. They do different work, so their counters stay
+separate. Only the continuous cases are throughput workloads.
 
-| Kernel | Useful-work counters | Performance role |
+| Mode | Useful-work counters | Performance role |
 | --- | --- | --- |
 | `continuous` | entity updates, candidates, interactions | Main workload |
 | `cellular` | cell updates | Grid-rule diagnostic |
@@ -63,10 +64,13 @@ $$
 It retains raw samples and calculates minimum, median, mean, maximum, MAD,
 sample standard deviation, p5, p95, CV and a fixed-seed 10,000-resample
 bootstrap interval. It does not silently drop outliers.
+Summary timing fields are nanoseconds per useful operation; CV is
+dimensionless.
 
 Raw CSV goes in `results/raw/`; summaries go in `results/summary/`. Every row
 records the commit, binary hash, compiler, flags, machine, input, seed and
-work counters.
+selected operation count. Output verification pins the remaining work
+counters before timing starts.
 
 > [!CAUTION]
 > Do not time ASan, UBSan, TSan, MSan, coverage, Valgrind, tracing, snapshots,
@@ -104,6 +108,9 @@ M1 deliberately disables compiler loop and SLP SIMD. For continuous work,
 precompile behaviour IDs and squared radii, retain contiguous state and avoid
 configuration, allocation and I/O in the step. For local interactions, a
 uniform grid is worth keeping only when its checksum and measured workload win.
+Canonical two-character grids keep one ID boundary per cell so each character
+scans only its configured target type. Other layouts retain the generic sorted
+range scan.
 Continuous entity and cellular neighbour indices are 32-bit; configuration
 rejects larger domains before allocation. That covers the intended
 100,000-to-million scale while halving index traffic against 64-bit storage.

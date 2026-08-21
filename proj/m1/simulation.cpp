@@ -19,7 +19,7 @@ namespace {
 constexpr double unit_scale = 1.0 / 9'007'199'254'740'992.0;
 constexpr std::uint64_t fnv_offset = 14'695'981'039'346'656'037ULL;
 constexpr std::uint64_t fnv_prime = 1'099'511'628'211ULL;
-// Config validation caps both entities and cells to this index range.
+// Validation caps grid and entity indices at 32 bits
 using GridIndex = std::uint32_t;
 
 struct Grid {
@@ -29,9 +29,11 @@ struct Grid {
     double cell_height = 0.0;
     std::vector<GridIndex> counts;
     std::vector<GridIndex> offsets;
-    std::vector<GridIndex> cursors;
     std::vector<GridIndex> members;
     std::vector<GridIndex> entity_cells;
+    // Two-type worlds keep one boundary per cell to avoid non-target scans
+    std::vector<GridIndex> type_splits;
+    std::size_t second_type_first = 0;
 };
 
 [[nodiscard]] double random_unit(std::mt19937_64 &generator) noexcept {
@@ -50,8 +52,7 @@ struct Grid {
 
 [[nodiscard]] double add_wrapped(const double position, const double delta,
                                  const double extent) noexcept {
-    // Movement uses a shortest wrapped displacement scaled by at most one.
-    // Therefore |delta| <= extent / 2 and a single wrap is sufficient.
+    // Movement is capped at half an extent, so it crosses at most one edge
     double result = 0.0;
     if (delta >= 0.0) {
         const double remaining = extent - position;
@@ -82,7 +83,8 @@ struct Grid {
     return static_cast<std::size_t>(available);
 }
 
-[[nodiscard]] Grid make_grid(const Scenario &scenario) {
+[[nodiscard]] Grid make_grid(const Scenario &scenario,
+                             const bool split_by_type) {
     double radius_squared = 0.0;
     for (const CharacterPlan &plan : scenario.characters) {
         radius_squared = std::max(radius_squared, plan.sensing_radius_squared);
@@ -100,6 +102,13 @@ struct Grid {
         radius > 0.0 ? limited_cells(scenario.world.height, radius, rows_limit)
                      : 1U;
     const std::size_t cells = columns * rows;
+    const bool canonical_two_type_layout =
+        split_by_type && scenario.characters.size() == 2U &&
+        scenario.characters[0U].first == 0U &&
+        scenario.characters[0U].count == scenario.characters[1U].first &&
+        scenario.characters[1U].first <= scenario.entity_count &&
+        scenario.characters[1U].count ==
+            scenario.entity_count - scenario.characters[1U].first;
     return Grid{
         columns,
         rows,
@@ -107,9 +116,10 @@ struct Grid {
         scenario.world.height / static_cast<double>(rows),
         std::vector<GridIndex>(cells),
         std::vector<GridIndex>(cells + 1U),
-        std::vector<GridIndex>(cells),
         std::vector<GridIndex>(scenario.entity_count),
         std::vector<GridIndex>(scenario.entity_count),
+        std::vector<GridIndex>(canonical_two_type_layout ? cells : 0U),
+        canonical_two_type_layout ? scenario.characters[1U].first : 0U,
     };
 }
 
@@ -124,24 +134,32 @@ struct Grid {
 
 void build_grid(Grid &grid, const State &state) {
     std::fill(grid.counts.begin(), grid.counts.end(), 0U);
+    std::fill(grid.type_splits.begin(), grid.type_splits.end(), 0U);
     for (std::size_t entity = 0; entity < state.x.size(); ++entity) {
         if (state.alive[entity] != 0U) {
             const GridIndex cell =
                 cell_index(grid, state.x[entity], state.y[entity]);
             grid.entity_cells[entity] = cell;
             ++grid.counts[cell];
+            if (!grid.type_splits.empty() && entity < grid.second_type_first) {
+                ++grid.type_splits[cell];
+            }
         }
     }
     grid.offsets[0] = 0U;
     for (std::size_t cell = 0; cell < grid.counts.size(); ++cell) {
         grid.offsets[cell + 1U] = grid.offsets[cell] + grid.counts[cell];
-        grid.cursors[cell] = grid.offsets[cell];
+        // Reuse the histogram as insertion cursors after the prefix sum
+        grid.counts[cell] = grid.offsets[cell];
+        if (!grid.type_splits.empty()) {
+            grid.type_splits[cell] += grid.offsets[cell];
+        }
     }
-    // Ascending insertion keeps each cell grouped by character range.
+    // Keep IDs ordered within each cell so target scans can stop early
     for (std::size_t entity = 0; entity < state.x.size(); ++entity) {
         if (state.alive[entity] != 0U) {
             const GridIndex cell = grid.entity_cells[entity];
-            grid.members[grid.cursors[cell]++] = static_cast<GridIndex>(entity);
+            grid.members[grid.counts[cell]++] = static_cast<GridIndex>(entity);
         }
     }
 }
@@ -366,7 +384,7 @@ State initialise(const Scenario &scenario) {
             return metrics;
         }
     }
-    Grid grid = make_grid(scenario);
+    Grid grid = make_grid(scenario, true);
 
     for (std::uint64_t step = 0; step < step_count; ++step) {
         const std::uint64_t frame = first_step + step + 1U;
@@ -374,7 +392,7 @@ State initialise(const Scenario &scenario) {
             !controller(frame, scenario, state, controller_context)) {
             return metrics;
         }
-        // Every entity reads one state; movement and deaths commit together.
+        // Read current buffers, then publish movement and deaths together
         std::copy(state.x.begin(), state.x.end(), state.next_x.begin());
         std::copy(state.y.begin(), state.y.end(), state.next_y.begin());
         std::copy(state.velocity_x.begin(), state.velocity_x.end(),
@@ -417,17 +435,25 @@ State initialise(const Scenario &scenario) {
                 for (std::size_t neighbour = 0; neighbour < neighbour_count;
                      ++neighbour) {
                     const std::size_t neighbour_cell = neighbours[neighbour];
-                    const std::size_t begin = grid.offsets[neighbour_cell];
-                    const std::size_t finish =
-                        grid.offsets[neighbour_cell + 1U];
+                    std::size_t begin = grid.offsets[neighbour_cell];
+                    std::size_t finish = grid.offsets[neighbour_cell + 1U];
+                    if (!grid.type_splits.empty()) {
+                        if (plan.target == 0U) {
+                            finish = grid.type_splits[neighbour_cell];
+                        } else {
+                            begin = grid.type_splits[neighbour_cell];
+                        }
+                    }
                     for (std::size_t member = begin; member < finish;
                          ++member) {
                         const std::size_t candidate = grid.members[member];
-                        if (candidate < target.first) {
-                            continue;
-                        }
-                        if (candidate >= target_end) {
-                            break;
+                        if (grid.type_splits.empty()) {
+                            if (candidate < target.first) {
+                                continue;
+                            }
+                            if (candidate >= target_end) {
+                                break;
+                            }
                         }
                         if (candidate == entity) {
                             continue;
@@ -528,7 +554,7 @@ namespace {
         state.next_alive.size() != count) {
         return metrics;
     }
-    Grid grid = make_grid(scenario);
+    Grid grid = make_grid(scenario, false);
     for (std::uint64_t step = 0U; step < step_count; ++step) {
         const std::uint64_t frame = first_step + step + 1U;
         if (controller != nullptr &&
@@ -713,7 +739,7 @@ namespace {
             !controller(frame, scenario, state, controller_context)) {
             return metrics;
         }
-        // File order resolves same-frame events deterministically.
+        // Config order breaks ties between events on the same frame
         while (event_index < scenario.events.size() &&
                scenario.events[event_index].step == frame) {
             const TimelineEvent &event = scenario.events[event_index++];
@@ -987,7 +1013,7 @@ simulate_turn(const Scenario &scenario, State &state,
             !controller(frame, scenario, state, controller_context)) {
             return metrics;
         }
-        // The lookup table keeps the inner loop free of rule parsing.
+        // Count neighbours, then use the prebuilt transition table
         for (std::size_t cell = 0U; cell < state.cells.size(); ++cell) {
             const Neighbours &list = neighbours[cell];
             std::uint8_t active = 0U;
@@ -1523,6 +1549,22 @@ int self_test() {
         State state = initialise(scenario);
         state.x = {5.0, 6.0, 4.0};
         state.y = {5.0, 5.0, 5.0};
+        static_cast<void>(simulate(scenario, state));
+        if (!close(state.x[0], 6.0)) {
+            return 1;
+        }
+    }
+
+    {
+        Scenario scenario = test_scenario(1U);
+        scenario.characters = {
+            {1U, 1U, 1U, 0U, 0.0, 0.0, 0.0},
+            {0U, 1U, 0U, seek, 1.0, 4.0, 0.0},
+        };
+        scenario.entity_count = 2U;
+        State state = initialise(scenario);
+        state.x = {5.0, 6.0};
+        state.y = {5.0, 5.0};
         static_cast<void>(simulate(scenario, state));
         if (!close(state.x[0], 6.0)) {
             return 1;
