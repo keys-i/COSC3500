@@ -55,7 +55,7 @@ jobs:
           ${{ matrix.packages }}
       - name: Install macOS build dependencies
         if: runner.os == 'macOS'
-        run: brew install luajit pkgconf
+        run: brew install luajit
       - name: Self-test benchmark statistics and CSV
         run: >-
           ./tools/scripts/tools/summary bench-self-test --

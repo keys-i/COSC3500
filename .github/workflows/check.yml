@@ -58,7 +58,7 @@ jobs:
           ${{ matrix.packages }}
       - name: Install macOS build dependencies
         if: runner.os == 'macOS'
-        run: brew install luajit pkgconf
+        run: brew install luajit
       - name: Build and run CTest
         run: >-
           ./tools/scripts/tools/summary check-test --
