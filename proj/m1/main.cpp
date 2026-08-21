@@ -2,11 +2,13 @@
 
 #include <cerrno>
 #include <cstdio>
+#include <dirent.h>
 #include <exception>
 #include <fstream>
 #include <iomanip>
 #include <ios>
 #include <iostream>
+#include <memory>
 #include <new>
 #include <optional>
 #include <string>
@@ -54,6 +56,56 @@ constexpr std::string_view scenario_root{"proj/m1/scenarios/"};
            S_ISDIR(information.st_mode) && !S_ISLNK(information.st_mode);
 }
 
+struct ScenarioFile {
+    std::string path;
+    std::string source_directory;
+    std::string name;
+};
+
+[[nodiscard]] std::optional<ScenarioFile>
+find_scenario(const std::string_view selector) {
+    constexpr std::string_view templates_prefix{"templates/"};
+    const bool is_template = selector.rfind(templates_prefix, 0U) == 0U;
+    const std::string_view prefix =
+        is_template ? templates_prefix : std::string_view{"test/"};
+    const std::string_view requested = selector.substr(prefix.size());
+    const std::string base =
+        std::string{scenario_root} + (is_template ? "templates" : "test");
+    if (!directory(base)) {
+        return std::nullopt;
+    }
+
+    using Directory = std::unique_ptr<DIR, decltype(&closedir)>;
+    Directory entries{opendir(base.c_str()), &closedir};
+    if (!entries) {
+        return std::nullopt;
+    }
+
+    std::optional<ScenarioFile> bundle;
+    while (const dirent *const entry = readdir(entries.get())) {
+        const std::string_view listed{entry->d_name};
+        if (listed.size() == requested.size() + 4U &&
+            listed.substr(0U, requested.size()) == requested &&
+            listed.substr(requested.size()) == ".sim") {
+            const std::string path = base + '/' + std::string{listed};
+            if (regular_file(path)) {
+                return ScenarioFile{
+                    path, base,
+                    std::string{listed.substr(0U, listed.size() - 4U)}};
+            }
+        }
+        if (listed != requested) {
+            continue;
+        }
+        const std::string source = base + '/' + std::string{listed};
+        const std::string path = source + "/scenario.sim";
+        if (directory(source) && regular_file(path)) {
+            bundle = ScenarioFile{path, source, std::string{listed}};
+        }
+    }
+    return bundle;
+}
+
 [[nodiscard]] bool safe_inputs(const m1::Scenario &scenario) {
     if (!scenario.lua_rules.empty() &&
         !regular_file(scenario.source_directory + '/' + scenario.lua_rules)) {
@@ -97,6 +149,7 @@ void write_frame(std::ostream &output, const std::uint64_t frame,
 
 void write_grid_snapshot(std::ostream &output, const std::uint64_t frame,
                          const m1::Scenario &scenario, const m1::State &state) {
+    static const m1::RenderStyle fallback{m1::Shape::cell, "55AA55", "", 0};
     const std::size_t columns = scenario.kernel == m1::Kernel::cellular
                                     ? scenario.cellular.columns
                                     : scenario.turn.columns;
@@ -114,7 +167,6 @@ void write_grid_snapshot(std::ostream &output, const std::uint64_t frame,
         }
         const std::size_t type = static_cast<std::size_t>(value - 1U);
         const bool styled = type < scenario.styles.size();
-        const m1::RenderStyle fallback{m1::Shape::cell, "55AA55", "", 0};
         const m1::RenderStyle &style =
             styled ? scenario.styles[type] : fallback;
         const std::string_view name =
@@ -138,9 +190,11 @@ void write_snapshot(const std::uint64_t frame, const m1::Scenario &scenario,
         write_grid_snapshot(output, frame, scenario, state);
         return;
     }
+    const char *const view = view_name(scenario.view);
     for (std::size_t type = 0; type < scenario.characters.size(); ++type) {
         const m1::CharacterPlan &plan = scenario.characters[type];
         const m1::RenderStyle &style = scenario.styles[type];
+        const char *const shape = shape_name(style.shape);
         const std::size_t end = plan.first + plan.count;
         for (std::size_t entity = plan.first; entity < end; ++entity) {
             if (state.alive[entity] == 0U) {
@@ -149,29 +203,22 @@ void write_snapshot(const std::uint64_t frame, const m1::Scenario &scenario,
             output << frame << ",entity," << entity << ',' << type << ','
                    << scenario.names[type] << ',' << state.x[entity] << ','
                    << state.y[entity] << ',' << scenario.world.width << ','
-                   << scenario.world.height << ',' << view_name(scenario.view)
-                   << ',' << shape_name(style.shape) << ',' << style.colour
-                   << ',' << style.glyph << ',' << style.layer << '\n';
+                   << scenario.world.height << ',' << view << ',' << shape
+                   << ',' << style.colour << ',' << style.glyph << ','
+                   << style.layer << '\n';
         }
     }
 }
 
 [[nodiscard]] std::optional<m1::Scenario>
-load_scenario(const std::string_view name, std::string &error) {
-    const std::string root = std::string{scenario_root} + std::string{name};
-    std::string source_directory = root;
-    std::string path = root + ".sim";
-    const bool flat = regular_file(path);
-    if (!flat) {
-        path = root + "/scenario.sim";
-    } else {
-        source_directory.resize(source_directory.find_last_of('/'));
-    }
-    if ((!flat && !regular_file(path)) || !directory(source_directory)) {
+load_scenario(const std::string_view selector, std::string &name,
+              std::string &error) {
+    const std::optional<ScenarioFile> file = find_scenario(selector);
+    if (!file) {
         error = " cannot open scenario";
         return std::nullopt;
     }
-    std::ifstream input{path};
+    std::ifstream input{file->path};
     if (!input) {
         error = " cannot open scenario file";
         return std::nullopt;
@@ -180,11 +227,12 @@ load_scenario(const std::string_view name, std::string &error) {
     if (!scenario) {
         return std::nullopt;
     }
-    scenario->source_directory = source_directory;
+    scenario->source_directory = file->source_directory;
     if (!safe_inputs(*scenario)) {
         error = " scenario contains a missing or unsafe local file";
         return std::nullopt;
     }
+    name = file->name;
     return scenario;
 }
 
@@ -361,13 +409,14 @@ int main(const int argc, char *argv[]) {
             return 2;
         }
         std::string error;
-        const auto scenario = load_scenario(argv[1], error);
+        std::string scenario_name;
+        const auto scenario = load_scenario(argv[1], scenario_name, error);
         if (!scenario) {
             static_cast<void>(std::fprintf(stderr, "m1:%s\n", error.c_str()));
             return 1;
         }
         return streaming ? stream(*scenario)
-                         : run(*scenario, argv[1], snapshots);
+                         : run(*scenario, scenario_name, snapshots);
     } catch (const std::bad_alloc &) {
         report_error("m1: insufficient memory for scenario\n");
         return 1;
