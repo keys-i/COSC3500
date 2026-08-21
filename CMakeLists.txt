@@ -338,6 +338,22 @@ endif()
                 missing-scenario templates/does-not-exist
                 "m1: cannot open scenario"
             )
+            m1_add_failure_test(
+                path-parent templates/../outside
+                "usage: m1 <templates|test>/<name>"
+            )
+            m1_add_failure_test(
+                path-nested templates/nested/scenario
+                "usage: m1 <templates|test>/<name>"
+            )
+            m1_add_failure_test(
+                path-absolute /tmp/scenario
+                "usage: m1 <templates|test>/<name>"
+            )
+            m1_add_failure_test(
+                path-backslash "templates\\outside"
+                "usage: m1 <templates|test>/<name>"
+            )
             set(m1_v4_kernels "")
             set(
                 m1_template_root
