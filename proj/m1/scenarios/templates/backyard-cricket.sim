@@ -1,4 +1,3 @@
-# Scripted backyard cricket presentation, not a physics or scoring model.
 [scenario]
 version=4
 kernel=timeline

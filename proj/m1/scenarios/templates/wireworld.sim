@@ -1,4 +1,3 @@
-# Three-state wire signal sketch using the generic cellular table.
 [scenario]
 version=4
 kernel=cellular

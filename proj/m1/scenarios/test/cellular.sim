@@ -1,4 +1,4 @@
-# A three-cell blinker distinguishes synchronous cellular updates.
+# Blinker checks synchronous updates
 [scenario]
 version=4
 kernel=cellular

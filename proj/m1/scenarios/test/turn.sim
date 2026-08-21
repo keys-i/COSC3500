@@ -1,4 +1,4 @@
-# Board cells are set in file order and turns advance once per step.
+# File order defines board updates
 [scenario]
 version=4
 kernel=turn

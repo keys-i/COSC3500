@@ -1,4 +1,4 @@
-# 100,000-agent form of the stable continuous throughput scenario.
+# 100k-agent throughput case
 [scenario]
 version=4
 kernel=continuous

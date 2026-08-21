@@ -1,4 +1,3 @@
-# A response timeline: asset-free so it runs in a clean checkout.
 [scenario]
 version=4
 kernel=timeline

@@ -119,9 +119,7 @@ run_lint() {
 
 run_analyze() {
     local scan_build
-    if scan_build=$(
-        find_tool SCAN_BUILD scan-build scan-build-21 scan-build-18
-    ); then
+    if scan_build=$(find_llvm_tool scan-build); then
         local analysis_dir="$HPC_BUILD_ROOT/scan-build"
         local reports="$analysis_dir/reports"
         run mkdir -p "$reports"

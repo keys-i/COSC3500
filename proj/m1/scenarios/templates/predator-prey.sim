@@ -1,4 +1,4 @@
-# Stable continuous workload: no capture means comparable work per step.
+# No capture: stable work per step
 [scenario]
 version=4
 kernel=continuous

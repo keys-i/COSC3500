@@ -1,4 +1,4 @@
-# One state change per frame makes event ordering obvious.
+# One change per frame checks event order
 [scenario]
 version=4
 kernel=timeline

@@ -1,4 +1,3 @@
-# Chess board-state playback only; no move legality or engine is implied.
 [scenario]
 version=4
 kernel=turn

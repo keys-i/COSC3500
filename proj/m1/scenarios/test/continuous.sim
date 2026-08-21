@@ -1,4 +1,4 @@
-# Small fixed continuous case for parser and kernel tests.
+# Small continuous parser and kernel case
 [scenario]
 version=4
 kernel=continuous

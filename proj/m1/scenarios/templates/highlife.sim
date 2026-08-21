@@ -1,4 +1,3 @@
-# HighLife B36/S23, useful as a distinct cellular rule check.
 [scenario]
 version=4
 kernel=cellular

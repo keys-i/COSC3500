@@ -4,7 +4,7 @@ format:
   column_limit: 80
   sort_includes: CaseSensitive
 tidy:
-  # Named parameters are clearer here than this heuristic's false positives.
+  # Avoid false positives from positional parameters
   checks: -*,clang-analyzer-*,bugprone-*,-bugprone-easily-swappable-parameters
   parallel_checks: cert-*,mpi-*,openmp-*,performance-*,portability-*
   warnings_as_errors: true
