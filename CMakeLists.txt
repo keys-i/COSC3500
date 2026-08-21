@@ -248,10 +248,6 @@ if(TARGET m1)
     )
 endif()
 
-if(TARGET hpc_bench AND TARGET m1_core)
-    target_link_libraries(hpc_bench PRIVATE m1_core)
-endif()
-
 cmake_host_system_information(RESULT configured_hostname QUERY HOSTNAME)
 file(
     WRITE "${CMAKE_BINARY_DIR}/configured-host.txt"

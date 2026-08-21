@@ -74,6 +74,21 @@ benchmark_actions+=,pgo-generate,pgo-use
 validate_choice "$action" "$benchmark_actions" "benchmark action"
 validate_positive_integer "$threads" threads
 validate_positive_integer "$ranks" ranks
+if test "$target" = m1 &&
+    { test "$threads" != 1 || test "$ranks" != 1; }; then
+    die "m1 benchmarks require threads=1 and ranks=1"
+fi
+
+case $action in
+    standard | publication)
+        case $case_selector in
+            all | continuous-large | continuous-million) ;;
+            *)
+                die "$action only times continuous-large or continuous-million"
+                ;;
+        esac
+        ;;
+esac
 
 case $action in
     pgo-generate | pgo-use)
@@ -154,11 +169,16 @@ expect_rejection() {
 
 run_gate_tests() {
     configure_preset asan-ubsan --fresh
-    build_preset asan-ubsan --target m1 hpc_bench
     expect_rejection profile-mode "unknown cluster preset: profile" \
         "$SCRIPT_DIR/bench" smoke --preset profile --target m1 --final
     expect_rejection sanitizer "won't time a sanitizer build" \
         "$SCRIPT_DIR/bench" smoke --preset asan-ubsan --target m1
+    expect_rejection standard-scope \
+        "standard only times continuous-large or continuous-million" \
+        "$SCRIPT_DIR/bench" standard --case cellular
+    expect_rejection serial-metadata \
+        "m1 benchmarks require threads=1 and ranks=1" \
+        "$SCRIPT_DIR/bench" smoke --threads 2
 }
 
 case $action in
@@ -192,8 +212,11 @@ esac
 require_preset "$preset"
 require_target "$target"
 test "$target" = m1 || die "only m1 has a benchmark adapter"
+if test "$final_run" = true; then
+    cluster_presets=$(config_get_nested "$CONFIG" control cluster_presets)
+    validate_choice "$preset" "$cluster_presets" "cluster preset"
+fi
 ensure_configured "$preset"
-build_preset "$preset" --target "$target" hpc_bench
 
 mode=$(cache_value "$preset" HPC_MODE)
 sanitizer=$(cache_value "$preset" HPC_SANITIZER)
@@ -202,8 +225,6 @@ test "$sanitizer" = none || die "won't time a sanitizer build"
 test "$coverage" = none || die "won't time a coverage build"
 
 if test "$final_run" = true; then
-    cluster_presets=$(config_get_nested "$CONFIG" control cluster_presets)
-    validate_choice "$preset" "$cluster_presets" "cluster preset"
     blocked_modes=$(config_get_nested "$CONFIG" control blocked_modes)
     case ",$blocked_modes," in
         *",$mode,"*)
@@ -217,6 +238,7 @@ if test "$final_run" = true; then
     grep -Fxq "slurm_job_id=$SLURM_JOB_ID" "$marker" ||
         die "build was not configured in this allocation"
 fi
+build_preset "$preset" --target "$target" hpc_bench
 
 warmups=$(config_get_nested "$CONFIG" "$action" warmups)
 samples=$(config_get_nested "$CONFIG" "$action" samples)
@@ -264,6 +286,10 @@ while IFS='|' read -r case_name backend work_unit input_size seed; do
     case $case_name in
         *[!a-z0-9-]* | '') die "invalid benchmark case name: $case_name" ;;
     esac
+    if test "$action" != smoke && test "$case_name" != continuous-large &&
+        test "$case_name" != continuous-million; then
+        continue
+    fi
     if test "$case_selector" = all || test "$case_selector" = "$case_name"; then
         selected_cases+=("$case_name|$backend|$input_size|$seed|$work_unit")
     fi
