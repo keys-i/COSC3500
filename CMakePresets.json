@@ -115,6 +115,7 @@
       "name": "msan",
       "inherits": "check-base",
       "cacheVariables": {
+        "HPC_ENABLE_LUA": false,
         "HPC_SANITIZER": "msan"
       }
     },

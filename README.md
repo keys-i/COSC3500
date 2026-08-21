@@ -169,6 +169,10 @@ Run these from the repository root. `make help` is the short version.
 | `make package m1` | Validates, rebuilds and zips the M1 model |
 | `make clean PRESET=...` / `make clean all` | Cleans one build or all output |
 
+> [!NOTE]
+> `make san m` needs Linux and an LLVM source tree at `build/llvm-project` or
+> `HPC_LLVM_SOURCE`. It builds and verifies an instrumented libc++ runtime.
+
 > [!TIP]
 > GNU Make treats `--fix` as its own option. The reliable spelling is
 > `make -- fmt --fix`; `make fmt fix` is kept as a friendly alias.
