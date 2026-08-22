@@ -2,8 +2,24 @@ name: Bench
 
 on:
   pull_request:
+    paths: &benchmark_paths
+      - '.github/workflows/benchmark.yml'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'Makefile'
+      - 'benches/**'
+      - 'proj/m0/main.cpp'
+      - 'proj/m1/**'
+      - 'tools/config/benchmark.yml'
+      - 'tools/config/toolchains/**'
+      - 'tools/scripts/tools/bench'
+      - 'tools/scripts/tools/install'
+      - 'tools/scripts/tools/lib.sh'
+      - 'tools/scripts/tools/make'
+      - 'tools/scripts/tools/summary'
   push:
     branches: [main]
+    paths: *benchmark_paths
   workflow_dispatch:
 
 permissions:
