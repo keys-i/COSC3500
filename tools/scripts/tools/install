@@ -5,6 +5,17 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 # shellcheck source=tools/scripts/tools/lib.sh
 . "$SCRIPT_DIR/lib.sh"
 
+if test "$(uname -s)" = Darwin; then
+    test "${GITHUB_ACTIONS:-false}" = true ||
+        die "macOS install is for GitHub Actions"
+    command -v brew >/dev/null 2>&1 || die "brew is unavailable"
+    if brew tap | grep -qx aws/tap; then
+        run brew untap aws/tap
+    fi
+    run brew install luajit
+    exit 0
+fi
+
 test "${CODESPACES:-false}" = true ||
     die "install is for Codespaces; clusters use site modules or Spack"
 test "$(uname -s)" = Linux || die "Codespace install needs Linux"
