@@ -27,6 +27,7 @@ jobs:
       security-events: write
     env:
       CC: gcc-14
+      CODEQL_OVERLAY_DATABASE_MODE: none
       CXX: g++-14
     steps:
       - name: Check out repository
