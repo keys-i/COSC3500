@@ -1,0 +1,18 @@
+Diagnostics:
+  UnusedIncludes: None
+
+---
+If:
+  PathMatch: third_party/.*
+Index:
+  Background: Skip
+Diagnostics:
+  Suppress: '*'
+
+---
+If:
+  PathMatch: proj/m1/simulation/grid\.hpp
+CompileFlags:
+  Add:
+    - -Wno-unused-function
+    - -Wno-unneeded-internal-declaration

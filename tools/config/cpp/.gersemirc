@@ -1,0 +1,5 @@
+line_length: 80
+indent: 2
+list_expansion: favour-inlining
+unsafe: false
+warn_about_unknown_commands: false

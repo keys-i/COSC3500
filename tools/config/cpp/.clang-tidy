@@ -1,0 +1,4 @@
+Checks: '-*,clang-analyzer-*,bugprone-*,-bugprone-easily-swappable-parameters,cert-*,mpi-*,openmp-*,performance-*,portability-*'
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(^|/)(benches|include|proj|src|tests)/'
+ExcludeHeaderFilterRegex: '(^|/)third_party/'
