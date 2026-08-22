@@ -158,7 +158,7 @@ if(NOT HPC_SANITIZER STREQUAL "none")
         hpc_require_link_flag("-fsanitize=memory")
         target_compile_options(
             hpc_security
-            INTERFACE ${HPC_MSAN_FLAGS} -stdlib=libc++ -nostdinc++
+            INTERFACE ${HPC_MSAN_FLAGS} -nostdinc++
         )
         target_include_directories(
             hpc_security SYSTEM INTERFACE "${msan_include}"
