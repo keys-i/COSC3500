@@ -4,9 +4,10 @@
 [![Benchmarks][bench-badge]][bench-workflow]
 [![Security][security-badge]][security-workflow]
 [![Explore][explore-badge]][explore-workflow]
-[![Open in GitHub Codespaces][codespaces-badge]][codespaces-link]
 
 Serial C++20 simulation coursework for macOS, Rangpur and Bunya.
+
+[![Open in GitHub Codespaces][codespaces-badge]][codespaces-link]
 
 ## Setup
 
