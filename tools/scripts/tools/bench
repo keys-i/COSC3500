@@ -111,7 +111,7 @@ run_pgo_generate() {
     test "$pgo_dir" = "$HPC_ROOT/build/pgo-generate/pgo" ||
         die "unsafe PGO directory: $pgo_dir"
     if test -e "$pgo_dir"; then
-        test -d "$pgo_dir" && test ! -L "$pgo_dir" ||
+        [[ -d "$pgo_dir" && ! -L "$pgo_dir" ]] ||
             die "unsafe PGO directory: $pgo_dir"
         run cmake -E remove_directory "$pgo_dir"
     fi
@@ -281,7 +281,7 @@ print_command "$helper" --cases "$target"
 case_rows=$("$helper" --cases "$target") || die "cannot list benchmark cases"
 selected_cases=()
 while IFS='|' read -r case_name backend work_unit input_size seed; do
-    test -n "$case_name" && test -n "$backend" && test -n "$work_unit" ||
+    [[ -n "$case_name" && -n "$backend" && -n "$work_unit" ]] ||
         die "invalid benchmark case metadata"
     case $case_name in
         *[!a-z0-9-]* | '') die "invalid benchmark case name: $case_name" ;;
