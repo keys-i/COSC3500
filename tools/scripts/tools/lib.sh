@@ -497,8 +497,7 @@ safe_clean() {
             "$HPC_ROOT/results" \
             "$HPC_ROOT/.cache"; do
             case $directory in
-                "$HPC_BUILD_ROOT" | "$HPC_ROOT/results" | "$HPC_ROOT/.cache")
-                    ;;
+                "$HPC_BUILD_ROOT" | "$HPC_ROOT/results" | "$HPC_ROOT/.cache") ;;
                 *) die "unsafe clean path: $directory" ;;
             esac
             if test -e "$directory"; then
