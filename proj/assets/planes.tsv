@@ -1,0 +1,6 @@
+plane	order	scale
+far	0	0.78
+mid	1	0.9
+ground	2	1.0
+fore	3	1.14
+overlay	4	1.0
