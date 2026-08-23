@@ -433,7 +433,7 @@ clean_transients() {
         safe_remove_directory "$directory"
     done
     if test -e "$HPC_ROOT/.coverage"; then
-        test -f "$HPC_ROOT/.coverage" && test ! -L "$HPC_ROOT/.coverage" ||
+        [[ -f "$HPC_ROOT/.coverage" && ! -L "$HPC_ROOT/.coverage" ]] ||
             die "won't remove an unsafe .coverage path"
         run cmake -E rm -f "$HPC_ROOT/.coverage"
     fi
