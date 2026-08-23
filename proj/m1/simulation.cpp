@@ -472,7 +472,6 @@ State initialise(const Scenario &scenario) {
                         }
                         ++metrics.sensed_interactions;
                         const bool nearer =
-                            nearest == count ||
                             distance_squared < nearest_squared ||
                             (distance_squared == nearest_squared &&
                              candidate < nearest);
