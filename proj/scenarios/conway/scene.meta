@@ -1,0 +1,19 @@
+[scene]
+kind=demo
+art=ready
+
+[poster]
+subtitle=Three-owner Life with fading trails.
+meme=CONWAY
+
+[visual]
+reference=cellular grid over a blurred city backdrop
+palette=charcoal haze,Vim red,Emacs blue,Nano yellow,weathered ivory
+layers=city,grid,live-cells,trails,hud
+scale=one grid unit per cell
+camera=wide grid
+safe_margin=0.07
+hud=territory bar and event log
+projection=flat
+reduced_motion=false
+terminal_hold_seconds=0

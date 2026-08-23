@@ -1,0 +1,17 @@
+# 1B cells, one step
+[scenario]
+version=4
+kernel=cellular
+
+[world]
+width=40000
+height=25000
+steps=1
+seed=7
+boundary=bounded
+
+[cellular]
+states=13
+
+[rules]
+file=rules.lua
