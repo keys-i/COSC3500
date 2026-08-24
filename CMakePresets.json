@@ -1,10 +1,6 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 25,
-    "patch": 0
-  },
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
   "configurePresets": [
     {
       "name": "base",
@@ -13,248 +9,63 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "BUILD_TESTING": true,
-        "CMAKE_BUILD_TYPE": "Hpc",
+        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": true,
-        "HPC_BUILD_M0": true,
-        "HPC_BUILD_M1": true,
-        "HPC_COVERAGE": "none",
-        "HPC_ENABLE_LTO": false,
-        "HPC_REQUIRE_SLURM_ALLOCATION": false,
-        "HPC_SANITIZER": "none"
+        "HPC_WARNINGS_AS_ERRORS": true,
+        "M1_OPT_LEVEL": "7"
       }
     },
     {
-      "name": "check-base",
+      "name": "optimised",
       "hidden": true,
       "inherits": "base",
-      "cacheVariables": {
-        "HPC_MODE": "check",
-        "HPC_WARNINGS_AS_ERRORS": true
-      }
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    { "name": "dev", "inherits": "base" },
+    { "name": "release", "inherits": "optimised" },
+    {
+      "name": "evidence",
+      "inherits": "optimised",
+      "cacheVariables": { "HPC_FIXED_RELEASE_FLAGS": true }
     },
     {
-      "name": "peak-base",
-      "hidden": true,
+      "name": "cluster",
+      "inherits": "optimised",
+      "cacheVariables": { "HPC_REQUIRE_SLURM_ALLOCATION": true }
+    },
+    {
+      "name": "asan",
+      "inherits": "base",
+      "cacheVariables": { "HPC_SANITIZER": "address,undefined" }
+    },
+    {
+      "name": "coverage",
       "inherits": "base",
       "cacheVariables": {
-        "HPC_MODE": "peak"
-      }
-    },
-    {
-      "name": "cluster-base",
-      "hidden": true,
-      "cacheVariables": {
-        "HPC_ENABLE_LUA": false
-      }
-    },
-    {
-      "name": "mac-check",
-      "inherits": "check-base",
-      "toolchainFile": "tools/config/toolchains/compiler/mac-appleclang21.cmake"
-    },
-    {
-      "name": "m0-check",
-      "inherits": "check-base",
-      "cacheVariables": {
-        "HPC_BUILD_M1": false
-      }
-    },
-    {
-      "name": "mac-peak",
-      "inherits": "peak-base",
-      "toolchainFile": "tools/config/toolchains/compiler/mac-appleclang21.cmake"
-    },
-    {
-      "name": "rangpur-check",
-      "inherits": ["check-base", "cluster-base"],
-      "toolchainFile": "tools/config/toolchains/compiler/rangpur-clang21.cmake"
-    },
-    {
-      "name": "rangpur-peak",
-      "inherits": ["peak-base", "cluster-base"],
-      "toolchainFile": "tools/config/toolchains/compiler/rangpur-clang21.cmake",
-      "cacheVariables": {
-        "HPC_REQUIRE_SLURM_ALLOCATION": true
-      }
-    },
-    {
-      "name": "bunya-check",
-      "inherits": ["check-base", "cluster-base"],
-      "toolchainFile": "tools/config/toolchains/compiler/bunya-gcc14.cmake"
-    },
-    {
-      "name": "bunya-peak",
-      "inherits": ["peak-base", "cluster-base"],
-      "toolchainFile": "tools/config/toolchains/compiler/bunya-gcc14.cmake",
-      "cacheVariables": {
-        "HPC_REQUIRE_SLURM_ALLOCATION": true
-      }
-    },
-    {
-      "name": "profile",
-      "inherits": "base",
-      "cacheVariables": {
-        "HPC_MODE": "profile"
-      }
-    },
-    {
-      "name": "asan-ubsan",
-      "inherits": "check-base",
-      "cacheVariables": {
-        "HPC_SANITIZER": "asan-ubsan"
-      }
-    },
-    {
-      "name": "tsan",
-      "inherits": "check-base",
-      "cacheVariables": {
-        "HPC_SANITIZER": "tsan"
-      }
-    },
-    {
-      "name": "msan",
-      "inherits": "check-base",
-      "cacheVariables": {
-        "HPC_ENABLE_LUA": false,
-        "HPC_SANITIZER": "msan"
-      }
-    },
-    {
-      "name": "coverage-clang",
-      "inherits": "base",
-      "cacheVariables": {
-        "HPC_COVERAGE": "llvm",
-        "HPC_MODE": "coverage"
-      }
-    },
-    {
-      "name": "coverage-gcc",
-      "inherits": "base",
-      "cacheVariables": {
-        "HPC_COVERAGE": "gcov",
-        "HPC_MODE": "coverage"
-      }
-    },
-    {
-      "name": "pgo-generate",
-      "inherits": "base",
-      "cacheVariables": {
-        "HPC_MODE": "pgo-generate",
-        "HPC_PGO_DIRECTORY": "${sourceDir}/build/pgo-generate/pgo"
-      }
-    },
-    {
-      "name": "pgo-use",
-      "inherits": "base",
-      "cacheVariables": {
-        "HPC_MODE": "pgo-use",
-        "HPC_PGO_DIRECTORY": "${sourceDir}/build/pgo-generate/pgo"
-      }
-    },
-    {
-      "name": "bolt-input",
-      "inherits": "base",
-      "cacheVariables": {
-        "HPC_MODE": "bolt-input"
+        "CMAKE_CXX_COMPILER": "clang++",
+        "HPC_COVERAGE": true
       }
     }
   ],
   "buildPresets": [
-    { "name": "m0-check", "configurePreset": "m0-check" },
-    { "name": "mac-check", "configurePreset": "mac-check" },
-    { "name": "mac-peak", "configurePreset": "mac-peak" },
-    { "name": "rangpur-check", "configurePreset": "rangpur-check" },
-    { "name": "rangpur-peak", "configurePreset": "rangpur-peak" },
-    { "name": "bunya-check", "configurePreset": "bunya-check" },
-    { "name": "bunya-peak", "configurePreset": "bunya-peak" },
-    { "name": "profile", "configurePreset": "profile" },
-    { "name": "asan-ubsan", "configurePreset": "asan-ubsan" },
-    { "name": "tsan", "configurePreset": "tsan" },
-    { "name": "msan", "configurePreset": "msan" },
-    { "name": "coverage-clang", "configurePreset": "coverage-clang" },
-    { "name": "coverage-gcc", "configurePreset": "coverage-gcc" },
-    { "name": "pgo-generate", "configurePreset": "pgo-generate" },
-    { "name": "pgo-use", "configurePreset": "pgo-use" },
-    { "name": "bolt-input", "configurePreset": "bolt-input" }
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "evidence", "configurePreset": "evidence" },
+    { "name": "cluster", "configurePreset": "cluster" },
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "coverage", "configurePreset": "coverage" }
   ],
   "testPresets": [
     {
-      "name": "test-base",
+      "name": "base",
       "hidden": true,
       "output": { "outputOnFailure": true },
       "execution": { "noTestsAction": "error" }
     },
-    {
-      "name": "m0-check",
-      "inherits": "test-base",
-      "configurePreset": "m0-check"
-    },
-    {
-      "name": "mac-check",
-      "inherits": "test-base",
-      "configurePreset": "mac-check"
-    },
-    {
-      "name": "mac-peak",
-      "inherits": "test-base",
-      "configurePreset": "mac-peak"
-    },
-    {
-      "name": "rangpur-check",
-      "inherits": "test-base",
-      "configurePreset": "rangpur-check"
-    },
-    {
-      "name": "rangpur-peak",
-      "inherits": "test-base",
-      "configurePreset": "rangpur-peak"
-    },
-    {
-      "name": "bunya-check",
-      "inherits": "test-base",
-      "configurePreset": "bunya-check"
-    },
-    {
-      "name": "bunya-peak",
-      "inherits": "test-base",
-      "configurePreset": "bunya-peak"
-    },
-    {
-      "name": "profile",
-      "inherits": "test-base",
-      "configurePreset": "profile"
-    },
-    {
-      "name": "asan-ubsan",
-      "inherits": "test-base",
-      "configurePreset": "asan-ubsan"
-    },
-    { "name": "tsan", "inherits": "test-base", "configurePreset": "tsan" },
-    { "name": "msan", "inherits": "test-base", "configurePreset": "msan" },
-    {
-      "name": "coverage-clang",
-      "inherits": "test-base",
-      "configurePreset": "coverage-clang"
-    },
-    {
-      "name": "coverage-gcc",
-      "inherits": "test-base",
-      "configurePreset": "coverage-gcc"
-    },
-    {
-      "name": "pgo-generate",
-      "inherits": "test-base",
-      "configurePreset": "pgo-generate"
-    },
-    {
-      "name": "pgo-use",
-      "inherits": "test-base",
-      "configurePreset": "pgo-use"
-    },
-    {
-      "name": "bolt-input",
-      "inherits": "test-base",
-      "configurePreset": "bolt-input"
-    }
+    { "name": "dev", "inherits": "base", "configurePreset": "dev" },
+    { "name": "release", "inherits": "base", "configurePreset": "release" },
+    { "name": "cluster", "inherits": "base", "configurePreset": "cluster" },
+    { "name": "asan", "inherits": "base", "configurePreset": "asan" },
+    { "name": "coverage", "inherits": "base", "configurePreset": "coverage" }
   ]
 }
