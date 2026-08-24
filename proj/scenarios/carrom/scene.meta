@@ -1,0 +1,17 @@
+[scene]
+kind=demo
+art=ready
+
+[poster]
+subtitle=1v1 self-play with Queen cover and striker dues.
+meme=CARROM
+
+[visual]
+reference=user-supplied board on a carved table
+palette=saffron,ivory,mahogany,ink,queen-red,teal,navy,surya-red,gold
+layers=carpet,table,board,coins,trays,hud
+scale=striker=1.25coin
+camera=top-down board and table rim
+safe_margin=0.06
+projection=flat
+reduced_motion=false
