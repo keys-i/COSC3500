@@ -3,20 +3,21 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:10:00
+#SBATCH --time=02:00:00
 #SBATCH --output=m1-%j.out
-#SBATCH --error=m1-%j.err
 
+# Run the serial benchmark workflow inside one allocated task
 set -Eeuo pipefail
-
+cd "${SLURM_SUBMIT_DIR:?submit with sbatch}"
 : "${SLURM_JOB_ID:?submit this file with sbatch}"
-: "${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR is required}"
 
-cd "$SLURM_SUBMIT_DIR"
-make hpc doctor CLUSTER=rangpur
-make clean PRESET=rangpur-peak
-make m1 PRESET=rangpur-peak
-ctest --test-dir build/rangpur-peak --output-on-failure -R '^m1\.'
-make report PRESET=rangpur-peak TARGET=m1
-srun --nodes=1 --ntasks=1 --cpus-per-task=1 --cpu-bind=cores \
-    make bench publication PRESET=rangpur-peak TARGET=m1 ARGS=--final
+# Test before timing
+tools/scripts/test.sh test
+# Request enough memory for the 1B-cell case.
+output="results/bench/run-${SLURM_JOB_ID}"
+srun --cpu-bind=cores env \
+    M1_BENCH_OUT="$output" \
+    SAMPLES="${SAMPLES:-5}" \
+    MINIMUM_CASE_MS="${MINIMUM_CASE_MS:-1000}" \
+    tools/scripts/test.sh bench cluster
+printf 'benchmark results: %s\n' "$output"

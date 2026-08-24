@@ -1,4 +1,4 @@
-name: Bench
+name: Benchmark
 
 on:
   pull_request:
@@ -15,141 +15,21 @@ concurrency:
 
 jobs:
   smoke:
-    name: Harness / ${{ matrix.compiler }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            compiler: GCC 14
-            cc: gcc-14
-            cxx: g++-14
-            packages: g++-14 libluajit-5.1-dev ninja-build pkg-config
-          - os: ubuntu-24.04
-            compiler: Clang 18
-            cc: clang-18
-            cxx: clang++-18
-            packages: clang-18 libluajit-5.1-dev ninja-build pkg-config
-          - os: macos-15
-            compiler: AppleClang
-            cc: clang
-            cxx: clang++
-            packages: none
-    env:
-      CC: ${{ matrix.cc }}
-      CXX: ${{ matrix.cxx }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Refresh Linux package index
-        if: runner.os == 'Linux'
-        run: sudo apt-get update
-      - name: Install Linux compiler
-        if: runner.os == 'Linux'
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          ${{ matrix.packages }}
-      - name: Install macOS build dependencies
-        if: runner.os == 'macOS'
-        run: ./tools/scripts/tools/install
-      - name: Self-test benchmark statistics and CSV
-        run: >-
-          ./tools/scripts/tools/summary bench-self-test --
-          make bench self-test PRESET=profile
-      - name: Run smoke bench
-        run: >-
-          ./tools/scripts/tools/summary bench-smoke --
-          make bench smoke PRESET=profile TARGET=m1
-      - name: Check bench guards
-        run: >-
-          ./tools/scripts/tools/summary bench-gates --
-          make bench gates TARGET=m1
-      - name: Save benchmark results
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: bench-${{ matrix.os }}-${{ matrix.compiler }}
-          path: |
-            results/actions/
-            results/raw/
-            results/summary/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  pgo:
-    name: PGO smoke test
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      CC: clang-18
-      CXX: clang++-18
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install Clang and LLVM
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          clang-18 libluajit-5.1-dev llvm-18 ninja-build pkg-config
-      - name: Generate training profile
-        run: >-
-          ./tools/scripts/tools/summary pgo-generate --
-          make pgo gen TARGET=m1
-      - name: Build and test profile-use binary
-        run: >-
-          ./tools/scripts/tools/summary pgo-use --
-          make pgo use TARGET=m1
-      - name: Save PGO results
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: bench-pgo
-          path: |
-            results/actions/
-            results/raw/
-            results/summary/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  bolt-input:
-    name: BOLT input build smoke
+    name: Benchmark smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      CC: clang-18
-      CXX: clang++-18
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install compiler
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          clang-18 libluajit-5.1-dev ninja-build pkg-config
-      - name: Build BOLT input
-        run: >-
-          ./tools/scripts/tools/summary bolt-input --
-          make test PRESET=bolt-input
-      - name: Save BOLT input logs
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: bench-bolt-input
-          path: |
-            results/actions/
-            build/bolt-input/reports/
-          if-no-files-found: ignore
-          retention-days: 7
+          submodules: recursive
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends cmake ninja-build
+      - name: Build, benchmark, and summarise
+        run: |
+          set -Eeuo pipefail
+          SAMPLES=3 MINIMUM_CASE_MS=50 tools/scripts/test.sh bench
+          cat results/bench/summary.md >> "$GITHUB_STEP_SUMMARY"
