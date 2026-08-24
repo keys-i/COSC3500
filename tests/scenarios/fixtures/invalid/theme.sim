@@ -1,0 +1,14 @@
+[scenario]
+version=4
+kernel=timeline
+
+[world]
+width=2
+height=2
+steps=1
+boundary=bounded
+
+[presentation]
+title=Unknown theme
+theme=not/a-theme
+duration_seconds=8

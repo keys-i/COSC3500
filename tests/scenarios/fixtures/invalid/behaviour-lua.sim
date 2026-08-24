@@ -1,0 +1,14 @@
+[scenario]
+version=4
+kernel=continuous
+
+[world]
+width=2
+height=2
+time_step=1
+steps=1
+seed=1
+boundary=wrap
+
+[behaviour.script]
+code=lua

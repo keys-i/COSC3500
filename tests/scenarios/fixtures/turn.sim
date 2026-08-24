@@ -1,0 +1,24 @@
+# Minimal turn kernel smoke fixture
+[scenario]
+version=4
+kernel=turn
+
+[world]
+width=3
+height=3
+steps=2
+boundary=bounded
+
+[turn]
+topology=grid
+
+[characters]
+count=2
+
+[character.referee]
+count=1
+
+[character.token]
+count=1
+shape=cell
+colour=00aa00

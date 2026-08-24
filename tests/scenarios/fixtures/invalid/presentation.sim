@@ -1,0 +1,14 @@
+[scenario]
+version=4
+kernel=cellular
+
+[world]
+width=1
+height=1
+steps=1
+boundary=bounded
+
+[presentation]
+title=Too short
+theme=conway
+duration_seconds=7

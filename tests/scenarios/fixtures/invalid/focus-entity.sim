@@ -1,0 +1,25 @@
+[scenario]
+version=4
+kernel=continuous
+
+[world]
+width=4
+height=4
+time_step=1
+steps=2
+seed=1
+boundary=bounded
+
+[presentation]
+title=Focus test
+theme=neutral
+duration_seconds=8
+focus_entity=1
+focus_radius=1
+
+[characters]
+count=1
+
+[character.dot]
+count=1
+speed=0
