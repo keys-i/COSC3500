@@ -1,0 +1,73 @@
+service	code	name	country	global_rank	red	green	blue
+passenger	CZ	China Southern	CHN		0	149	218
+passenger	TG	Thai Airways	THA		75	33	130
+passenger	SQ	Singapore Airlines	SGP		248	177	31
+passenger	KE	Korean Air	KOR		20	85	155
+passenger	AF	Air France	FRA		0	45	115
+passenger	NH	ANA	JPN		0	75	145
+passenger	BA	British Airways	GBR		7	35	80
+passenger	AA	American Airlines	USA	1	0	73	144
+passenger	6E	IndiGo	IND		39	38	150
+passenger	QF	Qantas	AUS		225	0	0
+passenger	NZ	Air New Zealand	NZL		20	20	20
+passenger	EK	Emirates	ARE		213	0	0
+passenger	FA	FlySafair	ZAF		0	92	170
+passenger	LA	LATAM Brasil	BRA		113	35	151
+passenger	LH	Lufthansa	DEU		5	30	87
+passenger	AC	Air Canada	CAN		210	0	28
+passenger	JT	Lion Air	IDN		228	0	43
+passenger	TK	Turkish Airlines	TUR		200	16	46
+passenger	AR	Aerolíneas Argentinas	ARG		0	130	190
+passenger	Y4	Volaris	MEX		149	29	133
+passenger	P4	Air Peace	NGA		0	130	80
+passenger	QR	Qatar Airways	QAT		90	0	40
+passenger	IB	Iberia	ESP		190	25	35
+passenger	KQ	Kenya Airways	KEN		190	20	45
+passenger	MS	EgyptAir	EGY		0	56	99
+passenger	SV	Saudia	SAU		0	120	90
+passenger	ET	Ethiopian Airlines	ETH		0	140	80
+passenger	AK	AirAsia	MYS		220	0	35
+passenger	5J	Cebu Pacific	PHL		0	166	210
+passenger	H2	SKY Airline	CHL		255	80	0
+passenger	LP	LATAM Perú	PER		104	30	145
+passenger	AV	Avianca	COL		210	0	50
+passenger	KL	KLM	NLD		0	142	207
+passenger	DL	Delta Air Lines	USA	2	180	10	45
+passenger	WN	Southwest Airlines	USA	3	45	49	145
+passenger	UA	United Airlines	USA	4	0	91	169
+passenger	FR	Ryanair	IRL	5	7	53	125
+cargo	O3	SF Airlines	CHN		35	45	55
+cargo	TGX	Thai Cargo	THA		82	36	130
+cargo	SQC	Singapore Airlines Cargo	SGP		248	177	31
+cargo	KEC	Korean Air Cargo	KOR		20	85	155
+cargo	AFK	Air France KLM Martinair Cargo	FRA		0	78	140
+cargo	NHC	ANA Cargo	JPN		0	75	145
+cargo	IAG	IAG Cargo	GBR		0	42	85
+cargo	FX	FedEx Express	USA	1	76	44	146
+cargo	BZ	Blue Dart Aviation	IND		0	70	155
+cargo	QFC	Qantas Freight	AUS		225	0	0
+cargo	NZC	Air New Zealand Cargo	NZL		20	20	20
+cargo	EKC	Emirates SkyCargo	ARE	4	213	0	0
+cargo	SAC	SAA Cargo	ZAF		0	110	180
+cargo	M3	LATAM Cargo Brasil	BRA		104	30	145
+cargo	LHC	Lufthansa Cargo	DEU		255	190	0
+cargo	ACC	Air Canada Cargo	CAN		210	0	28
+cargo	GAC	Garuda Indonesia Cargo	IDN		0	76	137
+cargo	TKC	Turkish Cargo	TUR		200	16	46
+cargo	ARC	Aerolíneas Argentinas Cargo	ARG		0	130	190
+cargo	AMC	Aeromexico Cargo	MEX		22	45	85
+cargo	AJK	Allied Air	NGA		220	30	40
+cargo	QRC	Qatar Airways Cargo	QAT	2	90	0	40
+cargo	SWT	Swiftair	ESP		220	40	55
+cargo	ACP	Astral Aviation	KEN		230	60	25
+cargo	MSC	EgyptAir Cargo	EGY		0	56	99
+cargo	SVC	Saudia Cargo	SAU		0	120	90
+cargo	ETC	Ethiopian Cargo	ETH		0	140	80
+cargo	MHC	MASkargo	MYS		210	0	25
+cargo	5JC	Cebu Pacific Cargo	PHL		0	166	210
+cargo	UC	LATAM Cargo Chile	CHL		104	30	145
+cargo	L7	LATAM Cargo Perú	PER		104	30	145
+cargo	QT	Avianca Cargo	COL		210	0	50
+cargo	MP	Martinair Cargo	NLD		218	30	40
+cargo	5X	UPS Airlines	USA	3	53	92	48
+cargo	5Y	Atlas Air	USA	5	40	80	160

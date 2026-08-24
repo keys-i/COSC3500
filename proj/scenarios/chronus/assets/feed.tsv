@@ -1,0 +1,172 @@
+month	kind	code	label	summary
+0	NEWS	JP	JAPAN	G20 leaders meet in Osaka.
+1	NEWS	US	UNITED STATES	Wins the FIFA Women's World Cup in Lyon.
+2	NEWS	BR	BRAZIL	Amazon fires draw worldwide attention.
+3	INFLUENCER	SE	GRETA THUNBERG	Challenges world leaders at the UN Climate Action Summit.
+6	EVENT		GLOBAL	WHO learns of the Wuhan pneumonia cluster.
+7	EVENT	CN	CHINA	Wuhan locks down and WHO declares a global emergency.
+8	GOV	CN	CHINA	Mobilises a nationwide people's war against the epidemic.
+8.25	GOV	US	US	Predicts the outbreak may disappear like a miracle.
+8.5	GOV	JP	JAPAN	Asks schools nationwide to close temporarily from March 2.
+9	GOV	NZ	NZ	Goes hard and goes early.
+9.1	GOV	BY	BELARUS	Suggests tractors, fields and farm work.
+9.2	GOV	FR	FRANCE	Declares a health war and closes external borders.
+9.3	GOV	DE	GERMANY	Calls it the gravest challenge since reunification.
+9.35	GOV	SG	SINGAPORE	Prepares for a long outbreak and asks everyone to stay calm and responsible.
+9.4	INFLUENCER	AU	TOM HANKS	Announces positive tests with Rita Wilson from Australia.
+9.5	INFLUENCER	US	ARNOLD	A stay-home video gets backup from Whiskey and Lulu.
+9.6	INFLUENCER	US	CARDI B	A coronavirus rant mutates into a charting remix.
+9.7	NEWS	GB	WALES	Mountain goats take over empty Llandudno streets.
+9.8	NEWS	US	CHICAGO	Aquarium penguins inspect the exhibits.
+10	GOV	IN	INDIA	Asks everyone to switch off lights for 9 minutes at 9 PM.
+10.25	GOV	CA	CANADA	Plans a stay-home Easter and an indoor egg hunt.
+10.5	INFLUENCER	US	DOLLY PARTON	Donates $1 million to Vanderbilt vaccine research.
+11	NEWS	US	UNITED STATES	Crew Dragon launches astronauts from US soil; Florida gets the launch button back.
+12	EVENT		GLOBAL	A major trial finds dexamethasone can reduce deaths.
+13	GOV	AU	AUSTRALIA	Says the disputed phrase was used about once.
+14	NEWS	LB	LEBANON	A massive explosion devastates Beirut port and nearby neighbourhoods.
+17	GOV	ZA	S AFRICA	Schedules another national family meeting.
+18	EVENT		GLOBAL	WHO lists the first COVID-19 vaccine for emergency use.
+20	NEWS	US	UNITED STATES	Perseverance lands on Mars with Ingenuity folded underneath like very expensive carry-on.
+21	NEWS	EG	EGYPT	Ever Given is refloated and the world's biggest traffic jam starts moving.
+23	EVENT		GLOBAL	WHO adopts Greek labels including Delta.
+25	GOV	GB	UK	Frames reopening as a now-or-when decision.
+25.5	NEWS	JP	JAPAN	The delayed Tokyo Olympics close after mostly spectator-free Games.
+27	INFLUENCER	KR	BTS	Brings youth optimism and Permission to Dance to the United Nations.
+29	EVENT		GLOBAL	WHO designates Omicron a variant of concern.
+32	NEWS	UA	UKRAINE	Russia launches a large-scale armed attack on Ukraine.
+37	NEWS	US	UNITED STATES	Webb's first full-colour images open a deeper infrared view; every desktop wallpaper feels underqualified.
+39	NEWS	GB	UNITED KINGDOM	Queen Elizabeth II dies after a 70-year reign.
+42	NEWS	AR	ARGENTINA	Argentina beats France on penalties to win the World Cup.
+44	NEWS	TR	TÜRKIYE	Devastating earthquakes strike Türkiye and Syria.
+47	EVENT		GLOBAL	The international health emergency ends.
+50	NEWS	IN	INDIA	Chandrayaan-3 soft-lands near the lunar south polar region.
+54	NEWS	AE	UAE	COP28 adopts the UAE Consensus and its first global stocktake.
+57	EVENT		GLOBAL	WHO launches CoViNet for coronavirus surveillance.
+61	NEWS	US	UNITED STATES	A faulty CrowdStrike update turns Windows screens blue worldwide.
+70	NEWS	JP	JAPAN	Expo 2025 Osaka opens its gates.
+77	NEWS	BR	BRAZIL	COP30 convenes in Belém.
+80	NEWS	IT	ITALY	The Milano Cortina Winter Games close in Verona's Roman arena.
+85	NEWS	ES	SPAIN	Spain defeats Argentina after extra time to win the 2026 World Cup.
+9.02	GOV	TH	THAILAND	Declares emergency measures as local case numbers rise.
+9.04	GOV	ID	INDONESIA	Introduces large-scale social restrictions to slow transmission.
+9.06	GOV	MY	MALAYSIA	Starts a nationwide Movement Control Order.
+9.08	GOV	PH	PHILIPPINES	Places Luzon under enhanced community quarantine.
+9.12	GOV	NL	NETHERLANDS	Uses what officials call an intelligent lockdown.
+9.14	GOV	QA	QATAR	Closes schools and restricts travel as a precaution.
+9.16	GOV	SA	SAUDI ARABIA	Suspends international flights and closes schools.
+9.18	GOV	KE	KENYA	Closes schools and later begins a night curfew.
+9.22	GOV	NG	NIGERIA	Locks down Lagos, Ogun and Abuja.
+9.24	GOV	CL	CHILE	Declares a state of catastrophe.
+9.26	GOV	PE	PERU	Begins a nationwide quarantine.
+9.28	GOV	CO	COLOMBIA	Starts mandatory preventive isolation.
+16	NEWS	TH	THAILAND	Pro-democracy rallies expand across Bangkok.
+63	INFLUENCER	TH	MOO DENG	Becomes the internet's favourite bouncing pygmy hippo.
+41	NEWS	ID	INDONESIA	G20 leaders meet in Bali.
+56	NEWS	ID	INDONESIA	Holds the world's largest single-day election.
+45	INFLUENCER	MY	MICHELLE YEOH	Wins the Academy Award for best actress.
+41.2	GOV	MY	MALAYSIA	Swears in a new prime minister after a hung parliament.
+7	NEWS	PH	PHILIPPINES	Taal Volcano erupts and forces mass evacuations.
+25	INFLUENCER	PH	HIDILYN DIAZ	Wins the country's first Olympic gold medal.
+23	NEWS	NL	NETHERLANDS	Eurovision returns to Rotterdam with a live audience.
+27	NEWS	NL	NETHERLANDS	Formula One returns to Zandvoort after 36 years.
+41	NEWS	QA	QATAR	The first Middle East World Cup opens.
+42	NEWS	QA	QATAR	Lusail hosts a classic World Cup final.
+30	NEWS	SA	SAUDI ARABIA	Holds its first Formula One Grand Prix in Jeddah.
+43	INFLUENCER	SA	CRISTIANO RONALDO	Makes his Saudi league debut for Al Nassr.
+4	INFLUENCER	KE	ELIUD KIPCHOGE	Runs the first sub-two-hour marathon challenge.
+39	NEWS	KE	KENYA	Supreme Court upholds the presidential election result.
+16	NEWS	NG	NIGERIA	End SARS protests grow across the country.
+21	INFLUENCER	NG	BURNA BOY	Wins a Grammy for Twice as Tall.
+4	NEWS	CL	CHILE	Mass protests begin over inequality and living costs.
+33	GOV	CL	CHILE	A new president takes office at age 36.
+17	NEWS	PE	PERU	Sees three presidents in one turbulent week.
+25	GOV	PE	PERU	A new president is sworn in after a polarising election.
+23	NEWS	CO	COLOMBIA	National strike demonstrations spread across major cities.
+38	GOV	CO	COLOMBIA	A new president takes office after a historic election.
+20	NEWS	AE	UAE	Hope becomes the first Arab mission to enter Mars orbit.
+28	NEWS	AE	UAE	Expo 2020 Dubai opens one year late.
+25	NEWS	AR	ARGENTINA	Wins Copa América at the Maracanã.
+52	INFLUENCER	AR	LIONEL MESSI	Wins a record eighth Ballon d'Or.
+6	NEWS	AU	AUSTRALIA	Black Summer bushfires send smoke across major cities.
+25.2	NEWS	AU	AUSTRALIA	Brisbane is chosen to host the 2032 Olympics; roadworks signs gain a long-range purpose.
+42.2	NEWS	BR	BRAZIL	Football legend Pelé dies at 82.
+43	GOV	BR	BRAZIL	A new administration takes office after a very close election.
+14	NEWS	BY	BELARUS	Mass protests follow a disputed presidential election.
+23.2	NEWS	BY	BELARUS	A diverted passenger jet lands in Minsk and an activist is detained.
+32	NEWS	CA	CANADA	Truck convoy demonstrations occupy central Ottawa.
+48	NEWS	CA	CANADA	Wildfire smoke triggers air-quality alerts far beyond Canada.
+18	NEWS	CN	CHINA	Chang'e 5 returns lunar samples to Earth.
+32.2	NEWS	CN	CHINA	Beijing hosts the Winter Olympics.
+17	NEWS	DE	GERMANY	BioNTech and Pfizer report strong vaccine trial results.
+25	NEWS	DE	GERMANY	Catastrophic floods hit western regions.
+22	NEWS	EG	EGYPT	The Pharaohs' Golden Parade moves royal mummies through Cairo.
+41	NEWS	EG	EGYPT	Hosts COP27 in Sharm el-Sheikh.
+27	NEWS	ES	SPAIN	La Palma's Cumbre Vieja volcano erupts.
+50.2	NEWS	ES	SPAIN	Wins the FIFA Women's World Cup.
+61	NEWS	FR	FRANCE	The Paris Olympics open along the Seine.
+66	NEWS	FR	FRANCE	Notre Dame reopens after restoration.
+9	NEWS	GB	UNITED KINGDOM	A nationwide lockdown begins.
+47.2	NEWS	GB	UNITED KINGDOM	A coronation is held at Westminster Abbey.
+19	GOV	IN	INDIA	Begins one of the world's largest vaccination drives.
+51	NEWS	IN	INDIA	Hosts the G20 summit in New Delhi.
+9	NEWS	IT	ITALY	Neighbours sing together from balconies during lockdown.
+25	NEWS	IT	ITALY	Wins UEFA Euro 2020 at Wembley.
+37	NEWS	JP	JAPAN	A former prime minister is assassinated while campaigning.
+8	NEWS	KR	SOUTH KOREA	Parasite becomes the first non-English-language best picture winner.
+27	NEWS	KR	SOUTH KOREA	Squid Game becomes a global streaming phenomenon.
+14.2	GOV	LB	LEBANON	The government resigns after the Beirut explosion.
+38	NEWS	LB	LEBANON	Damaged Beirut grain silos partly collapse.
+43	GOV	NZ	NEW ZEALAND	The prime minister announces a surprise resignation.
+49	NEWS	NZ	NEW ZEALAND	Co-hosts the FIFA Women's World Cup opening match.
+57	NEWS	SE	SWEDEN	Joins NATO.
+59	NEWS	SE	SWEDEN	Hosts Eurovision in Malmö.
+10	GOV	SG	SINGAPORE	Starts circuit breaker measures.
+57.2	INFLUENCER	SG	TAYLOR SWIFT	Brings the Eras Tour to Singapore.
+13	NEWS	TR	TÜRKIYE	Hagia Sophia is reconverted into a mosque.
+47	NEWS	TR	TÜRKIYE	The presidential election goes to a runoff.
+35	INFLUENCER	UA	KALUSH ORCHESTRA	Wins Eurovision for Ukraine.
+41.2	NEWS	UA	UKRAINE	Ukrainian forces retake Kherson.
+5	NEWS	ZA	SOUTH AFRICA	The Springboks win the Rugby World Cup.
+29.2	EVENT	ZA	SOUTH AFRICA	Scientists identify Omicron and alert the world.
+52	NEWS	ZA	SOUTH AFRICA	The Springboks win another Rugby World Cup.
+9	GOV	NP	NEPAL	Closes its borders and begins a nationwide lockdown.
+9.05	GOV	MV	MALDIVES	Suspends visas on arrival as the tourism-dependent islands close their border.
+15	EVENT		GLOBAL ROUTES	Risk-based border reopenings begin, with testing and quarantine replacing blanket closures on some routes.
+21	NEWS	BT	BHUTAN	A rapid campaign gives first vaccine doses to most eligible adults in roughly a week.
+26	NEWS	AF	AFGHANISTAN	The Taliban enters Kabul as the republic's government collapses.
+27.2	NEWS	AU	CANBERRA RAVENS	Territorial ravens temporarily ground drone coffee deliveries during nesting season.
+28	EVENT		TRAVEL CERTIFICATES	Vaccination and testing certificates support a wider, uneven reopening of international travel.
+29.5	EVENT		OMICRON REVERSAL	Omicron prompts renewed border controls just as international travel is recovering.
+34	EVENT		AVIATION REOPENING	Many travel restrictions ease and international flight activity starts climbing again.
+36	NEWS	BD	BANGLADESH	The Padma Bridge opens and links the country's southwest more directly with Dhaka.
+37	NEWS	LK	SRI LANKA	Mass protests peak during a severe economic and political crisis.
+37.1	EVENT	UA	BLACK SEA GRAIN	A UN-brokered initiative reopens a guarded corridor for Ukrainian grain exports.
+38	NEWS	PK	PAKISTAN	Catastrophic monsoon floods affect tens of millions of people.
+39	NEWS	LK	SRI LANKA	Wins the men's Asia Cup after moving the tournament away from home.
+42	NEWS	BD	DHAKA	The capital's first metro line opens; traffic finally meets an opponent with rails.
+45	INFLUENCER	IN	RRR TEAM	Naatu Naatu wins the Oscar for original song and the dance-off escapes the film.
+47	INFLUENCER	FI	KÄÄRIJÄ	Cha Cha Cha wins Eurovision's public vote and turns neon green sleeves into diplomacy.
+49	EVENT	UA	BLACK SEA REVERSAL	The grain initiative ends and Black Sea route risk rises again.
+50	NEWS	AU	MATILDAS	Reach Australia's first senior football World Cup semi-final, with the country discovering collective penalty-shootout stress.
+52	NEWS	IL	ISRAEL AND GAZA	War begins after the Hamas-led attack on Israel and Israel's military response in Gaza.
+52.2	GOV	MV	MALDIVES	A presidential election changes the country's leadership after a runoff.
+53	INFLUENCER	NZ	PŪTEKETEKE	Wins New Zealand's Bird of the Century after an unusually international campaign.
+54	EVENT		RED SEA DISRUPTION	Attacks on shipping divert vessels around Africa, lengthening supply routes.
+54.2	EVENT	BT	BHUTAN	Graduates from the UN's least-developed-country category.
+58	INFLUENCER	AU	BLUEY	The Sign turns a Brisbane cartoon family's moving day into a global group discussion.
+59	INFLUENCER	NP	KAMI RITA	Reaches the summit of Everest for a record thirtieth time.
+60	NEWS	AF	AFGHANISTAN	Reaches a men's T20 World Cup semi-final for the first time.
+62	NEWS	PK	ARSHAD NADEEM	Wins Olympic javelin gold with a Games record throw.
+9.01	GOV	AU	AUSTRALIA	Closes the border to most non-residents as COVID-19 travel controls begin.
+9.03	GOV	IN	INDIA	Suspends scheduled international passenger services while cargo flights remain exempt.
+13	GOV	BD	BANGLADESH	Allows limited international passenger services to resume under health controls.
+29	GOV	AU	AUSTRALIA	Begins a staged reopening for fully vaccinated citizens and permanent residents.
+32	GOV	AU	AUSTRALIA	Reopens to vaccinated tourists and other visa holders.
+32	EVENT	UA	UKRAINE	Closes civil airspace as Russia begins its full-scale invasion.
+32.05	GOV	EU	EUROPEAN UNION	Closes EU airspace to Russian aircraft.
+32.1	GOV	RU	RUSSIA	Closes airspace to airlines from EU states and other countries that imposed restrictions.
+33	GOV	IN	INDIA	Resumes scheduled international passenger flights after the pandemic suspension.
+34	GOV	BD	BANGLADESH	Relaxes vaccinated-arrival requirements as travel rules ease.
+49.1	NEWS	US	LAS VEGAS SPHERE	Switches on a giant animated face; the skyline starts making eye contact.
+58.2	NEWS	US	TOTAL SOLAR ECLIPSE	Crosses North America as millions briefly follow the same safety instructions.
