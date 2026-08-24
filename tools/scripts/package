@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Stage, build, test, and archive the complete submission tree
+set -euo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+stage=$root/build/package-m1
+model=$stage/model
+verify=$stage/verify
+archive=$stage/m1.zip
+# Reject linked staging paths
+for path in "$root/build" "$stage"; do [[ ! -L $path ]] || {
+    echo "refusing symlink: $path" >&2
+    exit 2
+}; done
+cmake -E remove_directory "$stage"
+cmake -E make_directory "$model"
+# Submission inputs
+for path in .github benches docs proj/m0 proj/m1 proj/scenarios proj/assets proj/visualiser tests tools/config tools/scripts; do
+    [[ -e $root/$path && ! -L $root/$path ]] || {
+        echo "missing or linked: $path" >&2
+        exit 2
+    }
+    find "$root/$path" -type l -print -quit | grep -q . && {
+        echo "linked input: $path" >&2
+        exit 2
+    }
+    cmake -E copy_directory "$root/$path" "$model/$path"
+done
+for path in CMakeLists.txt CMakePresets.json LICENSE Makefile README.md pyproject.toml uv.lock; do
+    [[ -f $root/$path && ! -L $root/$path ]] || {
+        echo "missing or linked: $path" >&2
+        exit 2
+    }
+    cmake -E copy "$root/$path" "$model/$path"
+done
+# CLX sources keep the archive buildable offline
+[[ ! -L $root/third_party/clx ]] || {
+    echo 'linked input: third_party/clx' >&2
+    exit 2
+}
+find "$root/third_party/clx/include" "$root/third_party/clx/src" -type l -print -quit | grep -q . && {
+    echo 'linked input: third_party/clx' >&2
+    exit 2
+}
+cmake -E make_directory "$model/third_party/clx"
+for path in CMakeLists.txt LICENSE; do cmake -E copy "$root/third_party/clx/$path" "$model/third_party/clx/$path"; done
+for path in include src; do cmake -E copy_directory "$root/third_party/clx/$path" "$model/third_party/clx/$path"; done
+# Drop local interpreter caches before creating the archive
+find "$model" -type d -name __pycache__ -prune -exec cmake -E rm -rf -- {} +
+# Verify the staged copy
+cmake -S "$model" -B "$verify" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build "$verify" --target m0 m1 simulation hpc_bench benchmark
+for bundle in chess chronus carrom heston conway; do
+    cmake -E chdir "$model" "$verify/bin/m1" "templates/$bundle"
+done
+cmake -E chdir "$model" "$verify/bench/hpc_bench" --binary "$verify/bin/m1" --case cellular/conway/10k --samples 1 --minimum-case-ms 1
+ctest --test-dir "$verify" --output-on-failure -R '^(m0\.smoke|m1\.simulation|hpc\.benchmark)$'
+(cd "$model" && cmake -E tar cf "$archive" --format=zip .)
+cmake -E remove_directory "$verify"
+printf 'package: %s\n' "${archive#"$root"/}"

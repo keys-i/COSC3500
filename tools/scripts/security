@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Build and run the selected sanitizer or Valgrind mode
+set -Eeuo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+usage() {
+    echo 'usage: security san <m|t|l|au> [--preset NAME] | security valgrind <memcheck|cachegrind|callgrind|massif> [--preset NAME]' >&2
+    exit 2
+}
+fail() {
+    echo "ERROR: $*" >&2
+    exit 2
+}
+(($# >= 2)) || usage
+kind=$1
+mode=$2
+shift 2
+preset=${PRESET:-dev}
+while (($#)); do case $1 in --preset)
+    (($# >= 2)) || usage
+    preset=$2
+    shift 2
+    ;;
+*) usage ;; esac done
+case $preset in dev | release | cluster | asan | coverage) ;; *) fail "unknown preset: $preset" ;; esac
+build() {
+    cmake --preset "$1" -S "$root"
+    cmake --build --preset "$1" --target m1
+}
+case $kind:$mode in
+    # The asan preset combines address and undefined-behaviour checks
+    san:au)
+        build asan
+        "$root/build/asan/bin/m1" --benchmark templates/conway/10k
+        ;;
+    san:m | san:t | san:l)
+        extra=()
+        case $mode in
+            m)
+                # MSan needs an instrumented standard library
+                # Uninstrumented libc++ calls otherwise look uninitialised
+                [[ $(uname) == Linux && -d ${MSAN_LIBCXX:-}/include/c++/v1 && -d ${MSAN_LIBCXX:-}/lib ]] || fail 'MSan requires Linux MSAN_LIBCXX'
+                sanitizer=memory
+                extra=(-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++ -nostdinc++ -isystem $MSAN_LIBCXX/include/c++/v1" -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++ -L$MSAN_LIBCXX/lib -Wl,-rpath,$MSAN_LIBCXX/lib")
+                ;;
+            t) sanitizer=thread ;;
+            l)
+                [[ $(uname) == Linux ]] || fail 'LSan is Linux-only'
+                sanitizer=leak
+                ;;
+        esac
+        # Separate sanitizer trees keep incompatible compiler flags apart
+        build_dir=$root/build/$preset/security/$sanitizer
+        cmake --preset "$preset" -S "$root" -B "$build_dir" -DHPC_SANITIZER="$sanitizer" "${extra[@]}"
+        cmake --build "$build_dir" --target m1
+        "$build_dir/bin/m1" --benchmark templates/conway/10k
+        ;;
+    valgrind:memcheck | valgrind:cachegrind | valgrind:callgrind | valgrind:massif)
+        [[ $(uname) == Linux ]] || fail 'valgrind is Linux-only'
+        command -v valgrind >/dev/null || fail 'valgrind is required; run ./tools/scripts/setup.sh'
+        build "$preset"
+        # Valgrind reports are temporary unless printed by an annotation tool
+        out=$(mktemp -d "$root/build/$preset/valgrind.XXXXXX")
+        trap 'rm -rf -- "$out"' EXIT
+        case $mode in
+            memcheck) valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=definite,indirect,possible --error-exitcode=1 "$root/build/$preset/bin/m1" --benchmark templates/conway/10k ;;
+            cachegrind)
+                valgrind --tool=cachegrind --cachegrind-out-file="$out/out" "$root/build/$preset/bin/m1" --benchmark templates/conway/10k
+                cg_annotate "$out/out"
+                ;;
+            callgrind)
+                valgrind --tool=callgrind --callgrind-out-file="$out/out" "$root/build/$preset/bin/m1" --benchmark templates/conway/10k
+                callgrind_annotate "$out/out"
+                ;;
+            massif)
+                valgrind --tool=massif --massif-out-file="$out/out" "$root/build/$preset/bin/m1" --benchmark templates/conway/10k
+                ms_print "$out/out"
+                ;;
+        esac
+        ;;
+    *) usage ;;
+esac
