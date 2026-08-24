@@ -5,31 +5,37 @@
 #include <cstdint>
 #include <string_view>
 
+/// \file
+/// Fixed benchmark cases and their expected deterministic output
+
 namespace hpc::bench {
 
+/// Expected deterministic output and the unit used to normalise elapsed time
 struct Program {
-    std::string_view target;
-    std::string_view backend;
-    std::string_view mode;
+    // Selector passed to m1 --benchmark
     std::string_view argument;
+    // Exact output or required prefix before elapsed_ns
     std::string_view expected_output;
-    std::string_view note;
-    std::uint64_t operations_per_process = 0;
+    // Completed work used to convert elapsed time into ns per unit
+    std::uint64_t operations = 0;
+    std::uint64_t state_bytes = 0;
+    std::string_view unit;
+    std::string_view checksum;
+    std::string_view expected_prefix;
 };
 
+/// A label paired with the m1 invocation used for one benchmark row
 struct Case {
+    // Stable row name used by command-line selection and report scripts
     std::string_view name;
-    std::string_view work_unit;
-    std::string_view option;
-    std::uint64_t input_size = 0;
-    std::uint64_t seed = 0;
     Program program;
 };
 
-[[nodiscard]] const std::array<Case, 7U> &m1_cases() noexcept;
+/// Return the fixed suite used by scripts and the benchmark report
+[[nodiscard]] const std::array<Case, 11U> &m1_cases() noexcept;
+/// Look up one program, or return null when the requested case is unsupported
 [[nodiscard]] const Program *program(std::string_view target,
                                      std::string_view case_name = {}) noexcept;
-[[nodiscard]] const Case *program_case(const Program &program) noexcept;
 
 } // namespace hpc::bench
 
