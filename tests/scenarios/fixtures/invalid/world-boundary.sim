@@ -1,0 +1,9 @@
+[scenario]
+version=4
+kernel=timeline
+
+[world]
+width=2
+height=2
+steps=1
+boundary=wrap
