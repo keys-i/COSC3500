@@ -49,7 +49,9 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Initialise CodeQL
-        uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        # v4.37.8
+        uses: >-
+          github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938
         with:
           languages: c-cpp
           build-mode: manual
@@ -64,7 +66,9 @@ jobs:
         run: |
           printf "## CodeQL build: PASS\n\n- Command: \`make m PRESET=dev\`\n" >> "$GITHUB_STEP_SUMMARY"
       - name: Analyse
-        uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+         # v4.37.8
+        uses: >-
+          github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
       - name: Analysis summary
         run: |
           printf "## CodeQL analysis: PASS\n" >> "$GITHUB_STEP_SUMMARY"
