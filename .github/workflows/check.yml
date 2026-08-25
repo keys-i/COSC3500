@@ -41,6 +41,7 @@ jobs:
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v0.12.2
         with:
           version: 0.12.2
+          python-version: '3.13'
           enable-cache: true
       - name: Install visual test runtime
         run: uv sync --locked
@@ -64,7 +65,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
-            clang-format clang-tidy cmake ninja-build
+            clang-format clang-tidy cmake ninja-build unzip
+      - name: Install Lua linters
+        run: .github/workflows/scripts/lua-tools.sh
       - name: Set up uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v0.12.2
         with:

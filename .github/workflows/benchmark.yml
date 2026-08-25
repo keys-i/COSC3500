@@ -10,13 +10,7 @@ on:
       - 'benches/**'
       - 'proj/m0/main.cpp'
       - 'proj/m1/**'
-      - 'tools/config/benchmark.yml'
-      - 'tools/config/toolchains/**'
-      - 'tools/scripts/tools/bench'
-      - 'tools/scripts/tools/install'
-      - 'tools/scripts/tools/lib.sh'
-      - 'tools/scripts/tools/make'
-      - 'tools/scripts/tools/summary'
+      - 'tools/**'
   push:
     branches: [main]
     paths: *benchmark_paths
@@ -44,8 +38,5 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends cmake ninja-build
-      - name: Build, benchmark, and summarise
-        run: |
-          set -Eeuo pipefail
-          SAMPLES=3 MINIMUM_CASE_MS=50 tools/scripts/test.sh bench
-          cat results/bench/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Build and run benchmark smoke test
+        run: .github/workflows/scripts/benchmark-smoke.sh
