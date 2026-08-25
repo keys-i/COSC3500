@@ -16,7 +16,7 @@
 /// \file
 /// Build spatial indexes while callers retain the interaction rules
 namespace m1 {
-namespace { // NOLINT(cert-dcl59-cpp): included by one implementation unit
+namespace continuous_detail {
 
 #ifndef M1_WIDE_GRID
 #define M1_WIDE_GRID 0
@@ -565,5 +565,5 @@ needs_extended_continuous(const Scenario &scenario) noexcept {
     return false;
 }
 
-} // namespace
+} // namespace continuous_detail
 } // namespace m1
