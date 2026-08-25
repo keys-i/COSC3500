@@ -75,7 +75,7 @@ if test "$action" = llvm; then
         exit 0
     fi
     configure_preset "$preset" --fresh
-    build_preset "$preset" --target m0 hpc_bench --clean-first
+    build_preset "$preset" --target m0 m1 hpc_bench --clean-first
     compiler_id=$(compiler_field "$preset" CMAKE_CXX_COMPILER_ID)
     [[ $compiler_id == *Clang* ]] ||
         die "LLVM coverage preset selected $compiler_id"
@@ -92,16 +92,18 @@ if test "$action" = llvm; then
     run "$local_profdata" merge -sparse "${profiles[@]}" \
         -o "$output/coverage.profdata"
     m0="$(target_binary "$preset" m0)"
+    m1="$(target_binary "$preset" m1)"
     helper="$(build_dir "$preset")/bench/hpc_bench"
     exclude=$(tool_config_get coverage exclude_regex)
-    print_command "$local_cov" report "$m0" -object "$helper" \
+    print_command "$local_cov" report "$m0" -object "$m1" \
+        -object "$helper" \
         -instr-profile "$output/coverage.profdata" \
         -ignore-filename-regex "$exclude"
-    "$local_cov" report "$m0" -object "$helper" \
+    "$local_cov" report "$m0" -object "$m1" -object "$helper" \
         -instr-profile "$output/coverage.profdata" \
         -ignore-filename-regex "$exclude" \
         >"$output/report.txt"
-    run "$local_cov" show "$m0" -object "$helper" \
+    run "$local_cov" show "$m0" -object "$m1" -object "$helper" \
         -instr-profile "$output/coverage.profdata" \
         -ignore-filename-regex "$exclude" \
         -format=html -output-dir="$output/html"
@@ -127,7 +129,7 @@ if ! command -v "$gcov_tool" >/dev/null 2>&1; then
     exit 0
 fi
 configure_preset "$preset" --fresh
-build_preset "$preset" --target m0 hpc_bench --clean-first
+build_preset "$preset" --target m0 m1 hpc_bench --clean-first
 run ctest --test-dir "$(build_dir "$preset")" --output-on-failure
 output="$output_root/$preset/gcov"
 reset_output "$output"

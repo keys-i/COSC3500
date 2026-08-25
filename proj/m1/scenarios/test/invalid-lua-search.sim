@@ -1,0 +1,14 @@
+[scenario]
+version=4
+kernel=turn
+
+[world]
+width=2
+height=2
+steps=1
+boundary=bounded
+
+[turn]
+topology=grid
+search=lua
+budget=1

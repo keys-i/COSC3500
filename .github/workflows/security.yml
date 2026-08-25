@@ -27,6 +27,7 @@ jobs:
       security-events: write
     env:
       CC: gcc-14
+      CODEQL_OVERLAY_DATABASE_MODE: none
       CXX: g++-14
     steps:
       - name: Check out repository
@@ -46,7 +47,7 @@ jobs:
       - name: Install compiler
         run: >-
           sudo apt-get install --yes --no-install-recommends
-          g++-14 ninja-build
+          g++-14 libluajit-5.1-dev ninja-build pkg-config
       - name: Build for CodeQL
         run: >-
           ./tools/scripts/tools/summary codeql-build --
@@ -84,7 +85,8 @@ jobs:
       - name: Install analyzers
         run: >-
           sudo apt-get install --yes --no-install-recommends
-          clang-18 clang-tools-18 g++-14 ninja-build
+          clang-18 clang-tools-18 g++-14 libluajit-5.1-dev ninja-build
+          pkg-config
       - name: Run Clang Static Analyzer and GCC fanalyzer
         run: >-
           ./tools/scripts/tools/summary security-static --
@@ -104,7 +106,7 @@ jobs:
   sanitizers:
     name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -113,20 +115,50 @@ jobs:
             san: au
           - name: TSan
             san: t
+          - name: MSan / instrumented libc++
+            san: m
     env:
       CC: clang-18
       CXX: clang++-18
+      HPC_LLVM_SOURCE: ${{ github.workspace }}/build/llvm-project
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Restore instrumented libc++
+        if: matrix.san == 'm'
+        id: msan-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/msan-runtime/install
+          key: >-
+            msan-libcxx-18.1.8-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Check out LLVM runtime sources
+        if: >-
+          matrix.san == 'm' &&
+          steps.msan-cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: llvm/llvm-project
+          ref: 3b5b5c1ec4a3095ab096dd780e84d7ab81f3d7ff
+          path: build/llvm-project
+          persist-credentials: false
+          sparse-checkout: |
+            cmake
+            libcxx
+            libcxxabi
+            llvm/cmake
+            runtimes
       - name: Refresh package index
         run: sudo apt-get update
       - name: Install compiler
         run: >-
           sudo apt-get install --yes --no-install-recommends
-          clang-18 ninja-build
+          clang-18 libluajit-5.1-dev ninja-build pkg-config
+      - name: Install MSan tools
+        if: matrix.san == 'm'
+        run: sudo apt-get install --yes --no-install-recommends llvm-18
       - name: Run sanitizer
         run: >-
           ./tools/scripts/tools/summary san-${{ matrix.san }} --
@@ -137,39 +169,16 @@ jobs:
           actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: security-san-${{ matrix.san }}
-          path: results/actions/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  optional:
-    name: Optional checks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Try MSan
-        run: ./tools/scripts/tools/summary san-msan -- make san m
-      - name: Save MSan log
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: security-msan
-          path: results/actions/
+          path: |
+            results/actions/
+            build/msan-runtime/build/CMakeFiles/CMakeConfigureLog.yaml
           if-no-files-found: ignore
           retention-days: 7
 
   valgrind:
-    name: Valgrind / ${{ matrix.tool }}
+    name: Valgrind / Memcheck
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        tool: [memcheck, helgrind, drd]
     env:
       CC: clang-18
       CXX: clang++-18
@@ -183,17 +192,17 @@ jobs:
       - name: Install Valgrind and compiler
         run: >-
           sudo apt-get install --yes --no-install-recommends
-          clang-18 ninja-build valgrind
+          clang-18 libluajit-5.1-dev ninja-build pkg-config valgrind
       - name: Run Valgrind tool
         run: >-
-          ./tools/scripts/tools/summary valgrind-${{ matrix.tool }} --
-          make profile ${{ matrix.tool }}
+          ./tools/scripts/tools/summary valgrind-memcheck --
+          make profile memcheck
       - name: Save Valgrind reports
         if: always()
         uses: >-
           actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: security-valgrind-${{ matrix.tool }}
+          name: security-valgrind-memcheck
           path: |
             results/actions/
             results/profiles/

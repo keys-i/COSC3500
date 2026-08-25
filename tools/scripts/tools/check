@@ -56,9 +56,20 @@ run_lint() {
             if test "$(clang_config_get tidy warnings_as_errors)" = true; then
                 warnings_as_errors='*'
             fi
+            local -a platform_arguments=()
+            if test "$(uname -s)" = Darwin; then
+                local sdk
+                sdk=$(xcrun --sdk macosx --show-sdk-path) ||
+                    die "cannot find the macOS SDK for clang-tidy"
+                platform_arguments=(
+                    "--extra-arg=--sysroot=$sdk"
+                    --extra-arg=-stdlib=libc++
+                )
+            fi
             run "$tidy" --checks="$tidy_checks" \
                 --warnings-as-errors="$warnings_as_errors" \
                 --header-filter="$(clang_config_get tidy header_filter)" \
+                "${platform_arguments[@]}" \
                 -p "$(build_dir "$preset")" "${cpp_sources[@]}"
             pass "clang-tidy"
         fi
@@ -108,9 +119,7 @@ run_lint() {
 
 run_analyze() {
     local scan_build
-    if scan_build=$(
-        find_tool SCAN_BUILD scan-build scan-build-21 scan-build-18
-    ); then
+    if scan_build=$(find_llvm_tool scan-build); then
         local analysis_dir="$HPC_BUILD_ROOT/scan-build"
         local reports="$analysis_dir/reports"
         run mkdir -p "$reports"
@@ -119,7 +128,7 @@ run_analyze() {
             -DBUILD_TESTING=OFF -DHPC_MODE=check \
             -DHPC_WARNINGS_AS_ERRORS=OFF
         run "$scan_build" --status-bugs -o "$reports" \
-            cmake --build "$analysis_dir" --target m0 hpc_bench
+            cmake --build "$analysis_dir" --target m0 m1 hpc_bench
         pass "Clang Static Analyzer"
     else
         skip "scan-build unavailable"
@@ -141,7 +150,7 @@ run_analyze() {
 
 run_tests() {
     ensure_configured "$preset"
-    build_preset "$preset" --target m0 hpc_bench
+    build_preset "$preset" --target m0 m1 hpc_bench
     local labels
     labels=$(tool_config_get check test_labels)
     labels=${labels//,/|}

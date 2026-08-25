@@ -134,19 +134,43 @@ if(NOT HPC_SANITIZER STREQUAL "none")
                 "MSan requires a complete Clang/Linux instrumented environment"
             )
         endif()
-        if(NOT "$ENV{HPC_MSAN_READY}" STREQUAL "1")
+        if(
+            "$ENV{HPC_MSAN_INCLUDE}" STREQUAL ""
+            OR "$ENV{HPC_MSAN_LIBRARY}" STREQUAL ""
+        )
             message(
                 FATAL_ERROR
-                "Set HPC_MSAN_READY=1 only after providing an "
-                "instrumented C++ runtime"
+                "MSan needs instrumented libc++ include and library paths"
             )
+        endif()
+        file(REAL_PATH "$ENV{HPC_MSAN_INCLUDE}" msan_include)
+        file(REAL_PATH "$ENV{HPC_MSAN_LIBRARY}" msan_library)
+        if(
+            NOT EXISTS "${msan_include}/vector"
+            OR NOT EXISTS "${msan_library}/libc++.so"
+            OR NOT EXISTS "${msan_library}/libc++abi.so"
+        )
+            message(FATAL_ERROR "The MSan libc++ runtime is incomplete")
         endif()
         foreach(flag IN LISTS HPC_MSAN_FLAGS)
             hpc_require_compile_flag("${flag}")
         endforeach()
         hpc_require_link_flag("-fsanitize=memory")
-        target_compile_options(hpc_security INTERFACE ${HPC_MSAN_FLAGS})
-        target_link_options(hpc_security INTERFACE -fsanitize=memory)
+        target_compile_options(
+            hpc_security
+            INTERFACE ${HPC_MSAN_FLAGS} -nostdinc++
+        )
+        target_include_directories(
+            hpc_security SYSTEM INTERFACE "${msan_include}"
+        )
+        target_link_options(
+            hpc_security
+            INTERFACE
+                -fsanitize=memory
+                -stdlib=libc++
+                "-L${msan_library}"
+                "-Wl,-rpath,${msan_library}"
+        )
     endif()
 endif()
 

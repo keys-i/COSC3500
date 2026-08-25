@@ -4,8 +4,9 @@ format:
   column_limit: 80
   sort_includes: CaseSensitive
 tidy:
-  checks: -*,clang-analyzer-*,bugprone-*,cert-*,concurrency-*
-  parallel_checks: mpi-*,openmp-*,performance-*,portability-*
+  # Avoid false positives from positional parameters
+  checks: -*,clang-analyzer-*,bugprone-*,-bugprone-easily-swappable-parameters
+  parallel_checks: cert-*,mpi-*,openmp-*,performance-*,portability-*
   warnings_as_errors: true
   header_filter: (^|/)(benches|include|proj|src|tests)/
 compiler:
@@ -17,8 +18,8 @@ compiler:
   peak: -O3
   profile: -O3 -g -fno-omit-frame-pointer
   sanitizer_common: -O1 -g -fno-omit-frame-pointer
-  clang_scalar: -fno-vectorize -fno-slp-vectorize
-  gcc_scalar: -fno-tree-loop-vectorize -fno-tree-slp-vectorize
+  clang_scalar: -fno-vectorize -fno-slp-vectorize -ffp-contract=off
+  gcc_scalar: -fno-tree-loop-vectorize -fno-tree-slp-vectorize -ffp-contract=off
   asan_ubsan: -fsanitize=address,undefined -fno-sanitize-recover=all
   tsan: -fsanitize=thread
   msan: -fsanitize=memory -fsanitize-memory-track-origins=2

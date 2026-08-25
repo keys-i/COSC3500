@@ -24,6 +24,7 @@ export HPC_MAKE_PRESET := $(value PRESET)
 export HPC_MAKE_PRESET_ORIGIN := $(origin PRESET)
 export HPC_MAKE_RANKS := $(value RANKS)
 export HPC_MAKE_TARGET := $(value TARGET)
+export HPC_MAKE_TARGET_ORIGIN := $(origin TARGET)
 export HPC_MAKE_THREADS := $(value THREADS)
 
 POSITIONAL_COMMANDS := bench pgo check cov explore profile
@@ -75,7 +76,7 @@ help:
 		'      Build everything, then run CTest.' \
 		'' \
 		"$${bold}Checks$${reset}" \
-		'  make fmt | make fmt fix' \
+		'  make fmt | make -- fmt --fix' \
 		'      Check or apply formatting.' \
 		'  make check [lint|analyze|test|all]' \
 		'      Run one check group; default: all.' \
@@ -87,10 +88,10 @@ help:
 		'      Build or inspect one coverage lane.' \
 		'' \
 		"$${bold}Performance$${reset}" \
-		'  make bench self-test|gates' \
-		'  make bench smoke|standard|publication PRESET=profile' \
-		'  make pgo gen|use TARGET=m0' \
-		'  make report TARGET=m0 PRESET=profile' \
+		'  make bench self-test|gates TARGET=m1' \
+		'  make bench smoke|standard|publication TARGET=m1 PRESET=profile' \
+		'  make pgo gen|use TARGET=m1' \
+		'  make report TARGET=m1 PRESET=profile' \
 		'  make profile perf-stat|perf-record|callgrind|...' \
 		'  make explore all|topology|binary|assembly|...' \
 		'  make bolt TARGET=m2' \
@@ -99,6 +100,7 @@ help:
 		'  make hpc doctor|nodes|queue|... CLUSTER=rangpur' \
 		'  make submit CLUSTER=rangpur TARGET=m0 MODE=serial' \
 		'  make package a1' \
+		'  make package m1' \
 		'  make clean PRESET=mac-check | make clean all' \
 		'' \
 		"$${bold}Defaults$${reset}" \
@@ -162,6 +164,6 @@ package-a1:
 	+$(MAKE) package a1
 
 codeql: configure
-	cmake --build --preset "$$HPC_MAKE_PRESET" --target m0 hpc_bench
+	cmake --build --preset "$$HPC_MAKE_PRESET" --target m0 m1 hpc_bench
 
 endif

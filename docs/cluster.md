@@ -1,156 +1,116 @@
 # Clusters
 
-## Use the right box
+## Pick the right box
 
-| Machine | Use it for | Do not use it for |
+| Machine | Good for | Not evidence for |
 | --- | --- | --- |
-| Apple M-series | Local checks and diagnosis | Course timings |
-| Rangpur | Milestones and GradeBot work | Bunya comparisons |
-| Bunya | Extra CPU, OpenMP and MPI runs | Login-node timing |
-
-Keep apples with apples. A Mac-versus-Rangpur chart mostly measures two
-different computers.
+| Apple M-series | Editing, checks, local diagnosis | Course timing |
+| Rangpur | Milestone and GradeBot work | Bunya comparison |
+| Bunya | Extra CPU, OpenMP and MPI work | Login-node timing |
 
 > [!CAUTION]
-> Do not benchmark on a login node. The number is junk and the run consumes
-> shared capacity.
+> Do not benchmark on a login node. It is shared, noisy and not yours to burn.
 
-## Slurm controller
+## Dependencies without root
 
-`make hpc` talks to Slurm and reports the current module environment. It does
-not build locally, install modules or load Bunya's toolchain for you.
+Cluster jobs never call `apt`, `sudo`, Homebrew or `uv sync`. The `apt` calls
+in this repository belong only to GitHub-hosted runners and Codespaces. The
+Codespaces installer refuses to run anywhere else.
 
-| Command | Does |
-| --- | --- |
-| `make hpc doctor CLUSTER=rangpur` | Runs the compiler and C++20 probe |
-| `make hpc nodes CLUSTER=rangpur` | Shows node state and features |
-| `make hpc env CLUSTER=bunya` | Shows current modules and compiler paths |
-| `make hpc queue` | Shows your queue |
-| `make submit ...` | Checks the request, then calls `sbatch` |
-
-Use the script directly when the command needs more arguments:
+The cluster presets set `HPC_ENABLE_LUA=OFF`, so the native kernels build with
+the site compiler stack alone. Lua scenarios additionally need LuaJIT 2.1 and
+`pkg-config`; predator-prey benchmarks do not need Python, Pygame, PyAV or
+FFmpeg. Check what the site already provides:
 
 ```bash
-./tools/scripts/tools/hpc job --cluster rangpur --job 123456
-./tools/scripts/tools/hpc cancel --cluster rangpur --job 123456
-
-./tools/scripts/tools/hpc alloc \
-  --cluster bunya \
-  --mode openmp \
-  --constraint epyc4 \
-  --threads 32
+module avail
+pkg-config --modversion luajit 2>/dev/null || \
+  pkg-config --modversion luajit-2.1
 ```
 
-Bad cluster names, modes, counts and constraints are rejected before Slurm is
-called. Nothing here uploads coursework.
+If the site exposes Spack but no LuaJIT module, create a user environment once
+outside the timed run. Spack installs below your user account; it needs no
+root access:
 
-## Compiler probe
+```bash
+spack env create cosc3500 tools/config/spack.yaml
+spack -e cosc3500 concretize
+spack -e cosc3500 install
+spack env activate cosc3500
+```
+
+Do not put `spack install` in a Slurm benchmark. To run Lua scenarios, activate
+the prepared environment and override the cluster preset once:
+
+```bash
+cmake --preset rangpur-check -DHPC_ENABLE_LUA=ON
+cmake --build --preset rangpur-check --target m1
+ctest --preset rangpur-check -L lua
+```
+
+Without that override, Lua-backed bundles fail clearly instead of taking
+another execution path.
+
+## First command
 
 ```bash
 make hpc doctor CLUSTER=rangpur
 ```
 
-The report lands at `build/doctor-rangpur/doctor.txt`. It records:
+`doctor` writes `build/doctor-rangpur/doctor.txt`. It proves a C++20
+compile-link-run, then records the compiler, standard library, host, Slurm
+allocation, CPU, modules and visible optional tools. It does not prove MPI or
+CUDA work when no such target exists.
 
-- hostname, OS, architecture, Git state and Slurm job ID;
-- compiler path and version;
-- `__cplusplus`, `__GLIBCXX__` and `_LIBCPP_VERSION`;
-- include search, library search and linked C++ runtime;
-- an OpenMP compile probe;
-- whether MPI, CUDA, a GPU and optional tools are visible.
+## M1 on Rangpur
 
-MPI and CUDA entries are discovery checks, not working-program tests.
-`doctor` passes only after its C++20 program compiles, links and runs.
-
-## Compiler snapshot
-
-These versions were reported on 24 August 2026. They are notes, not a lock
-file. Run the probe on the node you actually got.
-
-| Machine | Compiler | Job |
-| --- | --- | --- |
-| Mac | AppleClang 21.0.0 | Local work |
-| Rangpur | Clang 21.1.8 | Main milestone compiler |
-| Rangpur | GCC 8.5 | Old-toolchain check only |
-| Bunya default | GCC 11.5 | Not the main benchmark compiler |
-| Bunya `foss/2025a` | GCC 14 expected | Main Bunya compiler |
-| Bunya module | Clang 15.0.5 available | Secondary CPU check |
-
-Check Clang's standard library as well as its version. A new compiler using
-an old `libstdc++` still has the old library's limits.
-
-## Mac
-
-AppleClang is the local default. `mac-check` is for normal work; `mac-peak`
-is for local experiments. Homebrew paths come from `brew --prefix`, so the
-scripts do not guess `/usr/local` or `/opt/homebrew`.
-
-> [!WARNING]
-> The Mac is ARM64. AVX source must not enter its target graph. NEON and
-> Instruments can point at a hot spot, but they are not Rangpur evidence.
-
-## Rangpur
-
-Run the five-minute `m0` smoke job:
+M1 is one serial task. Use its target-owned job for the milestone run:
 
 ```bash
-sbatch proj/m0/m0.slurm
+sbatch proj/m1/m1.slurm
 ```
 
-Or use the shared controller:
+Or submit the shared wrapper:
 
 ```bash
-make submit \
-  CLUSTER=rangpur \
-  ACTION=run \
-  TARGET=m0 \
-  PRESET=rangpur-check \
-  MODE=serial
+make submit CLUSTER=rangpur ACTION=bench TARGET=m1 \
+  PRESET=rangpur-peak MODE=serial
 ```
 
-The shared job records the allocation, `lscpu`, optional topology and NUMA
-data, modules and compiler versions. It cleans and builds inside the
-allocation, then launches with `srun --cpu-bind=cores`.
+The M1 job configures, builds, tests, emits scalar optimisation remarks and
+runs the publication benchmark inside one allocation. Keep the resulting raw
+CSV with the log. `rangpur-peak` refuses to configure outside Slurm.
 
-`rangpur-peak` is a clean `-O3` build and refuses to configure outside Slurm.
-It does **not** add `-march=native` today. If native tuning is added for `m2`,
-compile and run it on the same fixed node class. Rangpur may use confirmed
-AVX2 for `m2`; AVX-512 stays out.
+Rangpur's recorded baseline is Clang 21.1.8. Its GCC 8.5 is a compatibility
+probe, not the primary M1 compiler. Check which C++ library Clang actually
+links; a new frontend does not manufacture a new standard library.
+
+> [!NOTE]
+> LuaJIT is an M1 dependency when a bundle uses `[rules]`. Ask the site for
+> the matching LuaJIT 2.1 module or use the site-approved Spack environment.
+> Do not quietly run a different rules path on the cluster.
 
 ## Bunya
 
-The submitted Bunya job does this before building:
+Bunya's normal path is one module stack:
 
 ```bash
 module purge
 module load foss/2025a
 ```
 
-For an interactive allocation, do the same before `doctor`, `env` or CMake.
-That keeps GCC and OpenMPI from one module stack.
+Use `foss/2025a`'s GCC and OpenMPI together. Its default GCC 11.5 is not the
+primary benchmark compiler. The job copies the tree to `/scratch`, builds and
+runs there, then copies results back.
 
 ```bash
-make submit \
-  CLUSTER=bunya \
-  ACTION=run \
-  TARGET=m0 \
-  PRESET=bunya-check \
-  MODE=serial \
-  CONSTRAINT=epyc4
+make submit CLUSTER=bunya ACTION=bench TARGET=m1 \
+  PRESET=bunya-peak MODE=serial CONSTRAINT=epyc4
 ```
 
-Pick one of `epyc3`, `epyc4` or `epyc5`. The job checks the allocation really
-has that feature, then:
-
-1. copies the private tree to `/scratch`, excluding builds, results, PDFs and
-   `.DS_Store`;
-2. builds under `foss/2025a`;
-3. runs with explicit `srun` binding;
-4. copies new `results/` back to the submission directory.
-
-`bunya-peak` is also an allocation-gated clean `-O3` build. Native CPU flags
-are not wired in yet. If they are added, keep one build directory per EPYC
-family and never carry the binary to another family.
+Choose `epyc3`, `epyc4` or `epyc5` deliberately. A native binary, when one
+exists, must be built and run in the same constrained allocation. M1 does not
+use native ISA flags, AVX, OpenMP, MPI or CUDA.
 
 ## Resource shapes
 
@@ -161,43 +121,26 @@ family and never carry the binary to another family.
 | `mpi` | `NODES` | `RANKS` | `THREADS` | 0 | cores |
 | `cuda` | `NODES` | `RANKS` | `THREADS` | `GPUS` | closest GPU |
 
-OpenMP jobs start with:
+Only `serial` is relevant to M1. The other shapes are future M2 territory.
 
-```bash
-OMP_DYNAMIC=FALSE
-OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-OMP_PLACES=cores
-OMP_PROC_BIND=close
-```
+## Later: MPI and CUDA
 
-Start at `close`. Try `spread` only when bandwidth or NUMA data gives you a
-reason. Sweep physical cores as `1, 2, 4, ...`; more threads do not owe you a
-speed-up.
+There is no MPI or CUDA program yet. When one is real:
 
-For MPI, use the compiler, C++ runtime, OpenMP runtime, MPI library and
-launcher from one module stack. Time locally on each rank and reduce duration
-with `MPI_MAX`.
-
-## CUDA later
-
-There is no CUDA target yet. Leave it off until a real `.cu` file and a result
-check exist. Inside a GPU allocation:
-
-1. inspect the available CUDA modules;
-2. load one module;
-3. run `nvcc --version`;
-4. inspect the actual GPU and compute capability;
-5. probe the host compiler;
-6. set `CMAKE_CUDA_ARCHITECTURES` explicitly.
-
-Never pass `--allow-unsupported-compiler`. For `a1`, the supplied course
-build beats a locally newer toolkit.
+- use the site MPI plus compiler from one module stack;
+- time MPI locally and reduce duration with `MPI_MAX`;
+- inspect CUDA after getting a GPU allocation, then set an explicit compute
+  architecture;
+- never use `--allow-unsupported-compiler`.
 
 ## Profilers
 
-Start with phase timing, then compiler reports, then `perf stat`. Sample or
-trace only after you have a specific question.
+Start with the M1 counters and scalar report, then try `perf stat`:
 
-Missing optional tools say `SKIP`. If an installed tool starts then falls
-over, the command fails. Cluster policy may block counters; record that
-instead of inventing substitute data.
+```bash
+make profile perf-stat TARGET=m1 PRESET=profile
+```
+
+If the site blocks performance counters, record that fact. Do not invent a
+replacement. Nsight, HPCToolkit, Score-P, Scalasca and PAPI remain optional
+until a real backend makes one worth the setup.
