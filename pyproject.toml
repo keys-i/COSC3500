@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Offline renderer for COSC3500 simulation snapshots"
 requires-python = ">=3.12"
 dependencies = [
-    "av>=16,<17",
+    "av>=16,<19",
     "pygame>=2.6.1,<3",
 ]
 
