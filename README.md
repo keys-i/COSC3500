@@ -1,41 +1,20 @@
 # COSC3500
 
-Serial C++20 simulation coursework. Production scenes are declared in
-`proj/scenarios/`; each has a scenario-local Lua rules module that
-CLX compiles to C++ before the run. Handwritten C++ supplies shared parsing,
-simulation, rendering and spatial/cellular kernels, not scenario-specific
-engines.
+[![Checks][checks-badge]][checks-workflow]
+[![Benchmarks][bench-badge]][bench-workflow]
+[![Security][security-badge]][security-workflow]
+[![Explore][explore-badge]][explore-workflow]
 
-## M1 layout
+Serial C++20 simulation coursework for macOS, Rangpur and Bunya.
 
-`proj/m1/config/` parses and compiles `.sim` input. `proj/m1/simulation/`
-holds state, grid storage and kernel implementations. Its public Lua ABI is
-`simulation/runtime/lua.hpp`; public PDE types are in `simulation/pde.hpp`.
-`proj/m1/cmdline.cpp` handles scenario loading, run options and reports;
-`proj/m1/scene.cpp` writes snapshot CSV. Production scenarios live in
-`proj/scenarios/` bundles; flat `.sim` variants reuse their bundle's Lua and
-assets. Tests keep compact fixtures under `tests/scenarios/`, with failures in
-`tests/scenarios/fixtures/invalid/`.
+[![Open in GitHub Codespaces][codespaces-badge]][codespaces-link]
 
-## Follow one M1 run
+## Setup
 
-Read these files in order when changing the engine:
-
-1. `proj/m1/cmdline.cpp` resolves the selector, reads the `.sim` file and
-   handles run-level output
-2. `proj/m1/config/parse.cpp` turns text into checked sections;
-   `characters.cpp` and `kernels.cpp` compile those sections into `Scenario`
-3. `proj/m1/simulation/state.cpp` allocates flat state arrays from that plan
-4. `proj/m1/simulation/kernels/*.cpp` advances one kernel; `internal.hpp`
-   contains the shared dispatch
-5. `proj/m1/simulation/runtime/*.cpp` runs compiled Lua callbacks, validates
-   their buffered commands and commits them to state
-6. `proj/m1/scene.cpp` serialises completed frames for files or live playback
-
-The public data types are in `proj/m1/model.hpp`. Start there before changing
-array layout, callback order, snapshots or benchmark counters.
-
-## Start here
+You need CMake 3.25+, Ninja, GNU Make, Bash, a C++20 compiler, [uv][uv] and
+LuaJIT 2.1 for M1's embedded rules. On a Mac, the Brewfile installs the local
+set. On a cluster, use its supported module stack or the included Spack
+environment.
 
 ```bash
 git clone --recurse-submodules https://github.com/keys-i/COSC3500.git
