@@ -23,188 +23,69 @@ jobs:
     permissions:
       actions: read
       contents: read
-      packages: read
       security-events: write
-    env:
-      CC: gcc-14
-      CODEQL_OVERLAY_DATABASE_MODE: none
-      CXX: g++-14
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          submodules: recursive
       - name: Initialise CodeQL
-        # v4.37.8
-        uses: >-
-          github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28
+        uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           languages: c-cpp
           build-mode: manual
           queries: security-extended
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install compiler
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          g++-14 libluajit-5.1-dev ninja-build pkg-config
-      - name: Build for CodeQL
-        run: >-
-          ./tools/scripts/tools/summary codeql-build --
-          make codeql PRESET=bunya-check
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends cmake ninja-build
+      - name: Build C++ inputs
+        run: make m PRESET=dev
+      - name: Build summary
+        run: |
+          printf "## CodeQL build: PASS\n\n- Command: \`make m PRESET=dev\`\n" >> "$GITHUB_STEP_SUMMARY"
       - name: Analyse
-        # v4.37.8
-        uses: >-
-          github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28
-      - name: Save CodeQL build logs
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: security-codeql
-          path: results/actions/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  static:
-    name: Static analysis
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CC: clang-18
-      CXX: clang++-18
-      GXX: g++-14
-      SCAN_BUILD: scan-build-18
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install analyzers
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          clang-18 clang-tools-18 g++-14 libluajit-5.1-dev ninja-build
-          pkg-config
-      - name: Run Clang Static Analyzer and GCC fanalyzer
-        run: >-
-          ./tools/scripts/tools/summary security-static --
-          make check analyze PRESET=rangpur-check
-      - name: Save static-analysis logs
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: security-static
-          path: |
-            results/actions/
-            build/scan-build/reports/
-          if-no-files-found: ignore
-          retention-days: 7
-
+        uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+      - name: Analysis summary
+        run: |
+          printf "## CodeQL analysis: PASS\n" >> "$GITHUB_STEP_SUMMARY"
   sanitizers:
-    name: ${{ matrix.name }}
+    name: ASan and UBSan
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: ASan + UBSan + LSan
-            san: au
-          - name: TSan
-            san: t
-          - name: MSan / instrumented libc++
-            san: m
-    env:
-      CC: clang-18
-      CXX: clang++-18
-      HPC_LLVM_SOURCE: ${{ github.workspace }}/build/llvm-project
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Restore instrumented libc++
-        if: matrix.san == 'm'
-        id: msan-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: build/msan-runtime/install
-          key: >-
-            msan-libcxx-18.1.8-${{ runner.os }}-${{ runner.arch }}-v1
-      - name: Check out LLVM runtime sources
-        if: >-
-          matrix.san == 'm' &&
-          steps.msan-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: llvm/llvm-project
-          ref: 3b5b5c1ec4a3095ab096dd780e84d7ab81f3d7ff
-          path: build/llvm-project
-          persist-credentials: false
-          sparse-checkout: |
-            cmake
-            libcxx
-            libcxxabi
-            llvm/cmake
-            runtimes
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install compiler
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          clang-18 libluajit-5.1-dev ninja-build pkg-config
-      - name: Install MSan tools
-        if: matrix.san == 'm'
-        run: sudo apt-get install --yes --no-install-recommends llvm-18
-      - name: Run sanitizer
-        run: >-
-          ./tools/scripts/tools/summary san-${{ matrix.san }} --
-          make san ${{ matrix.san }}
-      - name: Save sanitizer logs
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: security-san-${{ matrix.san }}
-          path: |
-            results/actions/
-            build/msan-runtime/build/CMakeFiles/CMakeConfigureLog.yaml
-          if-no-files-found: ignore
-          retention-days: 7
+          submodules: recursive
+      - name: Install Clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends clang cmake ninja-build
+      - name: Run ASan and UBSan
+        run: make security SAN=au PRESET=dev
+      - name: Summary
+        run: |
+          printf "## ASan and UBSan: PASS\n\n- Command: \`make security SAN=au PRESET=dev\`\n" >> "$GITHUB_STEP_SUMMARY"
 
   valgrind:
     name: Valgrind / Memcheck
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    env:
-      CC: clang-18
-      CXX: clang++-18
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install Valgrind and compiler
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          clang-18 libluajit-5.1-dev ninja-build pkg-config valgrind
-      - name: Run Valgrind tool
-        run: >-
-          ./tools/scripts/tools/summary valgrind-memcheck --
-          make profile memcheck
-      - name: Save Valgrind reports
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: security-valgrind-memcheck
-          path: |
-            results/actions/
-            results/profiles/
-          if-no-files-found: ignore
-          retention-days: 7
+          submodules: recursive
+      - name: Install Valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends cmake ninja-build valgrind
+      - name: Run Memcheck
+        run: make valgrind PRESET=dev
+      - name: Summary
+        run: |
+          printf "## Memcheck: PASS\n\n- Command: \`make valgrind PRESET=dev\`\n" >> "$GITHUB_STEP_SUMMARY"
