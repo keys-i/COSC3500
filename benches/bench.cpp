@@ -7,7 +7,6 @@
 #include <iomanip>
 #include <iostream>
 #include <numeric>
-#include <random>
 #include <spawn.h>
 #include <sstream>
 #include <stdexcept>
@@ -217,19 +216,28 @@ struct Sample {
     return percentile(values, 0.5);
 }
 
+// SplitMix64 gives the bootstrap a stable, well-distributed sample sequence
+[[nodiscard]] std::size_t bootstrap_index(std::uint64_t &state,
+                                          const std::size_t size) noexcept {
+    state += 0x9E3779B97F4A7C15ULL;
+    std::uint64_t mixed = state;
+    mixed = (mixed ^ (mixed >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+    mixed = (mixed ^ (mixed >> 27U)) * 0x94D049BB133111EBULL;
+    mixed ^= mixed >> 31U;
+    return static_cast<std::size_t>(mixed % size);
+}
+
 // Resample medians with a fixed generator for a repeatable confidence interval
 [[nodiscard]] std::pair<double, double>
 median_interval(const std::vector<double> &values) {
     // Fix the bootstrap seed so reports can be compared
-    // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp,bugprone-*)
-    std::mt19937_64 random(0x35007502ULL);
-    std::uniform_int_distribution<std::size_t> pick(0U, values.size() - 1U);
+    std::uint64_t state = 0x35007502ULL;
     std::vector<double> medians;
     std::vector<double> sample(values.size());
     medians.reserve(1'000U);
     for (std::size_t round = 0U; round < 1'000U; ++round) {
         for (double &value : sample) {
-            value = values[pick(random)];
+            value = values[bootstrap_index(state, values.size())];
         }
         medians.push_back(median(sample));
     }
@@ -443,9 +451,8 @@ void benchmark_case(const Options &options, const hpc::bench::Case &value) {
                   << std::setprecision(6) << result.median << ','
                   << result.ci_low << ',' << result.ci_high << ','
                   << result.cv * 100.0 << ',' << value.program.unit << ','
-                  << metrics.state_bytes << ','
-                  << metrics.pair_evaluations << ','
-                  << metrics.pair_list_rebuilds << ','
+                  << metrics.state_bytes << ',' << metrics.pair_evaluations
+                  << ',' << metrics.pair_list_rebuilds << ','
                   << metrics.pair_list_bytes << ',' << peak_rss << ','
                   << throughput << ',' << checksum << ",true,"
                   << page_report.policy << ',' << page_report.host_page_bytes
@@ -499,8 +506,7 @@ void benchmark_case(const Options &options, const hpc::bench::Case &value) {
     for (const hpc::bench::Case &value : cases) {
         if ((!options.case_name.empty() && options.case_name != value.name) ||
             (options.case_name.empty() &&
-             (value.name.ends_with("/10m") ||
-              value.name.ends_with("/100m") ||
+             (value.name.ends_with("/10m") || value.name.ends_with("/100m") ||
               value.name.ends_with("/1b") ||
               value.name.starts_with("capacity/")))) {
             continue;
@@ -515,9 +521,48 @@ void benchmark_case(const Options &options, const hpc::bench::Case &value) {
     return 0;
 }
 
+#ifdef COSC3500_BENCH_EMBEDDED
+[[nodiscard]] bool benchmark_self_test() {
+    const std::vector<double> values{1.0, 2.0, 3.0, 4.0, 5.0};
+    const Statistics result = statistics(values);
+    const Statistics again = statistics(values);
+
+    char executable[] = "hpc_bench";
+    char command[] = "--case";
+    char *invalid[] = {executable, command, nullptr};
+    bool rejected = false;
+    try {
+        static_cast<void>(parse_options(2, invalid));
+    } catch (const std::runtime_error &) {
+        rejected = true;
+    }
+
+    const PageReport report =
+        pages("elapsed_ns=1\npair_evaluations=2 pair_list_rebuilds=3 "
+              "pair_list_bytes=4\npage_policy=huge host_page_bytes=4096 "
+              "advised_bytes=2097152 anon_huge_bytes=2097152 "
+              "backing_verified=true\n");
+    const ChildMetrics metrics =
+        child_metrics("state_bytes=1 pair_evaluations=2 "
+                      "pair_list_rebuilds=3 pair_list_bytes=4\n");
+
+    return result.median == 3.0 &&
+           std::abs(result.cv - 0.5270462766947299) < 1e-12 &&
+           result.ci_low == again.ci_low && result.ci_high == again.ci_high &&
+           rejected && hpc::bench::program("m1", "nope") == nullptr &&
+           report.policy == "huge" && report.host_page_bytes == 4096U &&
+           report.backing_verified && metrics.state_bytes == 1U &&
+           metrics.pair_evaluations == 2U && metrics.pair_list_rebuilds == 3U &&
+           metrics.pair_list_bytes == 4U &&
+           field("checksum=abc\n", "checksum=") == "abc";
+}
+#endif
+
 } // namespace
 
-#ifndef COSC3500_BENCH_EMBEDDED
+#ifdef COSC3500_BENCH_EMBEDDED
+bool hpc::bench::self_test() { return benchmark_self_test(); }
+#else
 int main(const int argc, char *argv[]) {
     try {
         return benchmark(argc, argv);

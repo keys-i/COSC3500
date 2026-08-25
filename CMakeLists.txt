@@ -756,8 +756,10 @@ UV_CACHE_DIR=${CMAKE_BINARY_DIR}/uv-cache"
     add_executable(
       benchmark
       "${PROJECT_SOURCE_DIR}/tests/bench.cpp"
+      "${PROJECT_SOURCE_DIR}/benches/bench.cpp"
       "${PROJECT_SOURCE_DIR}/benches/m1.cpp"
     )
+    target_compile_definitions(benchmark PRIVATE COSC3500_BENCH_EMBEDDED)
     target_link_libraries(benchmark PRIVATE hpc_build m1_scalar)
     add_test(NAME hpc.benchmark COMMAND $<TARGET_FILE:benchmark>)
     set_tests_properties(hpc.benchmark PROPERTIES LABELS "unit;smoke")

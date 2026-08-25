@@ -7,6 +7,7 @@
 /// configured behaviours and supports bounded worlds
 
 namespace m1 {
+using namespace continuous_detail;
 
 State initialise(const Scenario &scenario) {
     State state;

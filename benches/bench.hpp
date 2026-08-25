@@ -36,6 +36,10 @@ struct Case {
 /// Look up one program, or return null when the requested case is unsupported
 [[nodiscard]] const Program *program(std::string_view target,
                                      std::string_view case_name = {}) noexcept;
+#ifdef COSC3500_BENCH_EMBEDDED
+/// Exercise deterministic benchmark helpers without spawning child processes
+[[nodiscard]] bool self_test();
+#endif
 
 } // namespace hpc::bench
 
