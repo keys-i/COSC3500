@@ -523,6 +523,8 @@ void benchmark_case(const Options &options, const hpc::bench::Case &value) {
 
 #ifdef COSC3500_BENCH_EMBEDDED
 [[nodiscard]] bool benchmark_self_test() {
+    static_cast<void>(&benchmark);
+
     const std::vector<double> values{1.0, 2.0, 3.0, 4.0, 5.0};
     const Statistics result = statistics(values);
     const Statistics again = statistics(values);
