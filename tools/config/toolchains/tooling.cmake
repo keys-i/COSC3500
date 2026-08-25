@@ -4,8 +4,7 @@ function(hpc_add_optimisation_report target source)
         set(report "${report_dir}/${target}-vectorisation.txt")
         set(report_flags
             "-fopt-info-vec-optimized-missed=${report}"
-            -fno-tree-loop-vectorize
-            -fno-tree-slp-vectorize
+            ${HPC_GCC_SCALAR_FLAGS}
         )
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         set(report "${report_dir}/${target}-optimisation.yaml")
@@ -15,8 +14,7 @@ function(hpc_add_optimisation_report target source)
             -Rpass-analysis=loop-vectorize
             -fsave-optimization-record
             "-foptimization-record-file=${report}"
-            -fno-vectorize
-            -fno-slp-vectorize
+            ${HPC_CLANG_SCALAR_FLAGS}
         )
     else()
         return()
@@ -33,10 +31,14 @@ function(hpc_add_optimisation_report target source)
     )
 endfunction()
 
+if(NOT TARGET m1_core)
+    return()
+endif()
+
 add_executable(
     hpc_bench
     "${PROJECT_SOURCE_DIR}/benches/bench.cpp"
-    "${PROJECT_SOURCE_DIR}/benches/m0.cpp"
+    "${PROJECT_SOURCE_DIR}/benches/m1.cpp"
 )
 set_target_properties(
     hpc_bench

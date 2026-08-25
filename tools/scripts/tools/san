@@ -24,23 +24,84 @@ shift
 
 validate_choice "$action" \
     "$(tool_config_get security sanitizers)" sanitizer
+
+prepare_msan() {
+    test "$(uname -s)" = Linux || {
+        skip "MSan is supported on Linux, not $(uname -s)"
+        exit 0
+    }
+
+    local runtime=${HPC_MSAN_RUNTIME:-$HPC_BUILD_ROOT/msan-runtime/install}
+    local source=${HPC_LLVM_SOURCE:-$HPC_BUILD_ROOT/llvm-project}
+    local build=$HPC_BUILD_ROOT/msan-runtime/build
+    local header=$runtime/include/c++/v1/vector
+    local library=$runtime/lib/libc++.so
+
+    CC=$(find_tool CC clang-18 clang) || die "MSan needs Clang"
+    CXX=$(find_tool CXX clang++-18 clang++) || die "MSan needs Clang++"
+    export CC CXX
+
+    if test ! -f "$header" || test ! -e "$library"; then
+        test -f "$source/runtimes/CMakeLists.txt" ||
+            die "set HPC_LLVM_SOURCE to a matching llvm-project checkout"
+        run cmake -S "$source/runtimes" -B "$build" -G Ninja \
+            -C "$source/libcxx/cmake/caches/Generic-msan.cmake" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER="$CC" \
+            -DCMAKE_CXX_COMPILER="$CXX" \
+            -DCMAKE_INSTALL_PREFIX="$runtime" \
+            '-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi' \
+            -DLLVM_INCLUDE_TESTS=OFF \
+            -DLIBCXX_CXX_ABI=libcxxabi \
+            -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
+            -DLIBCXX_INCLUDE_TESTS=OFF \
+            -DLIBCXXABI_INCLUDE_TESTS=OFF
+        run cmake --build "$build" --parallel --target \
+            install-cxx install-cxxabi
+    fi
+
+    test -f "$header" || die "instrumented libc++ headers were not installed"
+    test -e "$library" || die "instrumented libc++ was not installed"
+    local name
+    local nm_tool
+    local shared
+    nm_tool=$(find_tool NM llvm-nm-18 llvm-nm nm) || die "MSan needs nm"
+    for name in 'libc++' 'libc++abi'; do
+        shared=$(find "$runtime/lib" -type f -name "$name.so.*" \
+            -print -quit)
+        test -n "$shared" || die "$name shared object is missing"
+        "$nm_tool" -D "$shared" | grep '__msan_' >/dev/null ||
+            die "$name is not MemorySanitizer-instrumented"
+    done
+    export HPC_MSAN_INCLUDE=$runtime/include/c++/v1
+    export HPC_MSAN_LIBRARY=$runtime/lib
+}
+
 if test "$action" = msan; then
-    if test "$(uname -s)" != Linux; then
-        skip "MSan requires a complete Clang/Linux runtime"
-        exit 0
-    fi
-    if test "${HPC_MSAN_READY:-0}" != 1; then
-        skip "MSan: no instrumented C++ runtime is configured"
-        exit 0
-    fi
+    prepare_msan
 fi
 
 configure_preset "$action" --fresh
-build_preset "$action" --target m0 hpc_bench
+build_preset "$action" --target m0 m1 hpc_bench
 if test "$action" = asan-ubsan && test "$(uname -s)" = Linux; then
     run env ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
         UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
         ctest --test-dir "$HPC_ROOT/build/$action" --output-on-failure
+elif test "$action" = msan; then
+    linked_libcxx=$(
+        ldd "$(target_binary msan m1)" |
+            awk '/libc\+\+\.so/{print $3; exit}'
+    )
+    case $linked_libcxx in
+        "$HPC_MSAN_LIBRARY"/*) ;;
+        *) die "m1 is not linked to the instrumented libc++" ;;
+    esac
+    symbolizer=$(find_llvm_tool llvm-symbolizer) ||
+        die "MSan needs llvm-symbolizer"
+    run env MSAN_SYMBOLIZER_PATH="$symbolizer" \
+        MSAN_OPTIONS=halt_on_error=1:exit_code=86 \
+        ctest --test-dir "$HPC_ROOT/build/$action" --output-on-failure \
+        -E '^m1\.visualiser-(dependencies|roundtrip)$'
 else
     run ctest --test-dir "$HPC_ROOT/build/$action" --output-on-failure
 fi

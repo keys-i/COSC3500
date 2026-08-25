@@ -1,6 +1,13 @@
 {
   "name": "COSC3500",
   "image": "mcr.microsoft.com/devcontainers/cpp:1-noble",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "os-provided",
+      "toolsToInstall": "uv"
+    }
+  },
+  "onCreateCommand": "./tools/scripts/tools/install",
   "updateContentCommand": "make test PRESET=profile",
   "waitFor": "updateContentCommand"
 }

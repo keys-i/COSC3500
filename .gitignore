@@ -1,6 +1,16 @@
 # == Machine files ==
 .DS_Store
 .cache/
+.venv/
+__pycache__/
+*.py[cod]
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+dist/
+htmlcov/
+*.egg-info/
 CMakeUserPresets.json
 .spack-env/
 
@@ -54,6 +64,7 @@ MUST_Output*
 *.out
 *.err
 *.log
+/watch_[0-9]*
 core.[0-9]*
 vgcore.*
 

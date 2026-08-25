@@ -52,6 +52,7 @@ validate_positive_integer "$limit" column_limit
 failed=false
 while IFS= read -r -d '' file; do
     test -f "$HPC_ROOT/$file" || continue
+    test "$file" = uv.lock && continue
     grep -Iq . "$HPC_ROOT/$file" || continue
     if ! awk -v limit="$limit" '
         length($0) > limit {

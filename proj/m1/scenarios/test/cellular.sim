@@ -1,0 +1,18 @@
+# Blinker checks synchronous updates
+[scenario]
+version=4
+kernel=cellular
+
+[world]
+width=5
+height=5
+steps=2
+boundary=bounded
+
+[cellular]
+states=2
+count_state=1
+boundary=bounded
+birth=3
+survive=2,3
+cells=0000000000011100000000000

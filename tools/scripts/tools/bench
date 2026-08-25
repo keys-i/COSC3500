@@ -21,7 +21,8 @@ case ${1:-} in
     --help | help)
         printf 'usage: %s ' "${0##*/}"
         printf '%s\n' \
-            'self-test|gates|smoke|standard|publication|compare|bolt [options]'
+            'self-test|gates|smoke|standard|publication|compare|bolt' \
+            '[--case <name>]'
         exit 0
         ;;
 esac
@@ -29,10 +30,11 @@ esac
 action=${1:-smoke}
 (($# == 0)) || shift
 preset=profile
-target=m0
+target=m1
 threads=1
 ranks=1
 final_run=false
+case_selector=all
 while (($# > 0)); do
     case $1 in
         --preset)
@@ -55,6 +57,11 @@ while (($# > 0)); do
             ranks=$2
             shift 2
             ;;
+        --case)
+            (($# >= 2)) || die "--case requires a value"
+            case_selector=$2
+            shift 2
+            ;;
         --final)
             final_run=true
             shift
@@ -67,6 +74,21 @@ benchmark_actions+=,pgo-generate,pgo-use
 validate_choice "$action" "$benchmark_actions" "benchmark action"
 validate_positive_integer "$threads" threads
 validate_positive_integer "$ranks" ranks
+if test "$target" = m1 &&
+    { test "$threads" != 1 || test "$ranks" != 1; }; then
+    die "m1 benchmarks require threads=1 and ranks=1"
+fi
+
+case $action in
+    standard | publication)
+        case $case_selector in
+            all | continuous-large | continuous-million) ;;
+            *)
+                die "$action only times continuous-large or continuous-million"
+                ;;
+        esac
+        ;;
+esac
 
 case $action in
     pgo-generate | pgo-use)
@@ -74,17 +96,31 @@ case $action in
         ;;
 esac
 
+require_pgo_continuous() {
+    test "$target" = m1 || die "PGO training is only defined for m1"
+    test "$case_selector" = all || test "$case_selector" = continuous ||
+        die "PGO training uses the continuous benchmark case"
+}
+
 run_pgo_generate() {
     require_target "$target"
-    test "$target" = m0 ||
-        die "no representative PGO training driver exists for $target"
+    require_pgo_continuous
+    local -a argument=(templates/predator-prey-large)
     local pgo_dir
     pgo_dir="$HPC_ROOT/$(config_get_nested "$CONFIG" control pgo_dir)"
+    test "$pgo_dir" = "$HPC_ROOT/build/pgo-generate/pgo" ||
+        die "unsafe PGO directory: $pgo_dir"
+    if test -e "$pgo_dir"; then
+        [[ -d "$pgo_dir" && ! -L "$pgo_dir" ]] ||
+            die "unsafe PGO directory: $pgo_dir"
+        run cmake -E remove_directory "$pgo_dir"
+    fi
     configure_preset pgo-generate --fresh
     build_preset pgo-generate --target "$target"
     local binary="$HPC_ROOT/build/pgo-generate/bin/$target"
+    cd "$HPC_ROOT"
     for _ in 1 2 3 4 5; do
-        run "$binary"
+        run "$binary" "${argument[@]}"
     done
     local compiler_id
     compiler_id=$(compiler_field pgo-generate CMAKE_CXX_COMPILER_ID)
@@ -108,10 +144,11 @@ run_pgo_generate() {
 
 run_pgo_use() {
     require_target "$target"
-    test "$target" = m0 || die "no PGO training run for $target yet"
+    require_pgo_continuous
     configure_preset pgo-use --fresh
     build_preset pgo-use --target "$target" hpc_bench
-    run ctest --test-dir "$HPC_ROOT/build/pgo-use" --output-on-failure
+    run ctest --test-dir "$HPC_ROOT/build/pgo-use" --output-on-failure \
+        -R "^${target}\\.|^hpc\\.benchmark\\.selftest$"
     pass "PGO-use build and correctness smoke"
 }
 
@@ -132,11 +169,16 @@ expect_rejection() {
 
 run_gate_tests() {
     configure_preset asan-ubsan --fresh
-    build_preset asan-ubsan --target m0 hpc_bench
     expect_rejection profile-mode "unknown cluster preset: profile" \
-        "$SCRIPT_DIR/bench" smoke --preset profile --target m0 --final
+        "$SCRIPT_DIR/bench" smoke --preset profile --target m1 --final
     expect_rejection sanitizer "won't time a sanitizer build" \
-        "$SCRIPT_DIR/bench" smoke --preset asan-ubsan --target m0
+        "$SCRIPT_DIR/bench" smoke --preset asan-ubsan --target m1
+    expect_rejection standard-scope \
+        "standard only times continuous-large or continuous-million" \
+        "$SCRIPT_DIR/bench" standard --case cellular
+    expect_rejection serial-metadata \
+        "m1 benchmarks require threads=1 and ranks=1" \
+        "$SCRIPT_DIR/bench" smoke --threads 2
 }
 
 case $action in
@@ -158,10 +200,6 @@ case $action in
         exit 0
         ;;
     bolt)
-        if test "$target" = m0; then
-            skip "BOLT: m0 is too small to measure"
-            exit 0
-        fi
         skip "BOLT: no target is ready for BOLT"
         exit 0
         ;;
@@ -173,9 +211,12 @@ esac
 
 require_preset "$preset"
 require_target "$target"
-test "$target" = m0 || die "only m0 has a benchmark"
+test "$target" = m1 || die "only m1 has a benchmark adapter"
+if test "$final_run" = true; then
+    cluster_presets=$(config_get_nested "$CONFIG" control cluster_presets)
+    validate_choice "$preset" "$cluster_presets" "cluster preset"
+fi
 ensure_configured "$preset"
-build_preset "$preset" --target "$target" hpc_bench
 
 mode=$(cache_value "$preset" HPC_MODE)
 sanitizer=$(cache_value "$preset" HPC_SANITIZER)
@@ -184,8 +225,6 @@ test "$sanitizer" = none || die "won't time a sanitizer build"
 test "$coverage" = none || die "won't time a coverage build"
 
 if test "$final_run" = true; then
-    cluster_presets=$(config_get_nested "$CONFIG" control cluster_presets)
-    validate_choice "$preset" "$cluster_presets" "cluster preset"
     blocked_modes=$(config_get_nested "$CONFIG" control blocked_modes)
     case ",$blocked_modes," in
         *",$mode,"*)
@@ -198,8 +237,8 @@ if test "$final_run" = true; then
     marker="$(build_dir "$preset")/configured-host.txt"
     grep -Fxq "slurm_job_id=$SLURM_JOB_ID" "$marker" ||
         die "build was not configured in this allocation"
-    die "m0 checks that the program starts; it isn't a timing workload"
 fi
+build_preset "$preset" --target "$target" hpc_bench
 
 warmups=$(config_get_nested "$CONFIG" "$action" warmups)
 samples=$(config_get_nested "$CONFIG" "$action" samples)
@@ -218,8 +257,7 @@ raw_dir="$HPC_ROOT/$(config_get_nested "$CONFIG" control raw_dir)"
 summary_dir="$HPC_ROOT/$(config_get_nested "$CONFIG" control summary_dir)"
 run mkdir -p "$raw_dir" "$summary_dir"
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
-raw="$raw_dir/$target-$preset-$timestamp.csv"
-summary="$summary_dir/$target-$preset-$timestamp.csv"
+run_id="$timestamp-$$"
 binary=$(target_binary "$preset" "$target")
 helper="$(build_dir "$preset")/bench/hpc_bench"
 compiler=$(cache_value "$preset" CMAKE_CXX_COMPILER)
@@ -231,33 +269,64 @@ host=$(hostname -s)
 cpu=$(cpu_name)
 flags="mode=$mode;sanitizer=$sanitizer;coverage=$coverage;"
 flags+="lto=$(cache_value "$preset" HPC_ENABLE_LTO)"
+compile_commands=$(
+    ninja -C "$(build_dir "$preset")" -t commands "$target" |
+        tr '\n' ';'
+)
+test -n "$compile_commands" || die "Ninja returned no commands for $target"
+flags+=";commands=$compile_commands"
 
 cd "$HPC_ROOT"
-run "$helper" \
-    --binary "$binary" \
-    --target "$target" \
-    --preset "$preset" \
-    --compiler "$compiler_id:$compiler" \
-    --compiler-version "$compiler_version" \
-    --flags "$flags" \
-    --git-commit "$commit" \
-    --binary-sha256 "$binary_hash" \
-    --host "$host" \
-    --cpu "$cpu" \
-    --backend process-smoke \
-    --timestamp "$timestamp" \
-    --mode end-to-end \
-    --size 0 \
-    --seed 0 \
-    --threads "$threads" \
-    --ranks "$ranks" \
-    --warmup "$warmups" \
-    --samples "$samples" \
-    --process-run "$process_runs" \
-    --minimum-case-ms "$minimum_case_ms" \
-    --bootstrap-resamples "$bootstrap_resamples" \
-    --verify \
-    --output "${raw##*/}" \
-    --summary "${summary##*/}"
-run "$helper" --validate-csv "${raw##*/}" "${summary##*/}"
-pass "$action program-start check only"
+print_command "$helper" --cases "$target"
+case_rows=$("$helper" --cases "$target") || die "cannot list benchmark cases"
+selected_cases=()
+while IFS='|' read -r case_name backend work_unit input_size seed; do
+    [[ -n "$case_name" && -n "$backend" && -n "$work_unit" ]] ||
+        die "invalid benchmark case metadata"
+    case $case_name in
+        *[!a-z0-9-]* | '') die "invalid benchmark case name: $case_name" ;;
+    esac
+    if test "$action" != smoke && test "$case_name" != continuous-large &&
+        test "$case_name" != continuous-million; then
+        continue
+    fi
+    if test "$case_selector" = all || test "$case_selector" = "$case_name"; then
+        selected_cases+=("$case_name|$backend|$input_size|$seed|$work_unit")
+    fi
+done <<<"$case_rows"
+((${#selected_cases[@]} > 0)) || die "unknown benchmark case: $case_selector"
+
+for selected in "${selected_cases[@]}"; do
+    IFS='|' read -r case_name backend input_size seed work_unit <<<"$selected"
+    raw="$raw_dir/$target-$case_name-$preset-$run_id.csv"
+    summary="$summary_dir/$target-$case_name-$preset-$run_id.csv"
+    run "$helper" \
+        --binary "$binary" \
+        --target "$target" \
+        --case "$case_name" \
+        --preset "$preset" \
+        --compiler "$compiler_id:$compiler" \
+        --compiler-version "$compiler_version" \
+        --flags "$flags" \
+        --git-commit "$commit" \
+        --binary-sha256 "$binary_hash" \
+        --host "$host" \
+        --cpu "$cpu" \
+        --backend "$backend" \
+        --timestamp "$timestamp" \
+        --mode end-to-end \
+        --size "$input_size" \
+        --seed "$seed" \
+        --threads "$threads" \
+        --ranks "$ranks" \
+        --warmup "$warmups" \
+        --samples "$samples" \
+        --process-run "$process_runs" \
+        --minimum-case-ms "$minimum_case_ms" \
+        --bootstrap-resamples "$bootstrap_resamples" \
+        --verify \
+        --output "${raw##*/}" \
+        --summary "${summary##*/}"
+    run "$helper" --validate-csv "${raw##*/}" "${summary##*/}"
+    pass "$action $target $case_name benchmark ($work_unit)"
+done

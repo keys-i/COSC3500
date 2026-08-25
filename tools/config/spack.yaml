@@ -1,0 +1,6 @@
+spack:
+  specs:
+    - luajit@2.1
+  concretizer:
+    unify: true
+  view: false
