@@ -12,6 +12,7 @@ import os
 import queue
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -42,6 +43,8 @@ from .core import (
     state_reader,
     validate_render_assets,
 )
+
+EXPORT_SIZE = (2560, 1440)
 
 
 def output_directory(root):
@@ -83,6 +86,16 @@ def video_path(name):
         raise ValueError("--export needs a safe .mp4 filename, not a path")
     output = output_directory(ROOT) / name
     return output, reserve_output(output)
+
+
+def export_progress(done, total):
+    """Format the video export progress bar"""
+    width = 28
+    filled = width * done // total
+    return (
+        f"render [{'#' * filled}{'-' * (width - filled)}] "
+        f"{done * 100 // total:3d}%"
+    )
 
 
 def export_video(
@@ -140,6 +153,8 @@ def export_video(
     # Reserve the final name before creating temporary encoder output beside it
     output, reservation = video_path(name)
     started = time.perf_counter()
+    interactive = sys.stderr.isatty()
+    progress_open = False
     temporary = None
     try:
         temporary = tempfile.TemporaryDirectory(
@@ -169,6 +184,8 @@ def export_video(
             "medium",
             "-crf",
             "17",
+            "-vf",
+            f"scale={EXPORT_SIZE[0]}:{EXPORT_SIZE[1]}:flags=lanczos",
             "-pix_fmt",
             "yuv420p",
             "-movflags",
@@ -183,6 +200,15 @@ def export_video(
         ) as encoder:
             if encoder.stdin is None or encoder.stderr is None:
                 raise RuntimeError("cannot open ffmpeg pipes")
+            shown = 0
+            if interactive:
+                print(
+                    export_progress(0, total),
+                    end="\r",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                progress_open = True
             # Render poster frames first, then map film time to simulation
             for index in range(total):
                 elapsed = index / fps
@@ -230,6 +256,19 @@ def export_video(
                         title,
                     )
                 encoder.stdin.write(pygame.image.tobytes(surface, "RGB"))
+                if interactive:
+                    done = index + 1
+                    percent = done * 100 // total
+                    if percent > shown:
+                        final = done == total
+                        print(
+                            export_progress(done, total),
+                            end="\n" if final else "\r",
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                        shown = percent
+                        progress_open = not final
             encoder.stdin.close()
             message = encoder.stderr.read().decode("utf-8", "replace").strip()
             if encoder.wait() != 0:
@@ -257,6 +296,8 @@ def export_video(
         completed.replace(output)
     # Remove only the inode reserved by this call when setup or encoding fails
     except Exception:
+        if progress_open:
+            print(file=sys.stderr)
         try:
             if output.stat().st_ino == reservation:
                 output.unlink()
