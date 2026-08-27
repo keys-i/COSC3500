@@ -1,5 +1,5 @@
-#ifndef MOLLY_M1_SIMULATION_PDE_HPP
-#define MOLLY_M1_SIMULATION_PDE_HPP
+#ifndef MOLLY_M1_SIMULATION_KERNELS_PDE_HPP
+#define MOLLY_M1_SIMULATION_KERNELS_PDE_HPP
 
 #include <cstddef>
 #include <cstdint>

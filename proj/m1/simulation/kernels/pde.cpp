@@ -1,4 +1,4 @@
-#include "../pde.hpp"
+#include "pde.hpp"
 #include "../internal.hpp"
 #include "../runtime/lua.hpp"
 #include <algorithm>
