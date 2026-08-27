@@ -96,7 +96,7 @@ viz() {
         state="$root/results/snapshots/${name}.csv"
         video="$root/results/videos/${name//\//-}.mp4"
         rm -f -- "$video"
-        SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy UV_CACHE_DIR="$root/build/uv-cache" uv run --locked --offline python -m typer proj.visualiser run render "$state" --fps 30 --scene-meta "$meta" --export "${video##*/}"
+        SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy UV_CACHE_DIR="$root/build/uv-cache" uv run --locked --offline python -m typer proj.visualiser run render "$state" --fps 60 --scene-meta "$meta" --export "${video##*/}"
         ((rendered += 1))
     done 3< <(find "$root/proj/scenarios" -mindepth 2 -type f -name scene.meta -print0 | LC_ALL=C sort -z)
     [[ $rendered -eq 4 ]] || die "viz exported $rendered production templates; expected 4"
