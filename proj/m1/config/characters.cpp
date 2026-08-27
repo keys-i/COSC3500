@@ -183,7 +183,7 @@ named_value(const std::string_view value,
         }
         draft.sprite = field->value;
     }
-    for (const auto [key, destination] : {
+    for (const auto &[key, destination] : {
              std::pair{"sprite_north", &draft.sprite_north},
              std::pair{"sprite_south", &draft.sprite_south},
          }) {
