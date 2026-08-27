@@ -10,9 +10,31 @@ import csv
 import math
 from typing import Any
 
-EXPORTS = ("conway_territory", "conway_label_size", "conway_chatter")
+EXPORTS = (
+    "conway_territory",
+    "conway_realm_summary",
+    "conway_label_size",
+    "conway_chatter",
+)
 
 draw_text: Any = None
+
+# Quarter-shares for the three founding houses: Vim, Emacs, Nano.
+ANCESTRY = (
+    (),
+    (4, 0, 0),
+    (0, 4, 0),
+    (0, 0, 4),
+    (3, 1, 0),
+    (1, 3, 0),
+    (3, 0, 1),
+    (1, 0, 3),
+    (0, 3, 1),
+    (0, 1, 3),
+    (2, 2, 0),
+    (2, 0, 2),
+    (0, 2, 2),
+)
 
 
 def _rows(path):
@@ -59,7 +81,7 @@ def bind(api, assets):
         )
     )
     CONWAY_FACTIONS = tuple(
-        row["name"]
+        row
         for row in sorted(
             _rows(assets / "factions.tsv"), key=lambda row: int(row["state"])
         )
@@ -109,7 +131,7 @@ def draw_grid(
 
 
 def draw_cell(pygame, screen, fonts, frame, entity, x, y, centre, scale):
-    """Draw one Conway state cell and label the central Nano faction cell"""
+    """Draw one pure or inherited Conway realm cell."""
     colour, opacity = cellular_visual(
         entity.state_id, entity.colour, entity.opacity
     )
@@ -126,23 +148,6 @@ def draw_cell(pygame, screen, fonts, frame, entity, x, y, centre, scale):
         layer = pygame.Surface(rectangle.size, pygame.SRCALPHA)
         layer.fill((*colour, round(opacity * 255.0)))
         screen.blit(layer, rectangle.topleft)
-    if (
-        entity.state_id == 3
-        and int(entity.x) == int(frame.width) // 2
-        and int(entity.y) == int(frame.height) // 2
-    ):
-        draw_text(
-            pygame,
-            screen,
-            fonts,
-            "NANO",
-            (centre[0], rectangle.top - 5),
-            18,
-            (255, 232, 92),
-            1.0,
-            True,
-            "midbottom",
-        )
 
 
 def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
@@ -152,10 +157,11 @@ def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
     vim, emacs, nano, vim_percent, emacs_percent, nano_percent = (
         conway_territory(frame)
     )
+    realm_cells, mixed_cells, free_cells = conway_realm_summary(frame)
     counts = vim, emacs, nano
     percents = vim_percent, emacs_percent, nano_percent
     colours = tuple(CONWAY_STATES[state][0] for state in (1, 2, 3))
-    panel = pygame.Surface((820, 260), pygame.SRCALPHA)
+    panel = pygame.Surface((820, 280), pygame.SRCALPHA)
     panel.fill((11, 16, 18, 224))
     pygame.draw.rect(
         panel, (210, 218, 211), panel.get_rect(), 2, border_radius=10
@@ -185,7 +191,7 @@ def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
     panel.blit(fill, bar)
     pygame.draw.rect(panel, (235, 248, 241), bar, 2, border_radius=10)
     left = bar.left
-    for name, count, percent, colour, segment_width in zip(
+    for faction, count, percent, colour, segment_width in zip(
         CONWAY_FACTIONS, counts, percents, colours, widths
     ):
         if count:
@@ -193,7 +199,7 @@ def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
                 pygame,
                 panel,
                 fonts,
-                f"{name} {percent}%",
+                f"{faction['name']} {percent}%",
                 (left + segment_width // 2, bar.top - 5),
                 conway_label_size(percent),
                 colour,
@@ -202,8 +208,39 @@ def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
                 "midbottom",
             )
         left += segment_width
+    strategy_turn = frame.number // 180
+    faction = CONWAY_FACTIONS[strategy_turn % len(CONWAY_FACTIONS)]
+    strategy = ("growth", "marriage", "alliance", "war")[
+        (strategy_turn // len(CONWAY_FACTIONS)) % 4
+    ]
+    draw_text(
+        pygame,
+        panel,
+        fonts,
+        f"{faction['name'].upper()} · {strategy.upper()}: "
+        f"{faction[strategy].upper()}",
+        (28, 25),
+        14,
+        colours[int(faction["state"]) - 1],
+        1.0,
+        True,
+        "topleft",
+    )
+    draw_text(
+        pygame,
+        panel,
+        fonts,
+        f"ANCESTRY / LOYALTY · {realm_cells} REALM CELLS · {mixed_cells} MIXED · "
+        f"{free_cells} FREE LAND",
+        (28, 82),
+        13,
+        (210, 218, 211),
+        1.0,
+        True,
+        "topleft",
+    )
     # Clip chatter so older rows can scroll upward without spilling
-    chat = pygame.Rect(16, 90, 788, 154)
+    chat = pygame.Rect(16, 108, 788, 154)
     pygame.draw.rect(panel, (11, 16, 18, 218), chat, border_radius=7)
     pygame.draw.rect(panel, (93, 108, 109), chat, 1, border_radius=7)
     draw_text(
@@ -211,14 +248,14 @@ def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
         panel,
         fonts,
         "FRONTLINE COMMS",
-        (28, 100),
+        (28, 118),
         16,
         (210, 218, 211),
         1.0,
         True,
         "topleft",
     )
-    viewport = pygame.Rect(28, 126, 764, 108)
+    viewport = pygame.Rect(28, 144, 764, 108)
     panel.set_clip(viewport)
     scroll = min((frame.number % 36) / 6.0, 1.0) * 22
     for row, (state, line) in enumerate(conway_chatter(frame)):
@@ -245,15 +282,9 @@ def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
 
 
 def conway_territory(frame):
-    """Count live faction cells and return shares totalling one hundred"""
+    """Return inherited ancestral shares and loyalty percentages."""
     # Largest-remainder rounding preserves exactly one hundred percent
-    counts = [
-        sum(
-            entity.shape == "cell" and entity.state_id == state
-            for entity in frame.entities
-        )
-        for state in (1, 2, 3)
-    ]
+    counts = _ancestry_counts(frame)
     total = sum(counts)
     if not total:
         return 0, 0, 0, 0, 0, 0
@@ -276,6 +307,30 @@ def conway_territory(frame):
     return *counts, *shares
 
 
+def _ancestry_counts(frame):
+    counts = [0.0, 0.0, 0.0]
+    for entity in frame.entities:
+        if entity.shape != "cell" or not 0 < entity.state_id < len(ANCESTRY):
+            continue
+        for index, share in enumerate(ANCESTRY[entity.state_id]):
+            counts[index] += share / 4.0
+    return counts
+
+
+def conway_realm_summary(frame):
+    """Count realm cells, mixed lineages, and actual free cells."""
+    cells = [
+        entity.state_id
+        for entity in frame.entities
+        if entity.shape == "cell" and 0 < entity.state_id < len(ANCESTRY)
+    ]
+    return (
+        len(cells),
+        sum(state > 3 for state in cells),
+        max(0, round(frame.width * frame.height) - len(cells)),
+    )
+
+
 def conway_label_size(percent):
     return max(1, round(34 * percent / 50))
 
@@ -283,9 +338,9 @@ def conway_label_size(percent):
 def conway_chatter(frame):
     """Build rolling faction messages for the current simulation frame"""
     live = {
-        entity.state_id
-        for entity in frame.entities
-        if entity.shape == "cell" and entity.state_id in (1, 2, 3)
+        state
+        for state, share in zip((1, 2, 3), _ancestry_counts(frame))
+        if share
     }
     lines = []
     message = frame.number // 36

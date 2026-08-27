@@ -1,5 +1,5 @@
-# Cellular scenario with three live factions and three trail states per faction
-# rules.lua seeds the board while ai.lua supplies one transition per cell
+# Cellular scenario with three ancestral factions and twelve live realm states
+# rules.lua seeds scattered micro-kingdoms while ai.lua evolves ancestry
 [scenario]
 version=4
 kernel=cellular
@@ -7,19 +7,20 @@ kernel=cellular
 [world]
 width=200
 height=140
-steps=720
+steps=4320
 boundary=bounded
 seed=31
 
 [output]
-snapshot_stride=1
+snapshot_stride=48
 view=grid
 
 [presentation]
 title=Conway
-subtitle=Three-owner Life on a 200 x 140 grid
+subtitle=4,320 generations of kingdoms, inheritance, alliances, and collapse
 theme=conway
 duration_seconds=60
+pacing=0:0,144:15,576:30,2160:45,4320:60
 format=demo
 projection=flat
 hud=true
@@ -36,7 +37,7 @@ kind=image
 frame=0
 kind=poster
 asset=war_background
-text=Conway · three-owner Life
+text=Conway · the micro-kingdoms
 
 [cue.open]
 frame=0
@@ -58,73 +59,74 @@ height=160
 layer=-4
 parallax=1
 
-# State zero is empty; state IDs 1 through 12 follow the character order below
+# State zero is free land; state IDs 1 through 12 are living ancestral mixes
 [cellular]
 states=13
 
 [rules]
 file=rules.lua
 
-# The first three entries are live cells and the remaining nine are trails
+# Characters define the ordered state palette. There are no trails: collapse
+# returns a cell to free land, ready for a later settlement.
 [characters]
 count=12
 
-[character.red_vanguard]
+[character.red]
 count=1
 shape=cell
 colour=ef4444
 
-[character.blue_calculus]
+[character.blue]
 count=1
 shape=cell
 colour=3b82f6
 
-[character.yellow_cabal]
+[character.yellow]
 count=1
 shape=cell
 colour=facc15
 
-[character.red_trail_1]
+[character.red_blue_red]
 count=1
 shape=cell
-colour=f87171
+colour=b95a75
 
-[character.red_trail_2]
+[character.red_blue_blue]
 count=1
 shape=cell
-colour=fca5a5
+colour=697fc1
 
-[character.red_trail_3]
+[character.red_yellow_red]
 count=1
 shape=cell
-colour=fecaca
+colour=e76940
 
-[character.blue_trail_1]
+[character.red_yellow_yellow]
 count=1
 shape=cell
-colour=60a5fa
+colour=f4ab23
 
-[character.blue_trail_2]
+[character.blue_yellow_blue]
 count=1
 shape=cell
-colour=93c5fd
+colour=709fb3
 
-[character.blue_trail_3]
+[character.blue_yellow_yellow]
 count=1
 shape=cell
-colour=bfdbfe
+colour=ccbd4a
 
-[character.yellow_trail_1]
+[character.red_blue_equal]
 count=1
 shape=cell
-colour=fde047
+colour=936d9b
 
-[character.yellow_trail_2]
+[character.red_yellow_equal]
 count=1
 shape=cell
-colour=facc15
+colour=ee8a30
 
-[character.yellow_trail_3]
+[character.blue_yellow_equal]
 count=1
 shape=cell
-colour=ca8a04
+colour=96af55

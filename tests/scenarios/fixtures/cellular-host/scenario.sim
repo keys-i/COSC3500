@@ -3,14 +3,14 @@ version=4
 kernel=cellular
 
 [world]
-width=1
-height=1
+width=3
+height=3
 steps=1
 boundary=bounded
 
 [cellular]
-states=2
-cells=1
+states=10
+cells=159501900
 
 [rules]
 file=rules.lua
