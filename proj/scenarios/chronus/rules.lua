@@ -12,6 +12,8 @@ local CHINA = 139
 
 -- Immutable route data loaded in scene order
 -- Route tables align with scene flight entities and preserve source-data order
+-- Keep generated scalar tables compact instead of adding thousands of lines.
+-- stylua: ignore start
 local route_sources = {
     139,
     139,
@@ -2587,6 +2589,7 @@ local ship_density = {
     0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500,
     0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500, 0.1500,
 }
+-- stylua: ignore end
 
 -- Mutable country compartments
 -- Country arrays use one-based Lua indexes
@@ -2596,6 +2599,7 @@ local recovered, vaccinated, deceased = {}, {}, {}
 
 -- Existing route connectivity approximates unequal vaccine access without a
 -- second country database: connected countries start earlier and ramp faster.
+-- stylua: ignore
 local vaccine_access = {
     38, 6, 1, 39, 282, 4, 4, 6, 24, 13, 7, 0, 3, 9, 6,
     6, 5, 8, 70, 3, 0, 8, 1, 0, 0, 27, 1, 17, 7, 26,
@@ -2734,8 +2738,14 @@ end
 
 local function ship_activity(month, route, begins)
     if month < begins then return 0 end
-    local hormuz = route == 9 or route == 11 or route == 31 or route == 36
-        or route == 88 or route == 91 or route == 92 or route == 142
+    local hormuz = route == 9
+        or route == 11
+        or route == 31
+        or route == 36
+        or route == 88
+        or route == 91
+        or route == 92
+        or route == 142
     if month >= 81 and hormuz then return 0.08 end
     if route == 50 or route == 51 then
         if month < 32 then return 1 end
@@ -2750,8 +2760,19 @@ local function ship_activity(month, route, begins)
 end
 
 local function ship_clock(month, route)
-    if month >= 81 and (route == 9 or route == 11 or route == 31 or route == 36
-        or route == 88 or route == 91 or route == 92 or route == 142) then
+    if
+        month >= 81
+        and (
+            route == 9
+            or route == 11
+            or route == 31
+            or route == 36
+            or route == 88
+            or route == 91
+            or route == 92
+            or route == 142
+        )
+    then
         return 81 + (month - 81) * 0.08
     end
     if route == 50 or route == 51 then

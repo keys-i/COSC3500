@@ -1,5 +1,5 @@
 # Cellular scenario with three ancestral factions and twelve live realm states
-# rules.lua seeds scattered micro-kingdoms while ai.lua evolves ancestry
+# rules.lua seeds scattered micro-kingdoms while kingdoms.lua evolves ancestry
 [scenario]
 version=4
 kernel=cellular

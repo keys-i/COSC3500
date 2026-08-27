@@ -677,8 +677,8 @@ def seir_route_pose(start, end, progress, rectangle):
     """Project a flight with one great-circle sample, not three ship samples."""
     centre_point = seir_route_point(start, end, max(0.0, min(1.0, progress)))
     centre = seir_project_float(*centre_point, rectangle)
-    first = seir_project_float(*start, rectangle)
-    second = seir_project_float(*end, rectangle)
+    first = seir_project_float(start[0], start[1], rectangle)
+    second = seir_project_float(end[0], end[1], rectangle)
     direction = (
         (second[0] - first[0] + rectangle.width / 2) % rectangle.width
         - rectangle.width / 2,
