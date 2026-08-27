@@ -21,6 +21,7 @@ EXPORTS = (
     "chess_material",
     "chess_captures",
     "chess_last_turn_ms",
+    "chess_total_time_us",
 )
 
 DARK_WOOD: Any = None
@@ -89,10 +90,6 @@ def has_icon(glyph):
 
 def icon_radius(entity, frame, scale, minimum, radius):
     return min(radius, max(minimum, round(scale * 0.46)))
-
-
-def skip_asset_cue(cue):
-    return cue.asset is not None and cue.asset.name == "coffee.svg"
 
 
 def chess_move_text(frames, position, numbers=None):
@@ -205,6 +202,18 @@ def chess_last_turn_ms(frames, position, numbers, player):
     return None
 
 
+def chess_total_time_us(frames, position, numbers, player):
+    """Accumulate the selected player's completed search time to this frame."""
+    index = min(len(frames) - 1, bisect.bisect_left(numbers, position))
+    return sum(
+        optional_number(
+            frame.presentation, "turn_duration_us", frame.number, 0.0
+        )
+        for frame in frames[: index + 1]
+        if (frame.number - 1) % 2 == player
+    )
+
+
 def draw_turn_status(pygame, screen, fonts, frames, position, numbers, cache):
     """Draw clocks, material, captures, and the inferred latest chess move"""
     # Derive move and terminal state before selecting a compact or full layout
@@ -282,12 +291,7 @@ def draw_turn_status(pygame, screen, fonts, frames, position, numbers, cache):
         pawn = asset_icon(pygame, player["pawn"], (255, 255, 255), 68, cache)
         panel.blit(pawn, pawn.get_rect(center=pawn_box.center))
         last_ms = chess_last_turn_ms(frames, position, numbers, index)
-        total_us = optional_number(
-            frame.presentation,
-            f"player_{index}_time_us",
-            frame.number,
-            0.0,
-        )
+        total_us = chess_total_time_us(frames, position, numbers, index)
         draw_text(
             pygame,
             panel,

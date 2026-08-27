@@ -35,6 +35,10 @@ vectors=false
 file=shared/Paper001_2K-Color.png
 kind=image
 
+[asset.chai]
+file=assets/chai-reference-top.png
+kind=image
+
 [cue.poster]
 frame=0
 kind=poster
@@ -49,6 +53,40 @@ y=4
 width=8
 height=10.4
 duration=0
+
+[cue.chai]
+frame=0
+kind=sprite
+asset=chai
+x=9.5
+y=8.05
+width=1.5
+duration=600
+layer=2
+
+[cue.chai_bubbles]
+frame=0
+kind=effect
+text=slow chai swirl
+x=9.5
+y=8.05
+duration=600
+opacity=0.68
+scale=1
+layer=3
+ambient=bubbles
+
+[cue.chai_steam]
+frame=0
+kind=effect
+text=slow chai steam
+x=9.5
+y=7.82
+duration=600
+opacity=0.7
+scale=1
+layer=4
+ambient=steam
 
 # One Lua callback searches and commits each complete ply
 [turn]
