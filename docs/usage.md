@@ -51,7 +51,8 @@ tools/scripts/test.sh viz
 ```
 
 This builds M1 once, snapshots each template whose `scene.meta` declares
-`kind=demo` and `art=ready`, and writes a 30 fps video to `results/videos/`.
+`kind=demo` and `art=ready`, and writes a 2560×1440, 60 fps video to
+`results/videos/`.
 It deliberately skips capacity and benchmark templates.
 
 ```bash
@@ -213,25 +214,38 @@ file=rules.lua
 
 Conway's Lua module seeds the board and implements its local transitions.
 `chronus` advances susceptible, exposed, infectious, recovered,
-vaccinated and deceased shares for 177 coupled countries. Its 600 aircraft and
-150 ships are timeline agents: each keeps an observed/fallback airport pair or
+vaccinated and deceased shares for 177 coupled countries. Its 1,200 aircraft and
+300 ships are timeline agents: each keeps an observed/fallback airport pair or
 water-routed maritime corridor while dated closures, reopenings, wars and
 diversions alter its synthetic schedule. Ship agents reverse at route ends and
 carry deterministic wave deviation without leaving their corridor. The
-renderer projects the synthetic shares onto Natural Earth boundaries and shows
-all 300 airport and 150 port nodes in the bundled network. Of the 600 air
+renderer adds deterministic aircraft turbulence and ship motion only inside
+dated WMO storm footprints; the displacement is an animation, not an observed
+track. Closures, reciprocal airspace bans, controlled reopenings, port
+restrictions and war diversions remain visible as operational map alerts.
+The renderer projects the synthetic shares onto Natural Earth boundaries and shows
+all 300 airport and 250 port nodes in the bundled network. Of the 1,200 air
 corridors, 447 are airport pairs observed in the January 2020 OpenSky snapshot;
-153 use the historical OpenFlights network where receiver coverage is absent.
+753 use the historical OpenFlights network, selected from real airport pairs
+with additional coverage across Africa, Latin America, India, Russia, South-East
+Asia and Oceania.
+Carrier colours and labels appear only when that corridor's OpenFlights airline
+code matches the bundled carrier table; other aircraft stay neutral rather than
+being assigned a made-up operator.
+The renderer keeps one aircraft marker per small screen cell and draws faint
+corridors beneath land, so dense European and Indian hubs stay readable without
+deleting any route agent.
 Airport rows retain OurAirports and OpenFlights IDs, while every port carries a
-WPI or UN/LOCODE source ID. Sea corridors follow the SeaRoute 1.6.0 Marnet lane
-graph, including named canals and straits, and their cadence is weighted by the
-World Bank's 2015–2021 commercial AIS density layer. The positions remain
+WPI or UN/LOCODE source ID. The original 150 sea corridors follow the SeaRoute
+1.6.0 Marnet lane graph, including named canals and straits, and retain
+route-wise World Bank 2015–2021 AIS-density weighting. The additional 150 are
+WPI-plus-SeaRoute modeled connectivity: `ais_samples=0` and a conservative
+`0.15` cadence, not observed voyages or schedules. The positions remain
 simulated rather than live traffic or published timetables. It is not a
 forecast, historical case data, or medical claim.
 
-The six-card world feed reserves one eligible item each for South Asia and
-Australia, de-duplicates countries, then fills the remaining slots by recency.
-Light jokes stay with science, sport, animals and culture—not war or disaster.
+The eight-card world feed rotates geography with sport, technology, business,
+light stories and disasters while de-duplicating countries.
 
 Cellular Lua may define `on_setup()` to fill the initial cell buffer and
 `next_cell(current, generation, cell)` to return each cell's next state.

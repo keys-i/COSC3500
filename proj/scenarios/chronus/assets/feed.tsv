@@ -1,7 +1,7 @@
 month	kind	code	label	summary
 0	NEWS	JP	JAPAN	G20 leaders meet in Osaka.
 1	NEWS	US	UNITED STATES	Wins the FIFA Women's World Cup in Lyon.
-2	NEWS	BR	BRAZIL	Amazon fires draw worldwide attention.
+2	DISASTER	BR	BRAZIL	Amazon fires draw worldwide attention.
 3	INFLUENCER	SE	GRETA THUNBERG	Challenges world leaders at the UN Climate Action Summit.
 6	EVENT		GLOBAL	WHO learns of the Wuhan pneumonia cluster.
 7	EVENT	CN	CHINA	Wuhan locks down and WHO declares a global emergency.
@@ -38,7 +38,7 @@ month	kind	code	label	summary
 37	NEWS	US	UNITED STATES	Webb's first full-colour images open a deeper infrared view; every desktop wallpaper feels underqualified.
 39	NEWS	GB	UNITED KINGDOM	Queen Elizabeth II dies after a 70-year reign.
 42	NEWS	AR	ARGENTINA	Argentina beats France on penalties to win the World Cup.
-44	NEWS	TR	TÜRKIYE	Devastating earthquakes strike Türkiye and Syria.
+44	DISASTER	TR	TÜRKIYE	Devastating earthquakes strike Türkiye and Syria.
 47	EVENT		GLOBAL	The international health emergency ends.
 50	NEWS	IN	INDIA	Chandrayaan-3 soft-lands near the lunar south polar region.
 54	NEWS	AE	UAE	COP28 adopts the UAE Consensus and its first global stocktake.
@@ -66,7 +66,7 @@ month	kind	code	label	summary
 56	NEWS	ID	INDONESIA	Holds the world's largest single-day election.
 45	INFLUENCER	MY	MICHELLE YEOH	Wins the Academy Award for best actress.
 41.2	GOV	MY	MALAYSIA	Swears in a new prime minister after a hung parliament.
-7	NEWS	PH	PHILIPPINES	Taal Volcano erupts and forces mass evacuations.
+7	DISASTER	PH	PHILIPPINES	Taal Volcano erupts and forces mass evacuations.
 25	INFLUENCER	PH	HIDILYN DIAZ	Wins the country's first Olympic gold medal.
 23	NEWS	NL	NETHERLANDS	Eurovision returns to Rotterdam with a live audience.
 27	NEWS	NL	NETHERLANDS	Formula One returns to Zandvoort after 36 years.
@@ -88,21 +88,21 @@ month	kind	code	label	summary
 28	NEWS	AE	UAE	Expo 2020 Dubai opens one year late.
 25	NEWS	AR	ARGENTINA	Wins Copa América at the Maracanã.
 52	INFLUENCER	AR	LIONEL MESSI	Wins a record eighth Ballon d'Or.
-6	NEWS	AU	AUSTRALIA	Black Summer bushfires send smoke across major cities.
+6	DISASTER	AU	AUSTRALIA	Black Summer bushfires send smoke across major cities.
 25.2	NEWS	AU	AUSTRALIA	Brisbane is chosen to host the 2032 Olympics; roadworks signs gain a long-range purpose.
 42.2	NEWS	BR	BRAZIL	Football legend Pelé dies at 82.
 43	GOV	BR	BRAZIL	A new administration takes office after a very close election.
 14	NEWS	BY	BELARUS	Mass protests follow a disputed presidential election.
 23.2	NEWS	BY	BELARUS	A diverted passenger jet lands in Minsk and an activist is detained.
 32	NEWS	CA	CANADA	Truck convoy demonstrations occupy central Ottawa.
-48	NEWS	CA	CANADA	Wildfire smoke triggers air-quality alerts far beyond Canada.
+48	DISASTER	CA	CANADA	Wildfire smoke triggers air-quality alerts far beyond Canada.
 18	NEWS	CN	CHINA	Chang'e 5 returns lunar samples to Earth.
 32.2	NEWS	CN	CHINA	Beijing hosts the Winter Olympics.
 17	NEWS	DE	GERMANY	BioNTech and Pfizer report strong vaccine trial results.
-25	NEWS	DE	GERMANY	Catastrophic floods hit western regions.
+25	DISASTER	DE	GERMANY	Catastrophic floods hit western regions.
 22	NEWS	EG	EGYPT	The Pharaohs' Golden Parade moves royal mummies through Cairo.
 41	NEWS	EG	EGYPT	Hosts COP27 in Sharm el-Sheikh.
-27	NEWS	ES	SPAIN	La Palma's Cumbre Vieja volcano erupts.
+27	DISASTER	ES	SPAIN	La Palma's Cumbre Vieja volcano erupts.
 50.2	NEWS	ES	SPAIN	Wins the FIFA Women's World Cup.
 61	NEWS	FR	FRANCE	The Paris Olympics open along the Seine.
 66	NEWS	FR	FRANCE	Notre Dame reopens after restoration.
@@ -142,7 +142,7 @@ month	kind	code	label	summary
 36	NEWS	BD	BANGLADESH	The Padma Bridge opens and links the country's southwest more directly with Dhaka.
 37	NEWS	LK	SRI LANKA	Mass protests peak during a severe economic and political crisis.
 37.1	EVENT	UA	BLACK SEA GRAIN	A UN-brokered initiative reopens a guarded corridor for Ukrainian grain exports.
-38	NEWS	PK	PAKISTAN	Catastrophic monsoon floods affect tens of millions of people.
+38	DISASTER	PK	PAKISTAN	Catastrophic monsoon floods affect tens of millions of people.
 39	NEWS	LK	SRI LANKA	Wins the men's Asia Cup after moving the tournament away from home.
 42	NEWS	BD	DHAKA	The capital's first metro line opens; traffic finally meets an opponent with rails.
 45	INFLUENCER	IN	RRR TEAM	Naatu Naatu wins the Oscar for original song and the dance-off escapes the film.
@@ -170,3 +170,41 @@ month	kind	code	label	summary
 34	GOV	BD	BANGLADESH	Relaxes vaccinated-arrival requirements as travel rules ease.
 49.1	NEWS	US	LAS VEGAS SPHERE	Switches on a giant animated face; the skyline starts making eye contact.
 58.2	NEWS	US	TOTAL SOLAR ECLIPSE	Crosses North America as millions briefly follow the same safety instructions.
+30.2	EVENT	AQ	ANTARCTIC LOGISTICS	Research supply traffic keeps the Hobart-McMurdo corridor active through the southern season.
+44.2	EVENT	ARC	ARCTIC OPERATIONS	Research and fishing traffic continues between Iceland and northern Norway.
+55	DISASTER	JP	JAPAN	The Noto Peninsula earthquake damages communities and disrupts regional transport.
+59	DISASTER	BR	BRAZIL	Severe floods displace communities across Rio Grande do Sul and close Porto Alegre airport.
+19	BUSINESS	AF	AFRICAN TRADE	Trading begins under the African Continental Free Trade Area, linking a continental market on paper and at the border.
+32.5	SPORTS	SN	SENEGAL	Beats Egypt on penalties to win its first Africa Cup of Nations.
+46	TECH	KE	KENYA	Taifa-1 launches as Kenya's first operational Earth-observation satellite.
+44.1	GOV	NG	NIGERIA	Bola Tinubu is declared winner of a closely watched presidential election.
+56	SPORTS	CI	CÔTE D'IVOIRE	Wins the Africa Cup of Nations at home after a dramatic turnaround.
+48	BUSINESS	CL	CHILE LITHIUM	Chile announces a national lithium strategy as battery-metal competition accelerates.
+52.1	SPORTS	CL	SANTIAGO	Hosts the Pan American Games across Chile's capital region.
+54.1	GOV	AR	ARGENTINA	Javier Milei takes office promising sharp economic changes.
+60.1	GOV	MX	MEXICO	Claudia Sheinbaum is elected Mexico's first woman president.
+61	SPORTS	AR	ARGENTINA	Wins Copa América again after extra time in Miami.
+53.1	SPORTS	IN	INDIA CRICKET	Hosts the men's Cricket World Cup final; Australia takes the trophy in Ahmedabad.
+55.1	TECH	IN	ADITYA-L1	India's first solar observatory reaches its halo orbit near the Sun-Earth L1 point.
+60.2	GOV	IN	INDIA	Narendra Modi begins a third term after an election reduces his party's majority.
+46.1	TECH	EU	ESA JUICE	Europe launches the Juice mission to study Jupiter's icy moons.
+57	BUSINESS	EU	EU DIGITAL MARKETS	The Digital Markets Act starts applying to major online gatekeepers.
+61.1	SPORTS	ES	SPAIN	Wins UEFA Euro 2024 with a late goal against England.
+48.1	NEWS	RU	RUSSIA	The Wagner mutiny sends armed columns toward Moscow before a sudden stand-down.
+50.1	TECH	RU	LUNA-25	Russia's lunar mission crashes during its attempt to reach the Moon's south polar region.
+51	BUSINESS	RU	RUSSIAN FUEL	Moscow restricts diesel and gasoline exports as domestic supply concerns rise.
+19.1	FUNNY	US	BERNIE'S MITTENS	A seated inauguration guest and his practical mittens become the internet's favourite winter uniform.
+48.2	FUNNY	US	GRIMACE SHAKE	A purple fast-food promotion spawns a very strange wave of mock-horror videos.
+49.2	FUNNY	US	BARBENHEIMER	Barbie and Oppenheimer turn one cinema weekend into an unlikely shared costume party.
+62.1	FUNNY	AU	RAYGUN	An Olympic breaking performance becomes an instant global meme and a debate about judging.
+3	DISASTER	BS	HURRICANE DORIAN	Category 5 Dorian stalls over the Bahamas with destructive wind, waves and storm surge.
+4	DISASTER	JP	TYPHOON HAGIBIS	Hagibis hits Japan with extreme rainfall, storm surge and widespread flooding.
+44	DISASTER	MZ	CYCLONE FREDDY	Freddy crosses the Indian Ocean and brings high seas, wind and flooding to Madagascar and Mozambique.
+47	DISASTER	MM	CYCLONE MOCHA	Mocha makes landfall near the Bangladesh-Myanmar border after crossing the Bay of Bengal.
+52	DISASTER	MX	HURRICANE OTIS	Otis rapidly intensifies before striking Acapulco as a Category 5 hurricane.
+46.8	GOV	SD	SUDAN AIRSPACE	EASA lists Sudanese airspace as an active conflict zone as fighting disrupts civil aviation.
+67.25	GOV	RU	RUSSIAN AIRSPACE	EASA advises against operating in affected Russian airspace west of 60 degrees east.
+80.9	EVENT	IR	STRAIT OF HORMUZ	Attacks and a purported closure leave merchant vessels unable to exit the Gulf safely.
+85.25	GOV	AE	GULF AIRSPACE	Conflict-zone bulletins remain active for Iran, Iraq, Jordan and the Persian Gulf and Gulf of Oman.
+85.75	EVENT	UA	UKRAINE AIRSPACE	Ukraine keeps its civil flight regions closed as the active conflict warning is extended.
+86.9	EVENT	IR	HORMUZ SHIPPING	IMO reports up to 400 ships and roughly 6,000 seafarers unable to depart safely.

@@ -14,6 +14,7 @@ import unittest
 from dataclasses import replace
 from itertools import pairwise
 from pathlib import Path
+from unittest.mock import patch
 
 import pygame
 
@@ -162,10 +163,51 @@ def _seir_passage(point, passages):
             and -6.3 <= longitude <= -5.2
             and 35.5 <= latitude <= 36.3
         )
+        or (
+            "yenisei" in passages
+            and 78.5 <= longitude <= 79.0
+            and 72.6 <= latitude <= 73.0
+        )
     )
 
 
 class RendererContractTest(unittest.TestCase):
+    def test_seir_region_layer_promotes_prepared_month_without_polygons(self):
+        pygame.init()
+        north = ("AAA", "North", (), (-20.0, 10.0))
+        south = ("AAA", "South", (), (65.0, -12.0))
+        parts = (
+            (0, north, ((0, 0), (12, 0), (0, 12))),
+            (1, south, ((12, 0), (24, 0), (24, 12))),
+        )
+        states = {
+            "AAA": (0.02, 0.01, 0.0, 0.2, 0.77),
+        }
+        north_colour = visualise.seir_region_colour(
+            visualise.seir_region_share(7, 0, north, states, 0.03),
+            visualise.seir_region_vaccinated(7, 0, north, states),
+        )
+        south_colour = visualise.seir_region_colour(
+            visualise.seir_region_share(7, 1, south, states, 0.03),
+            visualise.seir_region_vaccinated(7, 1, south, states),
+        )
+        self.assertNotEqual(north_colour, south_colour)
+        cache = {"seir-region-build-budget": len(parts)}
+        rectangle = pygame.Rect(0, 0, 24, 12)
+        _current, prepared, _promoted = visualise.seir_region_layer(
+            pygame, parts, states, states, rectangle, 0, cache
+        )
+        target = prepared["surface"]
+        with patch.object(
+            pygame.draw, "polygon", wraps=pygame.draw.polygon
+        ) as draw:
+            current, _prepared, promoted = visualise.seir_region_layer(
+                pygame, parts, states, None, rectangle, 1, cache
+            )
+        self.assertTrue(promoted)
+        self.assertIs(current[2], target)
+        draw.assert_not_called()
+
     def test_carrom_uses_the_supplied_board_unchanged(self):
         board = ROOT / "proj/scenarios/carrom/assets/carrom-board.jpg"
         self.assertEqual(
@@ -187,9 +229,24 @@ class RendererContractTest(unittest.TestCase):
         assets = ROOT / "proj/scenarios/chess/assets"
         icons = [visualise.icon_asset(name) for name in visualise.CHESS_GLYPHS]
         self.assertNotIn(None, icons)
-        names = ("chess-board.png", *(icon.name for icon in icons if icon))
+        names = (
+            "chai-reference-top.png",
+            "chess-board.png",
+            *(icon.name for icon in icons if icon),
+        )
         missing = [name for name in names if not (assets / name).is_file()]
         self.assertEqual(missing, [])
+        _, cues = visualise.load_visual_plan(
+            ROOT / "proj/scenarios/chess/scenario.sim"
+        )
+        chai = [cue for cue in cues if cue.asset and "chai" in cue.asset.name]
+        effects = {cue.ambient: cue for cue in cues if cue.ambient}
+        self.assertEqual(len(chai), 1)
+        self.assertEqual(chai[0].x, 9.5)
+        self.assertEqual(chai[0].width, 1.5)
+        self.assertEqual(set(effects), {"bubbles", "steam"})
+        self.assertTrue(all(cue.x == 9.5 for cue in effects.values()))
+        self.assertTrue(all(cue.duration == 600 for cue in effects.values()))
 
     def test_chess_preserves_the_packs_piece_proportions(self):
         cache = {}
@@ -252,6 +309,12 @@ class RendererContractTest(unittest.TestCase):
         )
         self.assertEqual(
             visualise.chess_last_turn_ms(frames, 1, numbers, 1), 2.75
+        )
+        self.assertEqual(
+            visualise.chess_total_time_us(frames, 1, numbers, 0), 1500
+        )
+        self.assertEqual(
+            visualise.chess_total_time_us(frames, 1, numbers, 1), 2750
         )
 
     def test_carrom_hud_reports_aicf_match_state(self):
@@ -322,7 +385,17 @@ class RendererContractTest(unittest.TestCase):
         )
         self.assertGreater(near[0], far[0])
 
-    def test_conway_hud_percentages_total_one_hundred_and_ignore_trails(self):
+    def test_conway_hud_uses_mixed_ancestry_and_free_land(self):
+        with (ROOT / "proj/scenarios/conway/assets/factions.tsv").open(
+            encoding="utf-8", newline=""
+        ) as handle:
+            self.assertEqual(
+                tuple(
+                    row["name"]
+                    for row in csv.DictReader(handle, delimiter="\t")
+                ),
+                ("Vim Empire", "Emacs Union", "Nano"),
+            )
         cells = [
             visualise.Entity(
                 1, 0, "red_live", 2, 2, "cell", (0, 0, 0), "", 0, state_id=1
@@ -334,7 +407,16 @@ class RendererContractTest(unittest.TestCase):
                 3, 0, "blue_live", 8, 8, "cell", (0, 0, 0), "", 0, state_id=2
             ),
             visualise.Entity(
-                4, 0, "red_trail", 2, 3, "cell", (0, 0, 0), "", 0, state_id=4
+                4,
+                0,
+                "vim_emacs_heir",
+                2,
+                3,
+                "cell",
+                (0, 0, 0),
+                "",
+                0,
+                state_id=4,
             ),
             visualise.Entity(
                 5, 0, "nano", 5, 5, "cell", (0, 0, 0), "", 0, state_id=3
@@ -346,14 +428,15 @@ class RendererContractTest(unittest.TestCase):
         )
         self.assertEqual(
             (vim, emacs, nano, vim_percent, emacs_percent, nano_percent),
-            (1, 2, 1, 25, 50, 25),
+            (1.75, 2.25, 1.0, 35, 45, 20),
         )
         self.assertEqual(vim_percent + emacs_percent + nano_percent, 100)
+        self.assertEqual(visualise.conway_realm_summary(frame), (5, 1, 95))
         final = replace(
             frame,
-            entities=[cells[0]] * 1806 + [cells[1]] * 112 + [cells[4]] * 622,
+            entities=[cells[0]] * 1806 + [cells[1]] * 112 + [cells[3]] * 622,
         )
-        self.assertEqual(visualise.conway_territory(final)[3:], (71, 4, 25))
+        self.assertEqual(visualise.conway_territory(final)[3:], (89, 11, 0))
         self.assertEqual(visualise.conway_label_size(50), 34)
         self.assertEqual(visualise.conway_label_size(25), 17)
         self.assertEqual(
@@ -393,7 +476,7 @@ class RendererContractTest(unittest.TestCase):
                     35, 0, "emacs", 5, 4, "cell", (0, 0, 0), "", 0, state_id=2
                 ),
                 visualise.Entity(
-                    1, 0, "trail", 1, 2, "cell", (0, 0, 0), "", 0, state_id=4
+                    1, 0, "mixed", 1, 2, "cell", (0, 0, 0), "", 0, state_id=4
                 ),
                 visualise.Entity(
                     50, 0, "nano", 5, 5, "cell", (0, 0, 0), "", 0, state_id=3
@@ -441,24 +524,50 @@ class RendererContractTest(unittest.TestCase):
             )
         )
 
-    def test_seir_feed_reserves_south_asia_and_australia_without_duplicates(
-        self,
-    ):
+    def test_seir_feed_has_global_coverage_without_duplicates(self):
         recent_feed = visualise.seir_feed_events(62)
-        self.assertEqual(len(recent_feed), 6)
+        self.assertEqual(len(recent_feed), 8)
+        self.assertTrue(any(event[1] == "DISASTER" for event in recent_feed))
         self.assertEqual(
-            len({event[2] or event[3] for event in recent_feed}), 6
+            len({event[2] or event[3] for event in recent_feed}), 8
         )
+        codes = {event[2] for event in visualise.SEIR_FEED}
+        for region in (
+            {"CI", "EG", "KE", "NG", "SN", "ZA"},
+            {"RU", "UA"},
+            {"AR", "BR", "CL", "CO", "MX", "PE"},
+            {"ID", "MY", "PH", "SG", "TH"},
+            {"AQ", "ARC"},
+            {"BD", "BT", "IN", "LK", "MV", "NP", "PK"},
+            {"EU", "ES"},
+            {"AE", "IL", "IR", "IQ", "JO", "LB", "OM", "QA", "SA"},
+        ):
+            self.assertTrue(codes & region)
+        labels = {event[3] for event in visualise.SEIR_FEED}
         self.assertTrue(
-            any(
-                event[2] in {"AF", "BD", "BT", "IN", "LK", "MV", "NP", "PK"}
-                for event in recent_feed
-            )
+            {"HORMUZ SHIPPING", "RUSSIAN AIRSPACE", "UKRAINE AIRSPACE"}
+            <= labels
         )
-        self.assertTrue(any(event[2] == "AU" for event in recent_feed))
+        selected = {
+            event[1]
+            for position in (19, 32, 46, 53, 56, 61, 62)
+            for event in visualise.seir_feed_events(position)
+        }
+        self.assertTrue(
+            {"BUSINESS", "DISASTER", "FUNNY", "SPORTS", "TECH"} <= selected
+        )
         self.assertEqual(
             visualise.seir_feed_events(0),
             ((0.0, "NEWS", "JP", "JAPAN", "G20 leaders meet in Osaka."),),
+        )
+        self.assertEqual(len(visualise.SEIR_DISASTERS), 10)
+        self.assertEqual(
+            {disaster[3] for disaster in visualise.SEIR_DISASTERS},
+            {"EARTHQUAKE", "ERUPTION", "FLOOD", "WILDFIRE"},
+        )
+        self.assertEqual(
+            {storm[4] for storm in visualise.SEIR_STORMS},
+            {"DORIAN", "FREDDY", "HAGIBIS", "MOCHA", "OTIS"},
         )
 
     def test_seir_transport_has_source_ids_and_water_routed_corridors(self):
@@ -473,6 +582,18 @@ class RendererContractTest(unittest.TestCase):
         ports = records("ports.tsv")
         corridors = records("ship-routes.tsv")
         airport_by_code = {row["code"]: row for row in airports}
+        route_countries = {
+            airport_by_code[code]["country"]
+            for row in flights
+            for code in (row["source"], row["destination"])
+        }
+        for region in (
+            {"EGY", "KEN", "NGA", "ZAF"},
+            {"RUS"},
+            {"ARG", "BRA", "CHL", "COL", "PER"},
+            {"IDN", "MYS", "PHL", "SGP", "THA"},
+        ):
+            self.assertTrue(route_countries & region)
         self.assertEqual(len({row["ourairports_id"] for row in airports}), 300)
         self.assertTrue(
             all(row["ourairports_id"].isdigit() for row in airports)
@@ -481,6 +602,10 @@ class RendererContractTest(unittest.TestCase):
         self.assertEqual(
             {row["source_dataset"] for row in flights},
             {"OpenSky-2020-01", "OpenFlights-2014"},
+        )
+        self.assertEqual(
+            visualise.SEIR_ROUTE_OPERATORS,
+            tuple(row["openflights_airline"] for row in flights),
         )
         observed = [
             row for row in flights if row["source_dataset"] == "OpenSky-2020-01"
@@ -513,7 +638,7 @@ class RendererContractTest(unittest.TestCase):
         )
         self.assertEqual({row["source"] for row in ports}, {"WPI", "UNLOCODE"})
         self.assertEqual(
-            len({(row["source"], row["source_id"]) for row in ports}), 150
+            len({(row["source"], row["source_id"]) for row in ports}), 250
         )
         self.assertTrue(
             all(
@@ -523,11 +648,28 @@ class RendererContractTest(unittest.TestCase):
         )
         self.assertTrue(all(float(row["length_km"]) > 0 for row in corridors))
         self.assertEqual(
-            {row["ais_band"] for row in corridors}, {"sparse", "normal", "busy"}
+            {row["ais_band"] for row in corridors},
+            {"sparse", "normal", "busy", "modeled"},
         )
-        self.assertTrue(all(int(row["ais_samples"]) > 0 for row in corridors))
+        observed = [row for row in corridors if row["ais_band"] != "modeled"]
+        modeled = [row for row in corridors if row["ais_band"] == "modeled"]
+        self.assertEqual((len(observed), len(modeled)), (150, 150))
+        self.assertTrue(all(int(row["ais_samples"]) > 0 for row in observed))
+        self.assertTrue(
+            all(
+                int(row["ais_samples"]) == 0
+                and float(row["ais_log_mean"]) == 0.0
+                and float(row["ais_density"]) == 0.15
+                for row in modeled
+            )
+        )
         self.assertTrue(
             all(0.0 <= float(row["ais_density"]) <= 1.0 for row in corridors)
+        )
+        ship_pairs = {(row["source"], row["destination"]) for row in corridors}
+        self.assertTrue(
+            {("REK", "TOS"), ("HBA", "MCM"), ("CPT", "MCM"), ("USH", "MCM")}
+            <= ship_pairs
         )
 
         passages = {
@@ -593,6 +735,11 @@ class RendererContractTest(unittest.TestCase):
         self.assertEqual(failures, {})
 
     def test_seir_timeline_uses_population_states_without_a_grid_map(self):
+        presentation, _ = visualise.load_visual_plan(
+            ROOT / "proj/scenarios/chronus/scenario.sim"
+        )
+        self.assertEqual(presentation["duration_seconds"], "264")
+        self.assertEqual(int(presentation["duration_seconds"]) / 88, 3)
         self.assertEqual(visualise.seir_date(0).isoformat(), "2019-06-01")
         self.assertEqual(visualise.seir_date(86).isoformat(), "2026-08-01")
         self.assertEqual(visualise.seir_date(87).isoformat(), "2026-09-01")
@@ -621,7 +768,7 @@ class RendererContractTest(unittest.TestCase):
             {route[3] for route in visualise.SEIR_ROUTES},
             {"international", "domestic", "cargo"},
         )
-        self.assertEqual(len(visualise.SEIR_ROUTES), 600)
+        self.assertEqual(len(visualise.SEIR_ROUTES), 1200)
         self.assertEqual(
             len(
                 {
@@ -645,7 +792,11 @@ class RendererContractTest(unittest.TestCase):
                 "research",
             },
         )
-        self.assertEqual(len(visualise.SEIR_SHIP_ROUTES), 150)
+        self.assertEqual(len(visualise.SEIR_SHIP_ROUTES), 300)
+        self.assertEqual(len(visualise.SEIR_HORMUZ_ROUTES), 8)
+        self.assertTrue(
+            visualise.SEIR_HORMUZ_ROUTES <= visualise.SEIR_SHIP_PATHS.keys()
+        )
         self.assertEqual(
             len(
                 {
@@ -656,7 +807,20 @@ class RendererContractTest(unittest.TestCase):
             len(visualise.SEIR_SHIP_ROUTES),
         )
         self.assertEqual(len(visualise.SEIR_AIRPORTS), 300)
-        self.assertEqual(len(visualise.SEIR_PORTS), 150)
+        self.assertEqual(len(visualise.SEIR_PORTS), 250)
+        self.assertEqual(
+            {operation[-1] for operation in visualise.SEIR_OPERATIONS},
+            {"BANNED", "OPEN", "REROUTED", "RESTRICTED"},
+        )
+        operations = {
+            operation[4]: operation for operation in visualise.SEIR_OPERATIONS
+        }
+        self.assertEqual(
+            operations["UKRAINE CIVIL AIRSPACE CLOSED"][:2], (32.0, 88.0)
+        )
+        self.assertEqual(
+            operations["HORMUZ SAFE PASSAGE HALTED"][:2], (81.0, 88.0)
+        )
         self.assertFalse(
             {
                 endpoint
@@ -679,6 +843,7 @@ class RendererContractTest(unittest.TestCase):
                 {airline[3] for airline in airlines if airline[3]},
                 {1, 2, 3, 4, 5},
             )
+        self.assertEqual(visualise.SEIR_AIRLINES_BY_CODE["ET"][2], "ETH")
         rectangle = pygame.Rect(0, 0, 1200, 600)
         self.assertEqual(
             visualise.seir_project(-180, 90, rectangle), rectangle.topleft
@@ -686,9 +851,64 @@ class RendererContractTest(unittest.TestCase):
         self.assertEqual(
             visualise.seir_project(180, -90, rectangle), rectangle.bottomright
         )
+        route_cache = {}
+        route_surface = pygame.Surface(rectangle.size, pygame.SRCALPHA)
+        visualise.draw_seir_transport_routes(
+            pygame, route_surface, rectangle, 20, route_cache
+        )
+        route_layer = route_cache["seir-transport-route-layer", rectangle.size]
+        detour_layer = route_cache[
+            "seir-transport-detour-layer", rectangle.size
+        ]
+        self.assertGreater(
+            pygame.mask.from_surface(
+                route_cache["seir-transport-war-layer", rectangle.size]
+            ).count(),
+            0,
+        )
+        self.assertGreater(
+            pygame.mask.from_surface(
+                route_cache["seir-transport-gulf-layer", rectangle.size]
+            ).count(),
+            0,
+        )
+        visualise.draw_seir_transport_routes(
+            pygame, route_surface, rectangle, 54, route_cache
+        )
+        self.assertIs(
+            route_cache["seir-transport-route-layer", rectangle.size],
+            route_layer,
+        )
+        self.assertIs(
+            route_cache["seir-transport-detour-layer", rectangle.size],
+            detour_layer,
+        )
         vaccinated = visualise.seir_region_colour(0.0, 0.8)
-        self.assertGreater(vaccinated[0], vaccinated[2])
+        self.assertGreater(vaccinated[1], vaccinated[0])
         self.assertGreater(vaccinated[1], vaccinated[2])
+        storm = visualise.seir_project_float(-77.4, 26.7, rectangle)
+        self.assertEqual(
+            visualise.seir_weather_offset(
+                storm,
+                visualise.seir_weather(2.9, rectangle),
+                rectangle.width,
+                2.9,
+                7,
+                5.0,
+            ),
+            storm,
+        )
+        self.assertNotEqual(
+            visualise.seir_weather_offset(
+                storm,
+                visualise.seir_weather(3.25, rectangle),
+                rectangle.width,
+                3.25,
+                7,
+                5.0,
+            ),
+            storm,
+        )
         self.assertEqual(
             set(visualise.SEIR_SHIP_PATHS),
             {(route[0], route[1]) for route in visualise.SEIR_SHIP_ROUTES},
@@ -789,6 +1009,7 @@ class RendererContractTest(unittest.TestCase):
 ANGULAR_ACTIVE = visualise.ANGULAR_ACTIVE
 STATE_FIELDS = visualise.STATE_FIELDS
 WINDOW = visualise.WINDOW
+EXPORT_SIZE = visualise.EXPORT_SIZE
 Cue = visualise.Cue
 Entity = visualise.Entity
 Frame = visualise.Frame
@@ -801,6 +1022,7 @@ cellular_visual = visualise.cellular_visual
 chess_material = visualise.chess_material
 chess_move_text = visualise.chess_move_text
 conway_territory = visualise.conway_territory
+conway_realm_summary = visualise.conway_realm_summary
 conway_label_size = visualise.conway_label_size
 cue_camera = visualise.cue_camera
 cue_error = visualise.cue_error
@@ -838,6 +1060,15 @@ wrapped_lerp = visualise.wrapped_lerp
 def core_self_check():
     """Exercise generic parsing, interpolation, validation, and presentation"""
     assert smoothstep(0.0) == 0.0 and smoothstep(1.0) == 1.0
+    assert visualise.export_progress(0, 4) == (
+        "render [----------------------------]   0%"
+    )
+    assert visualise.export_progress(2, 4) == (
+        "render [##############--------------]  50%"
+    )
+    assert visualise.export_progress(4, 4) == (
+        "render [############################] 100%"
+    )
     assert cue_error("effect", "") == "effect needs text"
     assert cue_error("scene", "missing") == "invalid scene theme"
     _, chess_cues = load_visual_plan(
@@ -1007,8 +1238,9 @@ def core_self_check():
         (250, 204, 21),
         1.0,
     )
-    assert cellular_visual("conway", 6, (1, 2, 3), 1.0)[1] == 0.25
-    assert cellular_visual("conway", 12, (1, 2, 3), 1.0)[1] == 0.25
+    assert cellular_visual("conway", 4, (1, 2, 3), 1.0) == ((185, 90, 117), 1.0)
+    assert cellular_visual("conway", 6, (1, 2, 3), 1.0)[1] == 1.0
+    assert cellular_visual("conway", 12, (1, 2, 3), 1.0)[1] == 1.0
     assert conway_label_size(50) == 34
     assert conway_label_size(25) == 17
     territory = Frame(
@@ -1027,11 +1259,21 @@ def core_self_check():
                 3, 0, "red_live", 8, 8, "cell", (0, 0, 0), "", 0, state_id=1
             ),
             Entity(
-                4, 0, "red_trail", 2, 3, "cell", (0, 0, 0), "", 0, state_id=4
+                4,
+                0,
+                "vim_emacs_heir",
+                2,
+                3,
+                "cell",
+                (0, 0, 0),
+                "",
+                0,
+                state_id=4,
             ),
         ],
     )
-    assert conway_territory(territory) == (2, 1, 0, 67, 33, 0)
+    assert conway_territory(territory) == (2.75, 1.25, 0.0, 69, 31, 0)
+    assert conway_realm_summary(territory) == (4, 1, 96)
     assert conway_territory(replace(territory, entities=[])) == (
         0,
         0,
@@ -1248,6 +1490,7 @@ def core_self_check():
 
 def renderer_self_check(pygame):
     """Exercise scenario renderers with small in-memory frame fixtures"""
+    assert EXPORT_SIZE == (2560, 1440)
     pygame.init()
     pygame.font.init()
     assert ANGULAR_ACTIVE.is_file()
