@@ -1,4 +1,4 @@
-local ai = require("ai")
+local ai = require("kingdoms")
 
 -- Sparse micro-kingdom setup and ancestry-aware cellular callbacks
 local counted_generation = -1
