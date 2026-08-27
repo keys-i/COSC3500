@@ -19,6 +19,7 @@
 #include <optional>
 #include <ostream>
 #include <random>
+#include <span>
 #include <streambuf>
 #include <string>
 #include <string_view>
@@ -216,9 +217,17 @@ static_assert(page_backing_verified("huge", 4096U, 2U * mib, 2U * mib, true));
 static_assert(!page_backing_verified("huge", 4096U, 4U * mib, 2U * mib, true));
 static_assert(!page_backing_verified("huge", 4096U, 2U * mib, 4U * mib, true));
 
+template <class Integer>
+[[nodiscard]] bool parse_integer(const std::string_view text, Integer &value,
+                                 const int base = 10) noexcept {
+    const auto result =
+        std::from_chars(text.data(), text.data() + text.size(), value, base);
+    return result.ec == std::errc{} && result.ptr == text.data() + text.size();
+}
+
 class PageProbe final {
   public:
-    explicit PageProbe(const State &state) {
+    explicit PageProbe(State &state) {
         // The environment makes page experiments opt-in for ordinary runs
         const char *requested = std::getenv("M1_PAGE_POLICY");
         if (requested == nullptr || *requested == '\0')
@@ -235,31 +244,27 @@ class PageProbe final {
         report_.host_page_bytes = static_cast<std::uint64_t>(host_page);
 #if defined(__linux__)
         // Advise complete huge-page-sized interiors, never allocator edges
-        const auto add = [this]<class T>(const std::vector<T> &values) {
-            constexpr std::size_t huge_page = 2U * 1024U * 1024U;
-            if (values.size() * sizeof(T) < huge_page)
+        const auto add = [this]<class T>(std::vector<T> &values) {
+            constexpr std::size_t huge_page = std::size_t{2} * 1024U * 1024U;
+            const auto storage = std::as_writable_bytes(std::span<T>{values});
+            if (storage.size() < huge_page)
                 return;
-            const auto begin = reinterpret_cast<std::uintptr_t>(values.data());
-            const auto end = begin + values.size() * sizeof(T);
-            const auto aligned_begin =
-                (begin + huge_page - 1U) / huge_page * huge_page;
-            const auto aligned_end = end / huge_page * huge_page;
-            if (aligned_begin >= aligned_end)
+            void *aligned = storage.data();
+            std::size_t remaining = storage.size();
+            if (std::align(huge_page, huge_page, aligned, remaining) == nullptr)
                 return;
-            const auto bytes = aligned_end - aligned_begin;
+            const std::size_t bytes = remaining - remaining % huge_page;
             const int advice =
                 report_.policy == "base" ? MADV_NOHUGEPAGE : MADV_HUGEPAGE;
-            if (madvise(reinterpret_cast<void *>(aligned_begin), bytes,
-                        advice) != 0)
+            if (madvise(aligned, bytes, advice) != 0)
                 return;
 #if defined(MADV_COLLAPSE)
             if (report_.policy == "huge") {
-                static_cast<void>(
-                    madvise(reinterpret_cast<void *>(aligned_begin), bytes,
-                            MADV_COLLAPSE));
+                static_cast<void>(madvise(aligned, bytes, MADV_COLLAPSE));
             }
 #endif
-            spans_.emplace_back(aligned_begin, aligned_end);
+            const auto begin = reinterpret_cast<std::uintptr_t>(aligned);
+            spans_.emplace_back(begin, begin + bytes);
             report_.advised_bytes += bytes;
         };
         add(state.x);
@@ -286,20 +291,35 @@ class PageProbe final {
         std::string line;
         bool overlaps = false;
         while (std::getline(smaps, line)) {
+            const std::string_view view{line};
             std::uintptr_t begin = 0U;
             std::uintptr_t end = 0U;
-            if (std::sscanf(line.c_str(), "%lx-%lx", &begin, &end) == 2) {
+            const std::size_t dash = view.find('-');
+            const std::size_t space = dash == std::string_view::npos
+                                          ? std::string_view::npos
+                                          : view.find(' ', dash + 1U);
+            if (dash != std::string_view::npos &&
+                space != std::string_view::npos &&
+                parse_integer(view.substr(0U, dash), begin, 16) &&
+                parse_integer(view.substr(dash + 1U, space - dash - 1U), end,
+                              16)) {
                 overlaps = std::any_of(spans_.begin(), spans_.end(),
                                        [begin, end](const auto span) {
                                            return begin < span.second &&
                                                   span.first < end;
                                        });
-            } else if (overlaps && line.starts_with("AnonHugePages:")) {
-                unsigned long long kib = 0U;
-                if (std::sscanf(line.c_str(), "AnonHugePages: %llu kB", &kib) ==
-                    1) {
-                    report_.anon_huge_bytes += kib * 1024U;
-                }
+            } else if (overlaps && view.starts_with("AnonHugePages:")) {
+                std::string_view amount = view.substr(14U);
+                const std::size_t first = amount.find_first_not_of(' ');
+                if (first == std::string_view::npos)
+                    continue;
+                amount.remove_prefix(first);
+                const std::size_t last = amount.find(' ');
+                if (last != std::string_view::npos)
+                    amount = amount.substr(0U, last);
+                std::uint64_t kib = 0U;
+                if (parse_integer(amount, kib))
+                    report_.anon_huge_bytes += kib * 1024ULL;
             }
         }
         report_.backing_verified = page_backing_verified(

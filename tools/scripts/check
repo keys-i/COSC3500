@@ -82,6 +82,7 @@ lint() {
     )
     ((${#cpp_sources[@]})) && "$(llvm_tool clang-tidy)" \
         -p "$root/build/$preset" \
+        --quiet \
         --config-file="$root/tools/config/cpp/.clang-tidy" \
         "${extra[@]}" "${cpp_sources[@]}"
     ((${#python_sources[@]})) && uv run --locked --offline ruff check \

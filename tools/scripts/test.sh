@@ -55,10 +55,21 @@ seed_contracts() {
 test() {
     # CTest covers parsers and kernels; these checks cover reports and seeds
     local build
+    local -a ctest_args=(--output-on-failure)
     build=$(configure)
-    ctest --test-dir "$build" --output-on-failure
+    [[ -z ${CTEST_EXCLUDE_REGEX:-} ]] ||
+        ctest_args+=(--exclude-regex "$CTEST_EXCLUDE_REGEX")
+    [[ -z ${CTEST_PARALLEL_LEVEL:-} ]] ||
+        ctest_args+=(--parallel "$CTEST_PARALLEL_LEVEL")
+    [[ -z ${CTEST_OUTPUT_JUNIT:-} ]] ||
+        ctest_args+=(--output-junit "$CTEST_OUTPUT_JUNIT")
+    ctest --test-dir "$build" "${ctest_args[@]}"
     python3 tools/scripts/report.py self-check
-    seed_contracts "$build/bin/m1"
+    case ${TEST_SEED_CONTRACTS:-1} in
+        1) seed_contracts "$build/bin/m1" ;;
+        0) ;;
+        *) die 'TEST_SEED_CONTRACTS must be 0 or 1' ;;
+    esac
 }
 viz() {
     # Render only the four scenarios with complete presentation assets
