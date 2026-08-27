@@ -19,7 +19,7 @@ view=plane
 title=Chronus
 subtitle=177-country coupled SEIR model
 theme=chronus
-duration_seconds=80
+duration_seconds=264
 format=demo
 projection=flat
 hud=true
@@ -49,14 +49,14 @@ colour=000000
 size=1
 
 [character.flight_state]
-count=600
+count=1200
 shape=circle
 motion=grounded
 colour=000000
 size=1
 
 [character.ship_state]
-count=150
+count=300
 shape=circle
 motion=water
 colour=000000

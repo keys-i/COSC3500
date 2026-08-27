@@ -1,6 +1,6 @@
 # References
 
-Accessed 2026-08-31. A link belongs here only when it informed code, a
+Accessed 2026-09-02. A link belongs here only when it informed code, a
 scenario, measurement or asset provenance. Private course material stays
 private and is not linked, copied or quoted.
 
@@ -37,6 +37,9 @@ private and is not linked, copied or quoted.
 | [IMO ships' routeing](https://www.imo.org/en/ourwork/safety/pages/shipsrouteing.aspx) | Water-only maritime corridor and routeing-system reference |
 | [IMO ship regulations by type](https://www.imo.org/en/ourwork/safety/pages/regulationsdefault.aspx) | Cargo, tanker, bulk and passenger vessel distinctions |
 | [UNCTAD Review of Maritime Transport 2025](https://unctad.org/publication/review-maritime-transport-2025) | Container and energy-trade corridor context |
+| [WMO on Hurricane Dorian](https://wmo.int/media/news/hurricane-dorian-causes-devastation-bahamas) | September 2019 storm footprint and disaster feed item |
+| [WMO on Typhoon Hagibis](https://wmo.int/media/news/tokyo-typhoon-center-turns-30-hagibis-hits-japan) | October 2019 storm footprint and disaster feed item |
+| [WMO 2023 extreme-weather summary](https://wmo.int/news/media-centre/climate-change-indicators-reached-record-levels-2023-wmo) | Cyclones Freddy and Mocha and Hurricane Otis storm footprints and feed items |
 | [WHO COVID-19 timeline](https://www.who.int/news/item/27-04-2020-who-timeline---covid-19) | Wuhan cluster and pandemic milestones |
 | [WHO country response case studies](https://www.who.int/publications/i/item/9789240019225) | Government-response feed items across countries and territories |
 | [WHO dexamethasone trial response](https://www.who.int/news/item/16-06-2020-who-welcomes-preliminary-results-about-dexamethasone-use-in-treating-critically-ill-covid-19-patients) | June 2020 treatment milestone |
@@ -50,6 +53,9 @@ private and is not linked, copied or quoted.
 | [Bangladesh CAAB July 2020 circular](https://new.caab.gov.bd/circul/3373x.pdf) | Limited international-service restart feed item |
 | [Bangladesh CAAB April 2022 circular](https://new.caab.gov.bd/circul/AT%20Circular-FSR-02-2022%20%2825APR22UFN%29) | Vaccinated-arrival rule easing feed item |
 | [EASA Ukraine conflict-zone bulletin](https://www.easa.europa.eu/en/domains/air-operations/czibs/czib-2022-01r14) | February 2022 civil-airspace closure and continuing route restriction |
+| [EASA active conflict-zone bulletins](https://www.easa.europa.eu/en/conflict-zone-status/active) | Current Ukraine, Russia, Sudan and Middle East airspace restrictions in Chronus |
+| [IMO Strait of Hormuz safe-passage response](https://www.imo.org/en/mediacentre/pressbriefings/pages/imo-calls-for-safe-passage-framework-in-strait-of-hormuz.aspx) | March 2026 shipping shutdown and trapped-vessel simulation |
+| [IMO August 2026 Hormuz update](https://www.imo.org/en/mediacentre/pressbriefings/pages/statement-on-the-ongoing-crisis-in-the-strait-of-hormuz.aspx) | Ongoing vessel and seafarer disruption shown at the end of Chronus |
 | [European Commission 2022 airspace report](https://transport.ec.europa.eu/system/files/2023-10/PRB_Annual_Monitoring_Report_2022.pdf) | EU and Russian reciprocal airspace restrictions |
 | [WHO COVID-19 emergency statement](https://www.who.int/azerbaijan/news/item/05-05-2023-statement-on-the-fifteenth-meeting-of-the-international-health-regulations-%282005%29-emergency-committee-regarding-the-coronavirus-disease-%28covid-19%29-pandemic) | May 2023 feed milestone |
 | [WHO launches CoViNet](https://www.who.int/news/item/27-03-2024-who-launches-covinet--a-global-network-for-coronaviruses) | March 2024 feed milestone |
@@ -148,10 +154,10 @@ These are M2 references, not evidence that M2 has been implemented.
 | Natural Earth Admin 1 states and provinces | [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/), public domain; geometry simplified for screen rendering | No |
 | Flag Icons 4x3 SVGs | [lipis/flag-icons](https://github.com/lipis/flag-icons), MIT; licence retained with assets | No |
 | Airport records | [OurAirports](https://ourairports.com/data/), public domain, plus [OpenFlights](https://openflights.org/data.php), ODbL/DbCL; each airport row preserves both source identifiers | Yes |
-| Flight corridors and intensity | [OpenSky COVID-19 flight dataset](https://doi.org/10.5281/zenodo.5815448), CC BY; 447 observed January 2020 pairs plus 153 attributed OpenFlights fallbacks | Yes |
-| Port locations | [NGA WPI](https://msi.nga.mil/Publications/WPI), United States Government public-domain data, plus [UN/LOCODE](https://unlocode.unece.org/publications/), CC BY 4.0; each row retains its source ID | Yes |
+| Flight corridors and intensity | [OpenSky COVID-19 flight dataset](https://doi.org/10.5281/zenodo.5815448), CC BY; 447 observed January 2020 pairs plus 753 attributed OpenFlights fallbacks | Yes |
+| Port locations | [NGA WPI](https://msi.nga.mil/Publications/WPI), United States Government public-domain data, including the archived 2019 WPI shapefile used for 100 added ports, plus [UN/LOCODE](https://unlocode.unece.org/publications/), CC BY 4.0; each row retains its source ID | Yes |
 | Maritime corridor geometry | [SeaRoute 1.6.0 Marnet](https://github.com/genthalili/searoute-py/releases/tag/1.6.0), Apache-2.0; static derived paths only, not the package | Yes |
-| Maritime corridor intensity | [World Bank Global Shipping Traffic Density](https://datacatalog.worldbank.org/search/dataset/0037580/global-shipping-traffic-density), CC BY 4.0; route-wise historical commercial AIS-density scores | Yes |
+| Maritime corridor intensity | [World Bank Global Shipping Traffic Density](https://datacatalog.worldbank.org/search/dataset/0037580/global-shipping-traffic-density), CC BY 4.0; route-wise historical commercial AIS-density scores for the original 150 corridors. The added 150 WPI-plus-SeaRoute corridors are explicitly modeled (`ais_samples=0`, cadence `0.15`), not AIS observations | Yes |
 
 Transport source snapshots refreshed 2026-09-01: OurAirports `airports.csv`
 SHA-256 `818b499eb94d9d3d6f660c18495d7b7edcd95f16bc510ccfccb22f130a0c54a3`;
@@ -165,6 +171,8 @@ OpenFlights `routes.dat`
 `bd373706238134f619c624c606dccc74c05c2582a977c489c81de501735f2390`;
 NGA WPI CSV
 `23bba5f0ce278590c5bccc69c0deb7142087af9a4101600e1264fa062fec52ee`;
+NGA WPI archived 2019 shapefile
+`0717cdace0d446b8b16be35c94cc1c4136f23157d8268a8e52b957797cb357ae`;
 UN/LOCODE 2025-1 artifact
 `ad409fc7149b10f98d61190c34d9daf78b78bb8b31464cc66de1a89d09b01b5d`;
 SeaRoute 1.6.0 `marnet_searoute.geojson`

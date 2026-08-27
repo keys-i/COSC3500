@@ -2716,7 +2716,7 @@ def draw_ambient(pygame, screen, frame, camera, cue, position, theme):
             pygame.SRCALPHA,
         )
         rng = random.Random(ambient_seed ^ 0x5EA7)
-        phase = (position - cue.frame) * 0.46
+        phase = (position - cue.frame) * 0.12
         profiles = tuple(
             (
                 rng.uniform(-0.34, 0.34),
@@ -2803,7 +2803,7 @@ def draw_ambient(pygame, screen, frame, camera, cue, position, theme):
         from pygame import gfxdraw
 
         rng = random.Random(ambient_seed ^ 0xBABB1E)
-        phase = (position - cue.frame) * 0.58
+        phase = (position - cue.frame) * 0.15
         currents = tuple(
             (
                 rng.uniform(0.07, 0.18),
@@ -3005,7 +3005,19 @@ def render(
             raise ValueError(f"unknown scene theme: {name}")
         theme = THEMES[name]
     if draw_scene := getattr(scene_renderer(frame), "draw_scene", None):
-        draw_scene(pygame, screen, fonts, frame, position, cache)
+        next_index = min(
+            len(frames) - 1,
+            bisect.bisect_left(numbers, math.floor(position) + 1),
+        )
+        draw_scene(
+            pygame,
+            screen,
+            fonts,
+            frame,
+            position,
+            cache,
+            frames[next_index],
+        )
         return
     # Cache sorted cues because render runs many times per preview or export
     if (explicit_cameras := cache.get("explicit_cameras")) is None:
