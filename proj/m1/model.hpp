@@ -1,7 +1,7 @@
 #ifndef MOLLY_M1_MODEL_HPP
 #define MOLLY_M1_MODEL_HPP
 
-#include "simulation/pde.hpp"
+#include "simulation/kernels/pde.hpp"
 
 #include <array>
 #include <cstddef>

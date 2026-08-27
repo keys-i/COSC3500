@@ -78,9 +78,10 @@ jobs:
           astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
           version: 0.12.2
+          python-version: '3.13'
           enable-cache: true
       - name: Install Python quality tools
-        run: uv sync --locked --only-group dev
+        run: uv sync --locked
       - name: Check formatting
         run: make fmt
       - name: Run linters and type-checkers

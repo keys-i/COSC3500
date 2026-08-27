@@ -1,7 +1,7 @@
 #ifndef MOLLY_M1_SIMULATION_RUNTIME_LUA_HPP
 #define MOLLY_M1_SIMULATION_RUNTIME_LUA_HPP
 
-#include "simulation/pde.hpp"
+#include "simulation/kernels/pde.hpp"
 #include "simulation/runtime/commands.hpp"
 
 #include <array>
