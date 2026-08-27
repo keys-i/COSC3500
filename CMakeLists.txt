@@ -578,7 +578,7 @@ endif()
           m1.fixture-cellular-host
           PROPERTIES
             PASS_REGULAR_EXPRESSION
-              "steps=1.*initial=1 active=0.*cell_updates=1"
+              "steps=1.*initial=6 active=0.*cell_updates=9"
         )
       endif()
       if(TEST m1.fixture-pde-heat)

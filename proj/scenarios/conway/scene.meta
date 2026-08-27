@@ -3,13 +3,13 @@ kind=demo
 art=ready
 
 [poster]
-subtitle=Three-owner Life with fading trails.
+subtitle=4,320 generations of dynasties, alliances, and mixed heirs.
 meme=CONWAY
 
 [visual]
 reference=cellular grid over a blurred city backdrop
 palette=charcoal haze,Vim red,Emacs blue,Nano yellow,weathered ivory
-layers=city,grid,live-cells,trails,hud
+layers=city,grid,live-cells,mixed-realms,hud
 scale=one grid unit per cell
 camera=wide grid
 safe_margin=0.07

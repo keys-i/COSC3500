@@ -240,6 +240,44 @@ engine_board_size(clx::LState *s, const clx::LValue *, const std::size_t n) {
         fail(s, "neighbour_count is only valid in next_cell");
     return clx::MultiValue(clx::integer(host(s).cell_neighbours[id(s, a[0])]));
 }
+[[nodiscard]] clx::MultiValue engine_neighbour_traits(clx::LState *s,
+                                                      const clx::LValue *a,
+                                                      const std::size_t n) {
+    if (n != 3U || !host(s).in_cell_callback)
+        fail(s, "neighbour_traits is only valid in next_cell");
+    // Four states per exact Lua-number chunk, with one nibble per trait
+    std::array<std::uint64_t, 3U> chunks{};
+    for (std::size_t chunk = 0U; chunk < chunks.size(); ++chunk) {
+        const std::int64_t mask = clx::check_integer(s, a[chunk]);
+        if (mask < 0)
+            fail(s, "neighbour_traits masks must be non-negative");
+        chunks[chunk] = static_cast<std::uint64_t>(mask);
+    }
+    std::array<std::uint64_t, 4U> totals{};
+    const auto &neighbours = host(s).cell_neighbours;
+    for (std::size_t state = 1U; state <= 12U; ++state) {
+        const std::uint64_t count = neighbours[state];
+        if (count == 0U)
+            continue;
+        const auto offset = state - 1U;
+        const unsigned shift = static_cast<unsigned>(12U * (offset % 4U));
+        const std::uint64_t traits = chunks[offset / 4U] >> shift;
+        const std::uint64_t red = traits & 0xFU;
+        const std::uint64_t blue = (traits >> 4U) & 0xFU;
+        const std::uint64_t yellow = (traits >> 8U) & 0xFU;
+        totals[0] += count * red;
+        totals[1] += count * blue;
+        totals[2] += count * yellow;
+        totals[3] += count * static_cast<std::uint64_t>(
+                                 red != 0U || blue != 0U || yellow != 0U);
+    }
+    const std::array<clx::LValue, 4U> values{
+        clx::integer(static_cast<std::int64_t>(totals[0])),
+        clx::integer(static_cast<std::int64_t>(totals[1])),
+        clx::integer(static_cast<std::int64_t>(totals[2])),
+        clx::integer(static_cast<std::int64_t>(totals[3]))};
+    return clx::MultiValue(values.data(), values.size());
+}
 [[nodiscard]] clx::MultiValue engine_state(clx::LState *s, const clx::LValue *a,
                                            const std::size_t n) {
     if (n != 2U)
@@ -301,6 +339,7 @@ engine_result(clx::LState *s, const clx::LValue *a, const std::size_t n) {
     clx::set_function(s, m, "board_set", engine_board);
     clx::set_function(s, m, "board_size", engine_board_size);
     clx::set_function(s, m, "neighbour_count", engine_neighbour_count);
+    clx::set_function(s, m, "neighbour_traits", engine_neighbour_traits);
     clx::set_function(s, m, "state", engine_state);
     clx::set_function(s, m, "text", engine_text);
     clx::set_function(s, m, "random", engine_random);
