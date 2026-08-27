@@ -28,17 +28,21 @@ jobs:
             os: macos-15
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
           submodules: recursive
-      - name: Install Linux build tools
+      - name: Install FFmpeg
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cmake ffmpeg ninja-build
+          sudo apt-get install --yes --no-install-recommends ffmpeg
       - name: Set up uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v0.12.2
+        # v10.0.1
+        uses: >-
+          astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
           version: 0.12.2
           python-version: '3.13'
@@ -46,50 +50,43 @@ jobs:
       - name: Install visual test runtime
         run: uv sync --locked
       - name: Build and test
-        run: tools/scripts/test.sh test
-      - name: Summary
-        run: |
-          printf "## Test: PASS\n\n- Command: \`tools/scripts/test.sh test\`\n" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CTEST_EXCLUDE_REGEX: ${{ runner.os == 'macOS' && '^m1\.visualiser' || '' }}
+          CTEST_PARALLEL_LEVEL: 2
+          TEST_SEED_CONTRACTS: ${{ runner.os == 'macOS' && '0' || '1' }}
+        run: .github/workflows/scripts/report.sh test
 
   quality:
     name: Format, lint, and type-check
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      UV_NO_SYNC: 1
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
           submodules: recursive
-      - name: Install linters
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends \
-            clang-format clang-tidy cmake ninja-build unzip
       - name: Install Lua linters
         run: .github/workflows/scripts/lua-tools.sh
       - name: Set up uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v0.12.2
+        # v10.0.1
+        uses: >-
+          astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
           version: 0.12.2
           enable-cache: true
       - name: Install Python quality tools
-        run: uv sync --locked
+        run: uv sync --locked --only-group dev
       - name: Check formatting
         run: make fmt
-      - name: Format summary
-        run: |
-          printf "## Format: PASS\n\n- Command: \`make fmt\`\n" >> "$GITHUB_STEP_SUMMARY"
-      - name: Run linters
+      - name: Run linters and type-checkers
         run: make lint PRESET=dev
-      - name: Lint summary
-        run: |
-          printf "## Lint: PASS\n\n- Command: \`make lint PRESET=dev\`\n" >> "$GITHUB_STEP_SUMMARY"
-      - name: Check Python types
-        run: make typecheck
-      - name: Type-check summary
-        run: |
-          printf "## Type-check: PASS\n\n- Command: \`make typecheck\`\n" >> "$GITHUB_STEP_SUMMARY"
+      - name: Summarise checked surface
+        run: .github/workflows/scripts/report.sh quality
 
   coverage:
     name: LLVM coverage
@@ -97,7 +94,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
           submodules: recursive
@@ -114,34 +113,3 @@ jobs:
             awk '/^Filename/{report=1} report' coverage.txt
             printf '```\n'
           } >> "$GITHUB_STEP_SUMMARY"
-
-  visualise:
-    name: Visualise
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          submodules: recursive
-      - name: Set up uv
-        # v9.0.0
-        uses: >-
-          astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
-        with:
-          version: 0.12.2
-          enable-cache: true
-      - name: Install visual runtime
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cmake ffmpeg ninja-build
-          uv sync --locked
-      - name: Check visualisation
-        env:
-          SDL_AUDIODRIVER: dummy
-          SDL_VIDEODRIVER: dummy
-        run: uv run --locked --offline tests/visual/test_renderer.py
-      - name: Summary
-        run: |
-          printf "## Visualise: PASS\n\n- Command: \`uv run --locked --offline tests/visual/test_renderer.py\`\n" >> "$GITHUB_STEP_SUMMARY"

@@ -4,6 +4,7 @@ on:
   pull_request:
     paths: &benchmark_paths
       - '.github/workflows/benchmark.yml'
+      - '.github/workflows/scripts/**'
       - 'CMakeLists.txt'
       - 'CMakePresets.json'
       - 'Makefile'
@@ -30,13 +31,29 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
           submodules: recursive
-      - name: Install build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cmake ninja-build
       - name: Build and run benchmark smoke test
         run: .github/workflows/scripts/benchmark-smoke.sh
+
+  perf:
+    name: Linux perf counters
+    if: >-
+      vars.PERF_ENABLED == 'true' && vars.PERF_RUNNER != '' &&
+      github.event_name != 'pull_request'
+    runs-on: ${{ vars.PERF_RUNNER }}
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Record hardware counters
+        run: .github/workflows/scripts/report.sh perf

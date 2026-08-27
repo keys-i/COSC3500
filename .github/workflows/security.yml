@@ -4,6 +4,7 @@ on:
   pull_request:
     paths: &security_paths
       - '.github/workflows/security.yml'
+      - '.github/workflows/scripts/**'
       - 'CMakeLists.txt'
       - 'CMakePresets.json'
       - 'Makefile'
@@ -36,70 +37,119 @@ jobs:
       security-events: write
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
           submodules: recursive
       - name: Initialise CodeQL
-        # v4.37.8
+        # v4.37.9
         uses: >-
           github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938
         with:
           languages: c-cpp
           build-mode: manual
           queries: security-extended
-      - name: Install build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cmake ninja-build
       - name: Build C++ inputs
         run: make m PRESET=dev
-      - name: Build summary
-        run: |
-          printf "## CodeQL build: PASS\n\n- Command: \`make m PRESET=dev\`\n" >> "$GITHUB_STEP_SUMMARY"
+      - name: Inspect native binary
+        run: .github/workflows/scripts/report.sh binary
       - name: Analyse
         # v4.37.9
         uses: >-
           github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938
-      - name: Analysis summary
-        run: |
-          printf "## CodeQL analysis: PASS\n" >> "$GITHUB_STEP_SUMMARY"
+
   sanitizers:
-    name: ASan and UBSan
+    name: Sanitizer / ${{ matrix.label }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: ASan + UBSan
+            mode: au
+          - label: LSan
+            mode: l
+          - label: TSan
+            mode: t
+    steps:
+      - name: Check out repository
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Run ${{ matrix.label }}
+        env:
+          REPORT_KIND: san
+          REPORT_LABEL: ${{ matrix.label }}
+          REPORT_MODE: ${{ matrix.mode }}
+        run: .github/workflows/scripts/report.sh security
+
+  valgrind:
+    name: Valgrind / Memcheck + profilers
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          submodules: recursive
-      - name: Install Clang
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends clang cmake ninja-build
-      - name: Run ASan and UBSan
-        run: make security SAN=au PRESET=dev
-      - name: Summary
-        run: |
-          printf "## ASan and UBSan: PASS\n\n- Command: \`make security SAN=au PRESET=dev\`\n" >> "$GITHUB_STEP_SUMMARY"
-
-  valgrind:
-    name: Valgrind / Memcheck
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
           submodules: recursive
       - name: Install Valgrind
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends cmake ninja-build valgrind
+          sudo apt-get install --yes --no-install-recommends valgrind
       - name: Run Memcheck
-        run: make valgrind PRESET=dev
-      - name: Summary
-        run: |
-          printf "## Memcheck: PASS\n\n- Command: \`make valgrind PRESET=dev\`\n" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          REPORT_KIND: valgrind
+          REPORT_LABEL: Memcheck
+          REPORT_MODE: memcheck
+        run: .github/workflows/scripts/report.sh security
+      - name: Run Cachegrind
+        if: github.event_name != 'pull_request'
+        env:
+          REPORT_KIND: valgrind
+          REPORT_LABEL: Cachegrind
+          REPORT_MODE: cachegrind
+        run: .github/workflows/scripts/report.sh security
+      - name: Run Callgrind
+        if: github.event_name != 'pull_request'
+        env:
+          REPORT_KIND: valgrind
+          REPORT_LABEL: Callgrind
+          REPORT_MODE: callgrind
+        run: .github/workflows/scripts/report.sh security
+      - name: Run Massif
+        if: github.event_name != 'pull_request'
+        env:
+          REPORT_KIND: valgrind
+          REPORT_LABEL: Massif
+          REPORT_MODE: massif
+        run: .github/workflows/scripts/report.sh security
+
+  msan:
+    name: MSan / instrumented libc++
+    if: vars.MSAN_ENABLED == 'true' && vars.MSAN_RUNNER != ''
+    runs-on: ${{ vars.MSAN_RUNNER }}
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Run MSan
+        env:
+          MSAN_LIBCXX: /opt/msan-libcxx
+          REPORT_KIND: san
+          REPORT_LABEL: MSan / instrumented libc++
+          REPORT_MODE: m
+        run: .github/workflows/scripts/report.sh security
