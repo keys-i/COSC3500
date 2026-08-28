@@ -56,7 +56,22 @@ if [[ -z ${SLURM_JOB_ID:-} ]]; then
             "$script" case "$index" "$output")")
     done
 
-    dependencies=$(IFS=:; printf '%s' "${case_jobs[*]}")
+    scaling_dependencies=$(IFS=:; printf '%s' "${case_jobs[*]}")
+    levels_job=$(submit \
+        --dependency="afterok:$build_job" \
+        --job-name=m1-levels \
+        --cpus-per-task=4 \
+        --output="$output/slurm-%j.out" \
+        --error="$output/slurm-%j.err" \
+        "$script" levels "$output")
+    page_job=$(submit \
+        --dependency="afterok:$scaling_dependencies" \
+        --job-name=m1-page \
+        --cpus-per-task=4 \
+        --output="$output/slurm-%j.out" \
+        --error="$output/slurm-%j.err" \
+        "$script" page "$output")
+    dependencies="$scaling_dependencies:$levels_job:$page_job"
     collector=$(submit \
         --dependency="afterok:$dependencies" \
         --job-name=m1-collect \
@@ -68,6 +83,7 @@ if [[ -z ${SLURM_JOB_ID:-} ]]; then
     for index in "${!case_names[@]}"; do
         printf '%4s job: %s\n' "${case_names[$index]}" "${case_jobs[$index]}"
     done
+    printf 'levels job: %s\npage job: %s\n' "$levels_job" "$page_job"
     printf 'collector job: %s\nresults: %s\n' "$collector" "$output"
     exit
 fi
@@ -93,6 +109,14 @@ case ${1:-} in
             --case-index "$2" \
             --samples "${SAMPLES:-1}" \
             --minimum-case-ms "${MINIMUM_CASE_MS:-100}"
+        ;;
+    levels | page)
+        [[ $# == 2 ]] || exit 2
+        CMAKE_BUILD_PARALLEL_LEVEL="${SLURM_CPUS_PER_TASK:-1}" \
+            M1_BENCH_OUT="$2" \
+            SAMPLES="${SAMPLES:-1}" \
+            MINIMUM_CASE_MS="${MINIMUM_CASE_MS:-100}" \
+            tools/scripts/test.sh bench "$1"
         ;;
     collect)
         [[ $# == 2 ]] || exit 2

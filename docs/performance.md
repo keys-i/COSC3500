@@ -6,12 +6,12 @@ not parsing, AOT compilation, rendering, snapshots, or file output.
 ```bash
 tools/scripts/test.sh bench levels
 tools/scripts/test.sh bench page  # Linux only
-proj/m1/slurm.sh                  # Conway scaling sweep
+proj/m1/slurm.sh                  # Complete Linux/Slurm evidence suite
 tools/scripts/report.py graph
 ```
 
-The 1K-to-1B scaling run is Slurm-only because the 1B case needs a
-high-memory node. It builds the shared engine with the fixed `evidence` preset
+The Slurm run collects L0-L7, page-backing, and 1K-to-1B scaling evidence; the
+1B case needs a high-memory node. It builds with the fixed `evidence` preset
 and checks the benchmark checksums. The benchmark commands write:
 
 - `results/bench/scaling.csv` - measured 1K through 1B cell cases;
