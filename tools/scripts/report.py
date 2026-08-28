@@ -67,6 +67,7 @@ BENCH_FIELDS = (
     "page_backing_verified",
 )
 SCALING_FIELDS = ("size", "cells", "index_width_bits", *BENCH_FIELDS)
+LEVEL_FIELDS = ("opt_level", "workload", *BENCH_FIELDS)
 
 
 def positive(value: str) -> int:
@@ -205,29 +206,36 @@ def collect(samples: int, minimum_ms: int) -> list[dict[str, str]]:
 
 
 def collect_levels(
-    samples: int, minimum_ms: int
+    samples: int,
+    minimum_ms: int,
+    start_level: int = 0,
+    end_level: int = 7,
 ) -> tuple[list[dict[str, str]], Path]:
-    """Build every source level and time the registered M1 workload suite"""
+    """Build requested source levels and time the registered M1 workloads"""
+    if not 0 <= start_level <= end_level <= 7:
+        raise ValueError("level range must be within 0..7")
     OUT.mkdir(parents=True, exist_ok=True)
     rows = []
-    final_build = ROOT / "build/evidence-l7"
-    for level in range(8):
+    final_build = ROOT / f"build/evidence-l{end_level}"
+    for level in range(start_level, end_level + 1):
         build = configure(level)
         for workload, case in LEVEL_CASES:
             print(f"benchmark L{level} {case}", flush=True)
             row = benchmark(build, case, samples, minimum_ms)
             rows.append({"opt_level": f"L{level}", "workload": workload, **row})
         final_build = build
-    for workload, _ in LEVEL_CASES:
-        checksums = {
-            row["checksum"] for row in rows if row["workload"] == workload
-        }
-        if len(checksums) != 1:
-            raise ValueError(f"{workload}: L0 through L7 checksums differ")
-    write_csv(
-        OUT / "levels.csv", ("opt_level", "workload", *BENCH_FIELDS), rows
-    )
-    (OUT / "levels.svg").write_text(levels_svg(rows), encoding="utf-8")
+    if start_level == 0 and end_level == 7:
+        target = OUT / "levels.csv"
+        for workload, _ in LEVEL_CASES:
+            checksums = {
+                row["checksum"] for row in rows if row["workload"] == workload
+            }
+            if len(checksums) != 1:
+                raise ValueError(f"{workload}: L0 through L7 checksums differ")
+        (OUT / "levels.svg").write_text(levels_svg(rows), encoding="utf-8")
+    else:
+        target = OUT / f"levels-{start_level}-{end_level}.csv"
+    write_csv(target, LEVEL_FIELDS, rows)
     return rows, final_build
 
 
@@ -635,6 +643,26 @@ def merge_cases(directory: Path = OUT) -> list[dict[str, str]]:
     return rows
 
 
+def merge_levels(directory: Path = OUT) -> list[dict[str, str]]:
+    """Merge the two checked Slurm level ranges."""
+    rows = []
+    for start, end in ((0, 3), (4, 7)):
+        partial = read_rows(directory / f"levels-{start}-{end}.csv")
+        expected = {
+            (f"L{level}", workload)
+            for level in range(start, end + 1)
+            for workload, _ in LEVEL_CASES
+        }
+        actual = {(row["opt_level"], row["workload"]) for row in partial}
+        if len(partial) != len(expected) or actual != expected:
+            raise ValueError(f"levels-{start}-{end}.csv has invalid rows")
+        rows.extend(partial)
+    figure = levels_svg(rows)
+    write_csv(directory / "levels.csv", LEVEL_FIELDS, rows)
+    (directory / "levels.svg").write_text(figure, encoding="utf-8")
+    return rows
+
+
 def graph(
     scaling: list[dict[str, str]] | None = None,
     levels: list[dict[str, str]] | None = None,
@@ -760,14 +788,18 @@ def self_check() -> None:
             write_csv(output / f"case-{index}.csv", SCALING_FIELDS, [row])
         if merge_cases(output) != scaling:
             raise AssertionError("case merge changed scaling rows")
+        write_csv(output / "levels-0-3.csv", LEVEL_FIELDS, levels[:16])
+        write_csv(output / "levels-4-7.csv", LEVEL_FIELDS, levels[16:])
+        if merge_levels(output) != levels:
+            raise AssertionError("level merge changed level rows")
         for name, content in (
             ("scaling.svg", scaling_svg(scaling)),
-            ("levels.svg", levels_svg(levels)),
             ("pages.svg", pages_svg(pages)),
         ):
             target = output / name
             target.write_text(content, encoding="utf-8")
             ET.parse(target)
+        ET.parse(output / "levels.svg")
     report = summary(scaling, levels, pages)
     if "M cell-updates/s" not in report or "Huge/base throughput" not in report:
         raise AssertionError("summary is incomplete")
@@ -793,6 +825,8 @@ def main() -> int:
         default="all",
     )
     parser.add_argument("--case-index", type=int)
+    parser.add_argument("--level-start", type=int, choices=range(8), default=0)
+    parser.add_argument("--level-end", type=int, choices=range(8), default=7)
     parser.add_argument(
         "--samples",
         type=positive,
@@ -821,12 +855,21 @@ def main() -> int:
         return 0
     if options.mode == "merge":
         write_provenance(options.samples, options.minimum_case_ms)
+        if (OUT / "levels-0-3.csv").exists() or (
+            OUT / "levels-4-7.csv"
+        ).exists():
+            merge_levels()
         graph(merge_cases())
         print(f"report: {OUT.relative_to(ROOT)}")
         return 0
     if options.mode == "levels":
         write_provenance(options.samples, options.minimum_case_ms)
-        collect_levels(options.samples, options.minimum_case_ms)
+        collect_levels(
+            options.samples,
+            options.minimum_case_ms,
+            options.level_start,
+            options.level_end,
+        )
         print(f"report: {OUT.relative_to(ROOT)}")
         return 0
     if options.mode == "page":

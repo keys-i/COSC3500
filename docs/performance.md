@@ -12,7 +12,8 @@ tools/scripts/report.py graph
 
 The Slurm run collects L0-L7, page-backing, and 1K-to-1B scaling evidence; the
 1B case needs a high-memory node. It builds with the fixed `evidence` preset
-and checks the benchmark checksums. The benchmark commands write:
+and checks the benchmark checksums. L0-L3 and L4-L7 run as separate jobs to
+stay within the queue time limit. The benchmark commands write:
 
 - `results/bench/scaling.csv` - measured 1K through 1B cell cases;
 - `results/bench/scaling.svg` - throughput by problem size;
