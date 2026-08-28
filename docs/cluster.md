@@ -7,10 +7,11 @@ make slurm
 make slurm SLURM_TARGET=m0
 ```
 
-Load the site C++20 toolchain before submitting. `tools/scripts/setup.sh` accepts
-space-separated `HPC_MODULES` when the environment-modules command is present;
-it never uses `apt` or `sudo`. The batch job does not install software,
-Homebrew, or run `uv sync`.
+On Rangpur, `tools/scripts/setup.sh` and the batch job use GCC Toolset 13 when
+available. Elsewhere, load the site C++20 toolchain before setup;
+`tools/scripts/setup.sh` accepts space-separated `HPC_MODULES` when the
+environment-modules command is present. It never uses `apt` or `sudo`, and the
+batch job does not install software, Homebrew, or run `uv sync`.
 Vendored CLX compiles static Lua modules before timing; the final M1 binary has
 no Lua runtime requirement.
 

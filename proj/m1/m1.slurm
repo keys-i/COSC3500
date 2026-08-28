@@ -11,6 +11,12 @@
 
 # Run the serial benchmark workflow inside one allocated task
 set -Eeuo pipefail
+if [[ -r /opt/rh/gcc-toolset-13/enable ]]; then
+    # shellcheck disable=SC1091
+    source /opt/rh/gcc-toolset-13/enable
+    export CC=gcc CXX=g++
+fi
+export PATH="$HOME/.local/bin:$PATH"
 cd "${SLURM_SUBMIT_DIR:?submit with sbatch}"
 : "${SLURM_JOB_ID:?submit this file with sbatch}"
 

@@ -29,6 +29,11 @@ case $(uname -s) in
             }
             for module_name in $HPC_MODULES; do module load "$module_name"; done
         fi
+        if [[ -r /opt/rh/gcc-toolset-13/enable ]]; then
+            # shellcheck disable=SC1091
+            source /opt/rh/gcc-toolset-13/enable
+            export CC=gcc CXX=g++
+        fi
         for command_name in git cmake "${CXX:-c++}"; do
             command -v "$command_name" >/dev/null || {
                 printf 'missing %s; load your site module (for example: module load cmake compiler) and rerun\n' "$command_name" >&2
@@ -67,6 +72,12 @@ command -v ninja >/dev/null || {
     exit 1
 }
 uv sync --locked
+
+# Preserve the selected compiler after this process exits.
+if [[ -r /opt/rh/gcc-toolset-13/enable ]]; then
+    cmake --fresh --preset dev
+    cmake --fresh --preset evidence
+fi
 
 # Root links let each formatter find the canonical file in tools/config
 for config in \
