@@ -14,6 +14,7 @@ set -Eeuo pipefail
 
 if [[ -n ${SLURM_JOB_ID:-} ]]; then
     root=${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR is required}
+    touch "$root/slurm-$SLURM_JOB_ID.out" # required by the site task epilog
 else
     root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
 fi
