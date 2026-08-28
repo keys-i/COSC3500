@@ -7,9 +7,9 @@
 
 namespace hpc::bench {
 
-const std::array<Case, 11U> &m1_cases() noexcept {
+const std::array<Case, 12U> &m1_cases() noexcept {
     // Keep scale cases here so the benchmark runner stays scenario-agnostic
-    static constexpr std::array<Case, 11U> values{{
+    static constexpr std::array<Case, 12U> values{{
         {"cellular/conway/1k",
          {"templates/conway/1k", "", 10'000U, 2'045U, "cell_updates",
           "invariant", "steps=10 "}},
@@ -31,6 +31,11 @@ const std::array<Case, 11U> &m1_cases() noexcept {
         {"cellular/conway/1b",
          {"templates/conway/1b", "", 1'000'000'000U, 2'000'000'045U,
           "cell_updates", "invariant", "steps=1 "}},
+        {"continuous/predator-prey/100k",
+         {"test/continuous", "", 1'000'000U, 6'600'012U,
+          "entity_updates", "cf299cf42034d25c",
+          "steps=10 characters=2 initial=100000 active=100000 "
+          "entity_updates=1000000 "}},
         {"cellular/conway",
          {"templates/conway",
           "steps=720 characters=12 initial=1761 active=1493 "

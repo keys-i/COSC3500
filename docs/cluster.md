@@ -33,6 +33,7 @@ RSS, and throughput; it times simulation only.
 For a Linux allocation, optional `perf` counters may be collected where the
 site permits them. The page experiment may report a 2 MiB result only when
 `/proc/self/smaps` proves the requested backing; a request alone is not enough.
-Run `tools/scripts/test.sh bench page` on the allocated Linux node.
+An unverified page result is recorded but does not block the scaling and level
+report. Run `tools/scripts/test.sh bench page` on the allocated Linux node.
 Valgrind and standalone LSan are Linux-only; MSan additionally needs
 an instrumented libc++ via `MSAN_LIBCXX`.
