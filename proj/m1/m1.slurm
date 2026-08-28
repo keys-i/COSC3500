@@ -26,5 +26,5 @@ CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" \
     M1_BENCH_OUT="$output" \
     SAMPLES="${SAMPLES:-5}" \
     MINIMUM_CASE_MS="${MINIMUM_CASE_MS:-1000}" \
-    tools/scripts/test.sh bench cluster
+    tools/scripts/test.sh bench
 printf 'benchmark results: %s\n' "$output"

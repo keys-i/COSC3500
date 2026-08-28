@@ -36,8 +36,6 @@ LEVEL_CASES = (
     ("Carrom", "timeline/carrom"),
 )
 SCALING_CASES = (
-    ("1K", 1_000, "cellular/conway/1k"),
-    ("10K", 10_000, "cellular/conway/10k"),
     ("100K", 100_000, "cellular/conway/100k"),
     ("1M", 1_000_000, PRIMARY_CASE),
     ("10M", 10_000_000, "cellular/conway/10m"),
@@ -164,7 +162,7 @@ def write_csv(
 def collect(samples: int, minimum_ms: int) -> list[dict[str, str]]:
     """Build, test, time the fixed scaling cases, and persist scaling.csv"""
     if "SLURM_JOB_ID" not in os.environ:
-        raise ValueError("1K through 1B scaling must run inside Slurm")
+        raise ValueError("100K through 1B scaling must run inside Slurm")
     # Build and test first so every chart row comes from a verified executable
     OUT.mkdir(parents=True, exist_ok=True)
     build = configure(7)
@@ -278,14 +276,14 @@ def scaling_svg(rows: list[dict[str, str]]) -> str:
     # Charts use measured throughput while fixed cases share one scale
     grouped = {row["size"]: row for row in rows}
     if any(size not in grouped for size, _, _ in SCALING_CASES):
-        raise ValueError("scaling.csv needs every 1K through 1B row")
+        raise ValueError("scaling.csv needs every 100K through 1B row")
     sizes = [item[0] for item in SCALING_CASES]
     throughputs = [
         float(grouped[size]["throughput_munits_per_s"]) for size in sizes
     ]
     throughput_max = max(throughputs) * 1.15
     top, bottom = 155, 475
-    x_values = [120 + index * 160 for index in range(len(SCALING_CASES))]
+    x_values = [120 + index * 240 for index in range(len(SCALING_CASES))]
     body = [
         text(
             600,

@@ -6,15 +6,15 @@ not parsing, AOT compilation, rendering, snapshots, or file output.
 ```bash
 tools/scripts/test.sh bench levels
 tools/scripts/test.sh bench page  # Linux only
-sbatch proj/m1/m1.slurm           # complete cluster sweep
+sbatch proj/m1/m1.slurm           # Conway scaling sweep
 tools/scripts/report.py graph
 ```
 
-The complete scaling run is Slurm-only because the 1B case needs a
-high-memory node. It builds the shared engine with the fixed `evidence` preset,
-checks the benchmark checksums, and writes:
+The 100K-to-1B scaling run is Slurm-only because the 1B case needs a
+high-memory node. It builds the shared engine with the fixed `evidence` preset
+and checks the benchmark checksums. The benchmark commands write:
 
-- `results/bench/scaling.csv` - measured 1K through 1B cell cases;
+- `results/bench/scaling.csv` - measured 100K through 1B cell cases;
 - `results/bench/scaling.svg` - throughput by problem size;
 - `results/bench/levels.csv` and `levels.svg` - L0 through L7 across the
   registered cellular, PDE, turn and timeline workloads;
