@@ -21,7 +21,7 @@ case $(uname -s) in
         brew bundle --file="$root/tools/config/Brewfile"
         ;;
     Linux)
-        # Cluster software comes from site modules, never a privileged install
+        # Prefer site modules; never use a privileged install
         if [[ -n ${HPC_MODULES:-} ]]; then
             type module >/dev/null 2>&1 || {
                 echo 'HPC_MODULES was set but environment modules is unavailable' >&2
@@ -29,7 +29,7 @@ case $(uname -s) in
             }
             for module_name in $HPC_MODULES; do module load "$module_name"; done
         fi
-        for command_name in git cmake ninja "${CXX:-c++}"; do
+        for command_name in git cmake "${CXX:-c++}"; do
             command -v "$command_name" >/dev/null || {
                 printf 'missing %s; load your site module (for example: module load cmake compiler) and rerun\n' "$command_name" >&2
                 exit 1
@@ -55,6 +55,15 @@ if ! command -v uv >/dev/null; then
 fi
 command -v uv >/dev/null || {
     echo 'uv installation failed' >&2
+    exit 1
+}
+if ! command -v ninja >/dev/null; then
+    uv tool install ninja
+    PATH="$(uv tool dir --bin):$PATH"
+    export PATH
+fi
+command -v ninja >/dev/null || {
+    echo 'ninja installation failed' >&2
     exit 1
 }
 uv sync --locked
