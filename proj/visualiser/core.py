@@ -1068,7 +1068,10 @@ def interpolate_entity(start, end, amount, frame):
     elif kernel == "timeline" and end.motion == "static":
         return start
     else:
-        amount = smoothstep(amount)
+        if not (
+            kernel == "timeline" and end.name in {"flight_state", "ship_state"}
+        ):
+            amount = smoothstep(amount)
         x = lerp(start.x, end.x, amount)
         y = lerp(start.y, end.y, amount)
         z = lerp(start.z, end.z, amount)

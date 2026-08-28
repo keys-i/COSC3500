@@ -58,16 +58,16 @@ SEIR_OPERATIONS = (
     (14.0, 15.0, 35.5, 33.9, "BEIRUT PORT DISRUPTED", "RESTRICTED"),
     (15.0, 17.0, None, None, "CONTROLLED ROUTES REOPEN", "OPEN"),
     (21.0, 22.0, 32.5, 30.5, "SUEZ CANAL CLOSED", "BANNED"),
-    (32.0, 88.0, 31.0, 48.0, "UKRAINE CIVIL AIRSPACE CLOSED", "BANNED"),
-    (32.0, 88.0, 38.0, 58.0, "EU/RUSSIA AIRSPACE BAN", "BANNED"),
+    (32.0, 89.0, 31.0, 48.0, "UKRAINE CIVIL AIRSPACE CLOSED", "BANNED"),
+    (32.0, 89.0, 38.0, 58.0, "EU/RUSSIA AIRSPACE BAN", "BANNED"),
     (34.0, 38.0, None, None, "INTERNATIONAL AIRSPACE REOPENING", "OPEN"),
     (37.0, 49.0, 31.0, 48.0, "BLACK SEA GRAIN CORRIDOR", "OPEN"),
-    (46.0, 88.0, 32.5, 15.5, "SUDAN AIRSPACE RESTRICTED", "RESTRICTED"),
-    (49.0, 88.0, 31.0, 48.0, "BLACK SEA PORT RESTRICTIONS", "RESTRICTED"),
-    (52.0, 81.0, 34.8, 31.5, "ISRAEL AIRSPACE DISRUPTED", "RESTRICTED"),
-    (54.0, 88.0, 42.5, 15.0, "RED SEA REROUTING", "REROUTED"),
-    (81.0, 88.0, 47.0, 30.0, "GULF AIRSPACE RESTRICTED", "RESTRICTED"),
-    (81.0, 88.0, 56.5, 26.5, "HORMUZ SAFE PASSAGE HALTED", "BANNED"),
+    (46.0, 89.0, 32.5, 15.5, "SUDAN AIRSPACE RESTRICTED", "RESTRICTED"),
+    (49.0, 89.0, 31.0, 48.0, "BLACK SEA PORT RESTRICTIONS", "RESTRICTED"),
+    (52.0, 89.0, 34.8, 31.5, "ISRAEL AIRSPACE DISRUPTED", "RESTRICTED"),
+    (54.0, 89.0, 42.5, 15.0, "RED SEA REROUTING", "REROUTED"),
+    (81.0, 89.0, 47.0, 30.0, "GULF AIRSPACE RESTRICTED", "RESTRICTED"),
+    (81.0, 89.0, 56.5, 26.5, "HORMUZ SAFE PASSAGE HALTED", "BANNED"),
 )
 
 EXPORTS = [
@@ -118,6 +118,7 @@ EXPORTS = [
     "seir_path_point",
     "seir_path_pose",
     "seir_route_pose",
+    "seir_motion_direction",
     "seir_path_segments",
     "seir_route_segments",
     "draw_seir_plane",
@@ -714,6 +715,12 @@ def seir_route_pose(start, end, progress, rectangle):
     return centre, direction
 
 
+def seir_motion_direction(direction, progress, next_progress):
+    if next_progress is not None and next_progress < progress:
+        return -direction[0], -direction[1]
+    return direction
+
+
 def seir_path_segments(path, rectangle, cache):
     """Project a route into drawable segments split at date-line crossings"""
     # Split date-line crossings so pygame never draws across the whole map
@@ -800,7 +807,14 @@ def draw_seir_plane(pygame, screen, centre, direction, colour, outline, accent):
 
 
 def draw_seir_flights(
-    pygame, screen, fonts, rectangle, position, flight_states, cache
+    pygame,
+    screen,
+    fonts,
+    rectangle,
+    position,
+    flight_states,
+    cache,
+    next_states=None,
 ):
     """Draw active flights and cache the static lines for their routes"""
     screen.set_clip(rectangle)
@@ -817,6 +831,11 @@ def draw_seir_flights(
         colour = seir_mix((248, 250, 252), (239, 68, 68), affected / 24)
         operator = SEIR_AIRLINES_BY_CODE.get(SEIR_ROUTE_OPERATORS[index])
         centre, direction = seir_route_pose(start, end, progress, rectangle)
+        direction = seir_motion_direction(
+            direction,
+            progress,
+            None if next_states is None else next_states[index][0],
+        )
         centre = seir_weather_offset(
             centre, weather, rectangle.width, position, index, _px(5.0)
         )
@@ -925,7 +944,15 @@ def draw_seir_ship(pygame, screen, centre, direction, kind):
         )
 
 
-def draw_seir_ships(pygame, screen, rectangle, position, ship_states, cache):
+def draw_seir_ships(
+    pygame,
+    screen,
+    rectangle,
+    position,
+    ship_states,
+    cache,
+    next_states=None,
+):
     screen.set_clip(rectangle)
     weather = seir_weather(position, rectangle)
     for index, (source, destination, _begins, kind, _density) in enumerate(
@@ -936,6 +963,11 @@ def draw_seir_ships(pygame, screen, rectangle, position, ship_states, cache):
             continue
         path = seir_ship_path(source, destination, position)
         centre, direction = seir_path_pose(path, progress, rectangle, deviation)
+        direction = seir_motion_direction(
+            direction,
+            progress,
+            None if next_states is None else next_states[index][0],
+        )
         centre = seir_weather_offset(
             centre, weather, rectangle.width, position, index, _px(3.0)
         )
@@ -1018,6 +1050,8 @@ def draw_seir_transport_routes(pygame, screen, rectangle, position, cache):
         local = pygame.Rect(0, 0, *rectangle.size)
         layer = pygame.Surface(rectangle.size, pygame.SRCALPHA)
         war = pygame.Surface(rectangle.size, pygame.SRCALPHA)
+        sudan = pygame.Surface(rectangle.size, pygame.SRCALPHA)
+        israel = pygame.Surface(rectangle.size, pygame.SRCALPHA)
         gulf = pygame.Surface(rectangle.size, pygame.SRCALPHA)
         gulf_countries = {
             "ARE",
@@ -1050,6 +1084,14 @@ def draw_seir_transport_routes(pygame, screen, rectangle, position, cache):
                         pygame.draw.lines(
                             war, (239, 68, 68, 150), False, segment, _px(2)
                         )
+                    if "SDN" in countries:
+                        pygame.draw.lines(
+                            sudan, (245, 158, 11, 150), False, segment, _px(2)
+                        )
+                    if countries & {"ISR", "LBN"}:
+                        pygame.draw.lines(
+                            israel, (239, 68, 68, 150), False, segment, _px(2)
+                        )
                     if countries & gulf_countries:
                         pygame.draw.lines(
                             gulf,
@@ -1078,6 +1120,8 @@ def draw_seir_transport_routes(pygame, screen, rectangle, position, cache):
                         )
         cache[layer_key] = layer
         cache["seir-transport-war-layer", rectangle.size] = war
+        cache["seir-transport-sudan-layer", rectangle.size] = sudan
+        cache["seir-transport-israel-layer", rectangle.size] = israel
         cache["seir-transport-gulf-layer", rectangle.size] = gulf
     detour_key = "seir-transport-detour-layer", rectangle.size
     if detour_key not in cache:
@@ -1094,6 +1138,16 @@ def draw_seir_transport_routes(pygame, screen, rectangle, position, cache):
     if position >= 32:
         screen.blit(
             cache["seir-transport-war-layer", rectangle.size],
+            rectangle.topleft,
+        )
+    if position >= 46:
+        screen.blit(
+            cache["seir-transport-sudan-layer", rectangle.size],
+            rectangle.topleft,
+        )
+    if position >= 52:
+        screen.blit(
+            cache["seir-transport-israel-layer", rectangle.size],
             rectangle.topleft,
         )
     if position >= 54:
@@ -1201,6 +1255,8 @@ def draw_seir_map(
     ship_states,
     cache,
     next_states=None,
+    next_flight_states=None,
+    next_ship_states=None,
 ):
     """Draw the regional health map, transport network, and country labels
 
@@ -1425,9 +1481,24 @@ def draw_seir_map(
             True,
             "topleft",
         )
-    draw_seir_ships(pygame, screen, atlas, position, ship_states, cache)
+    draw_seir_ships(
+        pygame,
+        screen,
+        atlas,
+        position,
+        ship_states,
+        cache,
+        next_ship_states,
+    )
     draw_seir_flights(
-        pygame, screen, fonts, atlas, position, flight_states, cache
+        pygame,
+        screen,
+        fonts,
+        atlas,
+        position,
+        flight_states,
+        cache,
+        next_flight_states,
     )
     draw_seir_disasters(pygame, screen, fonts, atlas, position)
     origin = seir_project(114.208, 30.7838, atlas)
@@ -1588,56 +1659,6 @@ def seir_feed_events(position, slots=8):
             selected.append(event)
             seen.add(identity)
 
-    for event in reversed(eligible):
-        if event[1] == "DISASTER":
-            add(event)
-            break
-
-    geography = (
-        frozenset(
-            ("AO", "CD", "CI", "EG", "ET", "GH", "KE", "MZ", "NG", "SN", "ZA")
-        ),
-        frozenset(("AR", "BO", "BR", "BS", "CL", "CO", "EC", "MX", "PE")),
-        frozenset(("AF", "BD", "BT", "IN", "LK", "MV", "NP", "PK")),
-        frozenset(("RU", "UA")),
-        frozenset(("CN", "ID", "JP", "KR", "MM", "MY", "PH", "SG", "TH")),
-        frozenset(("DE", "ES", "EU", "FR", "GB", "IT", "PL")),
-        frozenset(
-            (
-                "AE",
-                "BH",
-                "IL",
-                "IQ",
-                "IR",
-                "JO",
-                "KW",
-                "LB",
-                "OM",
-                "PS",
-                "QA",
-                "SA",
-                "SY",
-                "YE",
-            )
-        ),
-        frozenset(("AQ", "ARC")),
-        frozenset(("AU",)),
-    )
-    offset = int(position) % len(geography)
-    geography = geography[offset:] + geography[:offset]
-    for index in range(max(len(geography), 4)):
-        if index < 4:
-            for event in reversed(eligible):
-                if event[1] == ("SPORTS", "TECH", "BUSINESS", "FUNNY")[index]:
-                    add(event)
-                    break
-        if index >= len(geography):
-            continue
-        codes = geography[index]
-        for event in reversed(eligible):
-            if event[2] in codes:
-                add(event)
-                break
     for event in reversed(eligible):
         add(event)
     return tuple(sorted(selected))
@@ -2029,12 +2050,12 @@ def draw_seir_scene(
     features = seir_features(cache)
     regions = seir_regions(cache)
     states, flight_states, ship_states = seir_snapshot(frame, features)
-    next_states = None
+    next_snapshot = (None, None, None)
     if next_frame is not None:
-        next_key = "seir-next-states", next_frame.number
+        next_key = "seir-next-snapshot", next_frame.number
         if next_key not in cache:
-            cache[next_key] = seir_snapshot(next_frame, features)[0]
-        next_states = cache[next_key]
+            cache[next_key] = seir_snapshot(next_frame, features)
+        next_snapshot = cache[next_key]
     draw_seir_map(
         pygame,
         screen,
@@ -2047,7 +2068,7 @@ def draw_seir_scene(
         flight_states,
         ship_states,
         cache,
-        next_states,
+        *next_snapshot,
     )
     draw_seir_feed(
         pygame,
