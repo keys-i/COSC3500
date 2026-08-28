@@ -404,7 +404,9 @@ def static_slide_figures() -> dict[str, str]:
             text(580, 151, "50,000 hunters", 18, "middle", "#ffffff", 700),
             path_arrow("M70 260 C32 260 32 550 70 550"),
             path_arrow("M730 550 C768 550 768 260 730 260"),
-            text(400, 681, "wrapped world · width = height = 19,764.235376", 17),
+            text(
+                400, 681, "wrapped world · width = height = 19,764.235376", 17
+            ),
         ]
     )
     figures["workload.svg"] = diagram_frame(

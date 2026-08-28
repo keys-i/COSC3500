@@ -32,8 +32,8 @@ const std::array<Case, 12U> &m1_cases() noexcept {
          {"templates/conway/1b", "", 1'000'000'000U, 2'000'000'045U,
           "cell_updates", "invariant", "steps=1 "}},
         {"continuous/predator-prey/100k",
-         {"test/continuous", "", 1'000'000U, 6'600'012U,
-          "entity_updates", "cf299cf42034d25c",
+         {"test/continuous", "", 1'000'000U, 6'600'012U, "entity_updates",
+          "cf299cf42034d25c",
           "steps=10 characters=2 initial=100000 active=100000 "
           "entity_updates=1000000 "}},
         {"cellular/conway",
