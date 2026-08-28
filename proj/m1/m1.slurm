@@ -22,7 +22,7 @@ cd "${SLURM_SUBMIT_DIR:?submit with sbatch}"
 
 # Request enough memory for the 1B-cell case.
 output="results/bench/run-${SLURM_JOB_ID}"
-srun --cpu-bind=cores env \
+CMAKE_BUILD_PARALLEL_LEVEL="${CMAKE_BUILD_PARALLEL_LEVEL:-1}" \
     M1_BENCH_OUT="$output" \
     SAMPLES="${SAMPLES:-5}" \
     MINIMUM_CASE_MS="${MINIMUM_CASE_MS:-1000}" \
