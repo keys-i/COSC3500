@@ -30,6 +30,7 @@
 #include <vector>
 #if defined(__linux__)
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #endif
 
 /// \file
@@ -542,9 +543,28 @@ void report_pde(const Scenario &scenario, const State &state) {
 
 int run(Scenario scenario, const std::string_view name, const bool snapshots,
         const bool benchmark = false) {
-    // Apply optional page policy before Lua may access the allocated state
+    // Fault benchmark state into base pages before retaining NOHUGEPAGE on it
+#if defined(__linux__) && defined(PR_SET_THP_DISABLE)
+    const char *requested_page_policy = std::getenv("M1_PAGE_POLICY");
+    const bool base_page_allocation =
+        requested_page_policy != nullptr &&
+        std::strcmp(requested_page_policy, "base") == 0;
+    if (base_page_allocation &&
+        prctl(PR_SET_THP_DISABLE, 1L, 0L, 0L, 0L) != 0) {
+        report_error("m1: cannot disable transparent huge pages\n");
+        return 2;
+    }
+#endif
     State state = initialise(scenario);
     PageProbe page_policy{state};
+#if defined(__linux__) && defined(PR_SET_THP_DISABLE)
+    // NOHUGEPAGE now pins the state policy; restore defaults for later storage
+    if (base_page_allocation &&
+        prctl(PR_SET_THP_DISABLE, 0L, 0L, 0L, 0L) != 0) {
+        report_error("m1: cannot restore transparent huge pages\n");
+        return 2;
+    }
+#endif
     if (!page_policy.valid()) {
         report_error("m1: M1_PAGE_POLICY must be base or huge\n");
         return 2;
