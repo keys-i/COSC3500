@@ -1,64 +1,58 @@
-# Infrastructure
+# Repository map
 
-This is a small lab: CMake builds, CTest tests, Make is the front door, and
-`tools/scripts/setup.sh` prepares a local machine.
+The project has one build system and a small set of scripts around it. CMake
+owns targets, CTest owns executable tests, Make exposes the common entry
+points, and `tools/scripts/setup.sh` prepares the machine.
 
-| Layer | Contains |
+| Path | Responsibility |
 | --- | --- |
-| `proj/` | Coursework entrypoints, Lua scenarios, generated-program boundary and renderer |
-| `CMakeLists.txt`, `CMakePresets.json` | Targets, focused presets, build trees |
-| `Makefile` | Human and CI commands |
-| `tools/scripts/` | Setup, benchmark runs, report generation and Slurm jobs |
-| `benches/` | Simulation timing and statistics |
-| `tests/` | Focused scenario and visual regression checks |
-| `.github/workflows/` | Hosted checks |
+| `proj/m1/` | Serial parser, kernels, command line and runtime state |
+| `proj/scenarios/` | Reusable scenario bundles, Lua rules and scene metadata |
+| `proj/visualiser/` | Offline snapshot and video renderer |
+| `benches/` | Timed harness and benchmark case registry |
+| `tests/` | Parser, kernel, replay and visual checks |
+| `tools/scripts/` | Setup, checking, security, reporting and packaging |
+| `tools/config/` | Shared C++, Python and Lua tool configuration |
+| `.github/workflows/` | Hosted checks, security analysis and benchmark smoke runs |
 
-## Builds and presets
+Local tooling ignores `assign/`; Rangpur setup enables its C++, MPI and CUDA
+paths. Vendored code under `third_party/` always stays outside project checks.
 
-No CMake configure step downloads code. `tools/scripts/setup.sh` initialises
-the pinned CLX submodule before configuring. Build products are kept in
-`build/<preset>/`; in-source builds fail.
+## Build presets
 
-| Preset | Use |
+No configure step downloads source. Setup initialises the pinned CLX submodule
+before CMake runs, and in-source builds are rejected.
+
+| Preset | Purpose |
 | --- | --- |
-| `dev` | Local and CI checks |
-| `release` | Local optimised runs |
-| `evidence` | Fixed release flags for tests and benchmarks |
-| `cluster` | Allocated Slurm node |
-| `asan`, `coverage` | Diagnostics |
+| `dev` | Debug build used by local editing and CI |
+| `release` | Optimised local build |
+| `evidence` | Fixed release flags for reproducible tests and measurements |
+| `cluster` | Optimised build that requires a Slurm allocation |
+| `asan` | Address and undefined-behaviour sanitizers |
+| `coverage` | Clang source coverage |
 
-M1 links generic serial kernels and AOT scenario code. CLX turns static local
-Lua modules into generated C++ under `build/<preset>/generated/`. Generated and
-vendored sources should not be counted as handwritten C++.
+CLX compiles each static Lua rules module into generated C++ under
+`build/<preset>/generated/`. M1 links that code with the generic serial kernels;
+the finished binary does not need a Lua runtime.
 
-## Commands and output
+## Generated files
 
-`tools/scripts/setup.sh` is the setup command. Make remains a convenience
-front door for focused local builds and checks. `tools/scripts/test.sh` provides
-`test`, `viz`, and `bench`; `tools/scripts/report.py` writes benchmark CSVs,
-graphs, and the compact Markdown summary. `report.py graph` consumes existing
-CSVs rather than recomputing values.
-
-| Command | Entry point |
+| Location | Contents |
 | --- | --- |
-| `make m`, `make check` | CMake/CTest via `tools/scripts/check` and `test.sh` |
-| `make security`, `make valgrind` | `tools/scripts/security` |
-| `make package` | `tools/scripts/package` |
-| `make slurm` | `proj/m0/m0.slurm` or `proj/m1/slurm.sh` |
+| `build/<preset>/` | Objects, libraries, executables and generated CLX code |
+| `results/snapshots/` | Deterministic state exports |
+| `results/videos/` | Rendered demonstration videos |
+| `results/bench/` | Raw measurements, merged reports and presentation figures |
+| `compile_commands.json` | Link to the current `dev` compilation database |
 
-Build products go in `build/`. The visualiser may write snapshots and videos
-under `results/`; those are presentation artefacts.
-Tool configuration lives under `tools/config/<language>/`; CMake is part of
-the C++ toolchain. The Brewfile remains directly under `tools/config/`.
-Benchmarks write reproducible CSV results and time only simulation work. MSan
-needs a Linux instrumented libc++ via `MSAN_LIBCXX`; standalone LSan, Valgrind,
-and Linux `perf` are Linux-only.
+Generated files stay out of Git. `make clean` clears the selected build while
+`make clean all` also removes every build tree and result.
 
-GNU Make owns leading flags, so use the portable goal `make clean all`.
-Use `tools/scripts/test.sh bench` for timing and `make profile` for counters.
+## Checks
 
-## CI
-
-GitHub Actions run focused build/test checks and publish concise summaries.
-Hosted runners are checks, not cluster timing runs. Speed claims and actual
-huge-page backing need measurements from an allocated node.
+`make help` prints the maintained front doors. Local and hosted checks call the
+same scripts, so a green workflow means the repository commands passed rather
+than a second CI-only implementation. Cluster measurements are kept separate:
+hosted runners can catch breakage, but they cannot support a Rangpur speed or
+page-backing claim.

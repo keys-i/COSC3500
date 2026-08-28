@@ -31,25 +31,46 @@ coverage_tool() {
     exit 127
 }
 
-sources=() cpp_sources=() cmake_sources=() lua_sources=() python_sources=()
+assignment_cluster=0
+if [[ -d /home/groups/cosc3500/shared/matmul/include ]]; then
+    assignment_cluster=1
+fi
+sources=() cpp_sources=() assignment_cpp_sources=() assignment_cuda_sources=()
+cmake_sources=() lua_sources=() python_sources=()
 # Include untracked source so new files cannot bypass local checks
 while IFS= read -r -d '' source; do
-    [[ $source == assign/* || $source == third_party/* || ! -f $root/$source ]] && continue
+    [[ $source == third_party/* || ! -f $root/$source ]] && continue
+    if [[ $source == assign/* ]]; then
+        ((assignment_cluster)) || continue
+        case $source in
+            *.cu)
+                sources+=("$root/$source")
+                assignment_cuda_sources+=("$root/$source")
+                ;;
+            *.cpp | *.cc | *.cxx)
+                sources+=("$root/$source")
+                assignment_cpp_sources+=("$root/$source")
+                ;;
+            *.cuh | *.h | *.hh | *.hpp) sources+=("$root/$source") ;;
+        esac
+        continue
+    fi
     case $source in
         CMakeLists.txt | */CMakeLists.txt | *.cmake)
             cmake_sources+=("$root/$source")
             ;;
-        *.cpp | *.cc | *.cxx)
+        *.cpp | *.cc | *.cu | *.cxx)
             sources+=("$root/$source")
             cpp_sources+=("$root/$source")
             ;;
-        *.h | *.hh | *.hpp) sources+=("$root/$source") ;;
+        *.cuh | *.h | *.hh | *.hpp) sources+=("$root/$source") ;;
         *.lua) lua_sources+=("$root/$source") ;;
         *.py) python_sources+=("$root/$source") ;;
     esac
 done < <(
     git -C "$root" ls-files --cached --others --exclude-standard -z \
-        '*.cpp' '*.cc' '*.cxx' '*.h' '*.hh' '*.hpp' '*.lua' '*.py' \
+        '*.cpp' '*.cc' '*.cu' '*.cuh' '*.cxx' '*.h' '*.hh' '*.hpp' \
+        '*.lua' '*.py' \
         ':(glob)**/CMakeLists.txt' ':(glob)**/*.cmake'
 )
 
@@ -91,6 +112,21 @@ lint() {
         --quiet \
         --config-file="$root/tools/config/cpp/.clang-tidy" \
         "${extra[@]}" "${cpp_sources[@]}"
+    ((${#assignment_cpp_sources[@]})) && "$(llvm_tool clang-tidy)" \
+        --quiet \
+        --config-file="$root/tools/config/cpp/.clang-tidy" \
+        "${assignment_cpp_sources[@]}" -- \
+        -std=c++11 -mavx -fopenmp \
+        -I/usr/include/openmpi-x86_64 \
+        -I/opt/local/stow/cuda-11.1/include \
+        -I/home/groups/cosc3500/shared/matmul/include
+    ((${#assignment_cuda_sources[@]})) && "$(llvm_tool clang-tidy)" \
+        --quiet \
+        --config-file="$root/tools/config/cpp/.clang-tidy" \
+        "${assignment_cuda_sources[@]}" -- \
+        -xcuda -std=c++11 --cuda-path=/opt/local/stow/cuda-11.1 \
+        --cuda-gpu-arch=sm_35 \
+        -I/home/groups/cosc3500/shared/matmul/include
     ((${#python_sources[@]})) && uv run --locked --offline ruff check \
         --config "$root/tools/config/python/ruff.toml" \
         "${python_sources[@]}"

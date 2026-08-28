@@ -5,16 +5,16 @@
 [![Security][security-badge]][security-workflow]
 [![Explore][explore-badge]][explore-workflow]
 
-Serial C++20 simulation coursework for macOS, Rangpur and Bunya.
+A serial C++20 simulation engine for COSC3500 Milestone 1. It reads validated
+`.sim` bundles, runs one of five generic kernels and exports deterministic
+state for an offline renderer. Scenario rules are written in Lua and compiled
+to C++ by CLX before the program runs.
 
 [![Open in GitHub Codespaces][codespaces-badge]][codespaces-link]
 
-## Setup
+## Build it
 
-You need CMake 3.25+, Ninja, GNU Make, Bash, a C++20 compiler, [uv][uv] and
-LuaJIT 2.1 for M1's embedded rules. On a Mac, the Brewfile installs the local
-set. On Rangpur, setup uses GCC Toolset 13; other clusters need their supported
-C++20 module stack.
+You need CMake 3.25 or newer, Ninja, GNU Make, Bash, a C++20 compiler and `uv`.
 
 ```bash
 git clone --recurse-submodules https://github.com/keys-i/COSC3500.git
@@ -22,68 +22,40 @@ cd COSC3500
 ./tools/scripts/setup.sh
 make m
 tools/scripts/test.sh test
-tools/scripts/test.sh viz
-tools/scripts/test.sh bench
 ```
 
-The small evidence entrypoints are:
+On macOS, setup installs the pinned local tools from the Brewfile. Rangpur has
+its own compiler and Slurm path in [the cluster guide](docs/cluster.md)
 
-- `make m` configures the selected preset and builds M1.
-- `test` builds the release engine and runs CTest plus replay/seed checks.
-- `viz` exports each `kind=demo, art=ready` template as snapshots and video.
-- `bench` measures the Lua Conway model through the shared engine and writes
-  CSV, SVG, and Markdown results.
-- `bench page` compares base and huge-page backing on Linux.
-- `tools/scripts/report.py graph` redraws figures without rerunning benchmarks.
+## Included scenarios
 
-The regular build presets remain available through CMake/Make. Build output is
-under `build/`; snapshots, videos and benchmark evidence are
-under `results/`.
+| Kernel | Scenario | Selector |
+| --- | --- | --- |
+| Cellular | Conway's Game of Life | `templates/conway` |
+| Turn | Chess | `templates/chess` |
+| Timeline | Carrom | `templates/carrom` |
+| Timeline | Chronus | `templates/chronus` |
+| PDE | Heston equation | `templates/heston` |
 
-## Reproducible runs
+Continuous agents are exercised by the predator-prey benchmark used for the
+L0–L7 optimisation ladder. The production scenarios above share the same
+parser, compiled-rule boundary and deterministic output contract.
 
-```bash
-build/dev/bin/m1 templates/chess --snapshots --seed 41
-build/dev/bin/m1 templates/chronus --snapshots --seed auto
-```
+## Read what you need
 
-`--seed auto` records a resolved `run_seed`; a numeric seed replays simulation
-choices and tie breaks. A separate derived `render_seed` controls presentation
-variation. Turn timing is evidence only and is excluded from simulation
-checksums. See [the scenario guide](docs/usage.md) for the file format and seed
-rules.
+- [Scenario guide](docs/usage.md) — file format, kernels, Lua callbacks and rendering
+- [Performance](docs/performance.md) — workloads, measurements and validity checks
+- [Infrastructure](docs/infra.md) — repository layout, presets and generated files
+- [Rangpur](docs/cluster.md) — setup, submission, monitoring and result transfer
+- [References](docs/refs.md) — technical sources, datasets, licences and provenance
 
-## Production templates
-
-| Kernel | Templates |
-| --- | --- |
-| Cellular | conway |
-| Turn | chess |
-| Timeline | carrom, chronus |
-| PDE | heston |
-
-All production demos carry a `[rules] file=*.lua` declaration and are compiled
-through the generated CLX registry. `tests/` contains repository-level
-scenario and visual checks; parser fixtures remain beside the scenario inputs
-only when they are needed as source data.
-
-Scenes are demonstrations rather than general game clients. The renderer uses
-scene metadata for safe margins, materials, layer order, perspective,
-snapshot timing and visual cues.
-
-## Evidence status
-
-The Conway scaling experiment measures one shared engine build from 1K
-through 1B cells under Slurm. Linux page backing is separate evidence.
-
-Carrom has recorded terminal matches for seeds `0` through `20`, plus `31`,
-`33`, and `41`, with replay checks covering the selected evidence seeds. Linux
-huge-page backing remains **UNVERIFIED**.
-
-## Read next
-
-- [Scenario guide](docs/usage.md): scenario, Lua, CLX and rendering formats.
-- [Performance](docs/performance.md): causal rungs, protocol and evidence gates.
-- [Infrastructure](docs/infra.md): build layout and output locations.
-- [Clusters](docs/cluster.md): allocated-node runs.
-- [References](docs/refs.md): implementation and provenance sources.
+[checks-badge]: https://github.com/keys-i/COSC3500/actions/workflows/check.yml/badge.svg
+[checks-workflow]: https://github.com/keys-i/COSC3500/actions/workflows/check.yml
+[bench-badge]: https://github.com/keys-i/COSC3500/actions/workflows/benchmark.yml/badge.svg
+[bench-workflow]: https://github.com/keys-i/COSC3500/actions/workflows/benchmark.yml
+[security-badge]: https://github.com/keys-i/COSC3500/actions/workflows/security.yml/badge.svg
+[security-workflow]: https://github.com/keys-i/COSC3500/actions/workflows/security.yml
+[explore-badge]: https://img.shields.io/badge/explore-Codespaces-181717?logo=github
+[explore-workflow]: https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=keys-i%2FCOSC3500
+[codespaces-badge]: https://github.com/codespaces/badge.svg
+[codespaces-link]: https://codespaces.new/keys-i/COSC3500
