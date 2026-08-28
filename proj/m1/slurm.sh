@@ -57,13 +57,17 @@ if [[ -z ${SLURM_JOB_ID:-} ]]; then
     done
 
     scaling_dependencies=$(IFS=:; printf '%s' "${case_jobs[*]}")
-    levels_job=$(submit \
-        --dependency="afterok:$build_job" \
-        --job-name=m1-levels \
-        --cpus-per-task=4 \
-        --output="$output/slurm-%j.out" \
-        --error="$output/slurm-%j.err" \
-        "$script" levels "$output")
+    level_jobs=()
+    for start in 0 4; do
+        end=$((start + 3))
+        level_jobs+=("$(submit \
+            --dependency="afterok:$build_job" \
+            --job-name="m1-l$start-$end" \
+            --cpus-per-task=4 \
+            --output="$output/slurm-%j.out" \
+            --error="$output/slurm-%j.err" \
+            "$script" levels "$start" "$end" "$output")")
+    done
     page_job=$(submit \
         --dependency="afterok:$scaling_dependencies" \
         --job-name=m1-page \
@@ -71,7 +75,8 @@ if [[ -z ${SLURM_JOB_ID:-} ]]; then
         --output="$output/slurm-%j.out" \
         --error="$output/slurm-%j.err" \
         "$script" page "$output")
-    dependencies="$scaling_dependencies:$levels_job:$page_job"
+    level_dependencies=$(IFS=:; printf '%s' "${level_jobs[*]}")
+    dependencies="$scaling_dependencies:$level_dependencies:$page_job"
     collector=$(submit \
         --dependency="afterok:$dependencies" \
         --job-name=m1-collect \
@@ -83,7 +88,8 @@ if [[ -z ${SLURM_JOB_ID:-} ]]; then
     for index in "${!case_names[@]}"; do
         printf '%4s job: %s\n' "${case_names[$index]}" "${case_jobs[$index]}"
     done
-    printf 'levels job: %s\npage job: %s\n' "$levels_job" "$page_job"
+    printf 'L0-L3 job: %s\nL4-L7 job: %s\npage job: %s\n' \
+        "${level_jobs[0]}" "${level_jobs[1]}" "$page_job"
     printf 'collector job: %s\nresults: %s\n' "$collector" "$output"
     exit
 fi
@@ -110,13 +116,22 @@ case ${1:-} in
             --samples "${SAMPLES:-1}" \
             --minimum-case-ms "${MINIMUM_CASE_MS:-100}"
         ;;
-    levels | page)
+    levels)
+        [[ $# == 4 && $2 =~ ^[0-7]$ && $3 =~ ^[0-7]$ ]] || exit 2
+        CMAKE_BUILD_PARALLEL_LEVEL="${SLURM_CPUS_PER_TASK:-1}" \
+            M1_BENCH_OUT="$4" python3 tools/scripts/report.py levels \
+            --level-start "$2" \
+            --level-end "$3" \
+            --samples "${SAMPLES:-1}" \
+            --minimum-case-ms "${MINIMUM_CASE_MS:-100}"
+        ;;
+    page)
         [[ $# == 2 ]] || exit 2
         CMAKE_BUILD_PARALLEL_LEVEL="${SLURM_CPUS_PER_TASK:-1}" \
             M1_BENCH_OUT="$2" \
             SAMPLES="${SAMPLES:-1}" \
             MINIMUM_CASE_MS="${MINIMUM_CASE_MS:-100}" \
-            tools/scripts/test.sh bench "$1"
+            tools/scripts/test.sh bench page
         ;;
     collect)
         [[ $# == 2 ]] || exit 2

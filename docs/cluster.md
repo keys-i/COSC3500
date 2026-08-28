@@ -17,11 +17,11 @@ no Lua runtime requirement.
 
 `PRESET=cluster` is the focused cluster build. It is for an allocated node;
 local checks use `dev`, and local optimised runs use `release`.
-`proj/m1/slurm.sh` submits one job for each 1K-1B Conway case, plus optimisation
-level and page-backing jobs, then a dependent collector. Each benchmark uses
-one node, one task, one CPU, and no GPU; build stages may use four CPUs. Results
-land in `results/bench/run-<build-job-id>/`. Request a site-appropriate
-high-memory node for the 1B case. Local checks are
+`proj/m1/slurm.sh` submits one job for each 1K-1B Conway case, L0-L3 and L4-L7
+optimisation jobs, plus a page-backing job, then a dependent collector. Each
+benchmark uses one node, one task, one CPU, and no GPU; build stages may use four
+CPUs. Results land in `results/bench/run-<build-job-id>/`. Request a
+site-appropriate high-memory node for the 1B case. Local checks are
 `tools/scripts/test.sh test`, `tools/scripts/test.sh viz`,
 `tools/scripts/test.sh bench levels`, and
 `tools/scripts/test.sh bench page`; the 1K-1B scaling command is Slurm-only.
