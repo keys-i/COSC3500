@@ -12,7 +12,11 @@
 
 set -Eeuo pipefail
 
-root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+if [[ -n ${SLURM_JOB_ID:-} ]]; then
+    root=${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR is required}
+else
+    root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+fi
 script="$root/proj/m1/slurm.sh"
 case_names=(1k 10k 100k 1m 10m 100m 1b)
 
@@ -36,6 +40,7 @@ if [[ -z ${SLURM_JOB_ID:-} ]]; then
         echo 'sbatch is required' >&2
         exit 1
     }
+    cd "$root"
 
     build_job=$(submit --job-name=m1-build --cpus-per-task=4 "$script" build)
     output="$root/results/bench/run-$build_job"
