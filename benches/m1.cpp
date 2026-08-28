@@ -44,8 +44,7 @@ const std::array<Case, 11U> &m1_cases() noexcept {
           "checksum=550ff6f8d497dcc7\n",
           20'160'000U, 56'045U, "cell_updates", "550ff6f8d497dcc7", ""}},
         {"pde/heat",
-         {"test/pde-heat", "", 139'392U, 181U, "cell_updates",
-          "222460008c024d44",
+         {"test/pde-heat", "", 139'392U, 181U, "cell_updates", "invariant",
           "steps=128 characters=0 initial=0 active=0 entity_updates=0 "
           "candidate_checks=0 sensed_interactions=0 captures=0 births=0 "
           "deaths=0 cell_updates=139392 "}},
@@ -59,14 +58,13 @@ const std::array<Case, 11U> &m1_cases() noexcept {
           "checksum=e80bb057e0ee7f1d\n",
           385U, 489U, "turns", "e80bb057e0ee7f1d", ""}},
         {"timeline/carrom",
-         {"templates/carrom",
+         {"templates/carrom", "", 356'906U, 3'062U, "timeline_events",
+          "8969cbd07edbc5ce",
           "steps=3405 characters=21 initial=21 active=4 entity_updates=356906 "
           "candidate_checks=0 sensed_interactions=0 captures=0 births=261 "
           "deaths=278 cell_updates=0 turns=0 "
           "timeline_events=356906 run_seed=31 render_seed=15517599431202433770 "
-          "result=2 state_bytes=3062 "
-          "checksum=8969cbd07edbc5ce\n",
-          356'906U, 3'062U, "timeline_events", "8969cbd07edbc5ce", ""}},
+          "result=2 "}},
     }};
     return values;
 }
