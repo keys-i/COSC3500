@@ -44,7 +44,7 @@ CSVs rather than recomputing values.
 | `make m`, `make check` | CMake/CTest via `tools/scripts/check` and `test.sh` |
 | `make security`, `make valgrind` | `tools/scripts/security` |
 | `make package` | `tools/scripts/package` |
-| `make slurm` | `proj/m0/m0.slurm` or `proj/m1/m1.slurm` |
+| `make slurm` | `proj/m0/m0.slurm` or `proj/m1/slurm.sh` |
 
 Build products go in `build/`. The visualiser may write snapshots and videos
 under `results/`; those are presentation artefacts.

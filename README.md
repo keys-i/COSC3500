@@ -73,7 +73,7 @@ snapshot timing and visual cues.
 
 ## Evidence status
 
-The Conway scaling experiment measures one shared engine build from 100K
+The Conway scaling experiment measures one shared engine build from 1K
 through 1B cells under Slurm. Linux page backing is separate evidence.
 
 Carrom has recorded terminal matches for seeds `0` through `20`, plus `31`,
