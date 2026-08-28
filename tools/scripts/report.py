@@ -36,6 +36,8 @@ LEVEL_CASES = (
     ("Carrom", "timeline/carrom"),
 )
 SCALING_CASES = (
+    ("1K", 1_000, "cellular/conway/1k"),
+    ("10K", 10_000, "cellular/conway/10k"),
     ("100K", 100_000, "cellular/conway/100k"),
     ("1M", 1_000_000, PRIMARY_CASE),
     ("10M", 10_000_000, "cellular/conway/10m"),
@@ -64,6 +66,7 @@ BENCH_FIELDS = (
     "anon_huge_bytes",
     "page_backing_verified",
 )
+SCALING_FIELDS = ("size", "cells", "index_width_bits", *BENCH_FIELDS)
 
 
 def positive(value: str) -> int:
@@ -159,10 +162,27 @@ def write_csv(
         writer.writerows(rows)
 
 
+def scaling_row(
+    build: Path,
+    entry: tuple[str, int, str],
+    samples: int,
+    minimum_ms: int,
+) -> dict[str, str]:
+    """Measure one Conway scale and add its size metadata."""
+    label, cells, case = entry
+    print(f"benchmark {case}", flush=True)
+    return {
+        "size": label,
+        "cells": str(cells),
+        "index_width_bits": "32",
+        **benchmark(build, case, samples, minimum_ms),
+    }
+
+
 def collect(samples: int, minimum_ms: int) -> list[dict[str, str]]:
     """Build, test, time the fixed scaling cases, and persist scaling.csv"""
     if "SLURM_JOB_ID" not in os.environ:
-        raise ValueError("100K through 1B scaling must run inside Slurm")
+        raise ValueError("1K through 1B scaling must run inside Slurm")
     # Build and test first so every chart row comes from a verified executable
     OUT.mkdir(parents=True, exist_ok=True)
     build = configure(7)
@@ -176,19 +196,11 @@ def collect(samples: int, minimum_ms: int) -> list[dict[str, str]]:
             "^hpc\\.benchmark$",
         ]
     )
-    scaling = []
-    for label, cells, case in SCALING_CASES:
-        print(f"benchmark {case}", flush=True)
-        scaling.append(
-            {
-                "size": label,
-                "cells": str(cells),
-                "index_width_bits": "32",
-                **benchmark(build, case, samples, minimum_ms),
-            }
-        )
-    scaling_fields = ("size", "cells", "index_width_bits", *BENCH_FIELDS)
-    write_csv(OUT / "scaling.csv", scaling_fields, scaling)
+    scaling = [
+        scaling_row(build, entry, samples, minimum_ms)
+        for entry in SCALING_CASES
+    ]
+    write_csv(OUT / "scaling.csv", SCALING_FIELDS, scaling)
     return scaling
 
 
@@ -276,14 +288,14 @@ def scaling_svg(rows: list[dict[str, str]]) -> str:
     # Charts use measured throughput while fixed cases share one scale
     grouped = {row["size"]: row for row in rows}
     if any(size not in grouped for size, _, _ in SCALING_CASES):
-        raise ValueError("scaling.csv needs every 100K through 1B row")
+        raise ValueError("scaling.csv needs every 1K through 1B row")
     sizes = [item[0] for item in SCALING_CASES]
     throughputs = [
         float(grouped[size]["throughput_munits_per_s"]) for size in sizes
     ]
     throughput_max = max(throughputs) * 1.15
     top, bottom = 155, 475
-    x_values = [120 + index * 240 for index in range(len(SCALING_CASES))]
+    x_values = [120 + index * 160 for index in range(len(SCALING_CASES))]
     body = [
         text(
             600,
@@ -593,6 +605,36 @@ def read_rows(target: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(handle))
 
 
+def collect_case(index: int, samples: int, minimum_ms: int) -> None:
+    """Measure one indexed Conway case for a multi-job Slurm run."""
+    if index < 0 or index >= len(SCALING_CASES):
+        raise ValueError("case index is out of range")
+    OUT.mkdir(parents=True, exist_ok=True)
+    row = scaling_row(
+        ROOT / "build/evidence", SCALING_CASES[index], samples, minimum_ms
+    )
+    write_csv(OUT / f"case-{index}.csv", SCALING_FIELDS, [row])
+
+
+def merge_cases(directory: Path = OUT) -> list[dict[str, str]]:
+    """Merge one checked row from every Conway case job."""
+    rows = []
+    for index, (label, cells, case) in enumerate(SCALING_CASES):
+        partial = read_rows(directory / f"case-{index}.csv")
+        if len(partial) != 1:
+            raise ValueError(f"case-{index}.csv needs exactly one row")
+        row = partial[0]
+        if (
+            row["size"] != label
+            or row["cells"] != str(cells)
+            or row["case"] != case
+        ):
+            raise ValueError(f"case-{index}.csv does not match {case}")
+        rows.append(row)
+    write_csv(directory / "scaling.csv", SCALING_FIELDS, rows)
+    return rows
+
+
 def graph(
     scaling: list[dict[str, str]] | None = None,
     levels: list[dict[str, str]] | None = None,
@@ -713,12 +755,17 @@ def self_check() -> None:
         for index, policy in enumerate(("base", "huge"), 1)
     ]
     with tempfile.TemporaryDirectory() as directory:
+        output = Path(directory)
+        for index, row in enumerate(scaling):
+            write_csv(output / f"case-{index}.csv", SCALING_FIELDS, [row])
+        if merge_cases(output) != scaling:
+            raise AssertionError("case merge changed scaling rows")
         for name, content in (
             ("scaling.svg", scaling_svg(scaling)),
             ("levels.svg", levels_svg(levels)),
             ("pages.svg", pages_svg(pages)),
         ):
-            target = Path(directory) / name
+            target = output / name
             target.write_text(content, encoding="utf-8")
             ET.parse(target)
     report = summary(scaling, levels, pages)
@@ -733,9 +780,19 @@ def main() -> int:
     parser.add_argument(
         "mode",
         nargs="?",
-        choices=("all", "cluster", "graph", "levels", "page", "self-check"),
+        choices=(
+            "all",
+            "case",
+            "cluster",
+            "graph",
+            "levels",
+            "merge",
+            "page",
+            "self-check",
+        ),
         default="all",
     )
+    parser.add_argument("--case-index", type=int)
     parser.add_argument(
         "--samples",
         type=positive,
@@ -749,6 +806,23 @@ def main() -> int:
     options = parser.parse_args()
     if options.mode == "self-check":
         self_check()
+        return 0
+    if options.mode in {"case", "merge"} and (
+        sys.platform != "linux" or "SLURM_JOB_ID" not in os.environ
+    ):
+        raise ValueError(f"{options.mode} must run inside a Linux Slurm job")
+    if options.mode == "case":
+        if options.case_index is None:
+            raise ValueError("case requires --case-index")
+        collect_case(
+            options.case_index, options.samples, options.minimum_case_ms
+        )
+        print(f"report: {OUT.relative_to(ROOT)}/case-{options.case_index}.csv")
+        return 0
+    if options.mode == "merge":
+        write_provenance(options.samples, options.minimum_case_ms)
+        graph(merge_cases())
+        print(f"report: {OUT.relative_to(ROOT)}")
         return 0
     if options.mode == "levels":
         write_provenance(options.samples, options.minimum_case_ms)

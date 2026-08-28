@@ -66,4 +66,4 @@ all:
 
 slurm:
 	@case "$(SLURM_TARGET)" in m0|m1) ;; *) echo 'SLURM_TARGET must be m0 or m1' >&2; exit 2;; esac
-	sbatch proj/$(SLURM_TARGET)/$(SLURM_TARGET).slurm
+	@if [ "$(SLURM_TARGET)" = m1 ]; then proj/m1/slurm.sh; else sbatch proj/m0/m0.slurm; fi
