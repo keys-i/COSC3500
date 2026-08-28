@@ -524,13 +524,27 @@ class RendererContractTest(unittest.TestCase):
             )
         )
 
-    def test_seir_feed_has_global_coverage_without_duplicates(self):
+    def test_seir_feed_keeps_current_events_and_global_coverage(self):
         recent_feed = visualise.seir_feed_events(62)
         self.assertEqual(len(recent_feed), 8)
-        self.assertTrue(any(event[1] == "DISASTER" for event in recent_feed))
         self.assertEqual(
             len({event[2] or event[3] for event in recent_feed}), 8
         )
+        for position, label in (
+            (32, "UKRAINE"),
+            (46.8, "SUDAN AIRSPACE"),
+            (52, "ISRAEL AND GAZA"),
+            (54, "RED SEA DISRUPTION"),
+            (80.9, "STRAIT OF HORMUZ"),
+            (86.9, "HORMUZ SHIPPING"),
+        ):
+            self.assertIn(
+                label,
+                {event[3] for event in visualise.seir_feed_events(position)},
+            )
+        final_feed = visualise.seir_feed_events(88)
+        self.assertEqual(final_feed[-1][3], "HORMUZ SHIPPING")
+        self.assertGreaterEqual(final_feed[0][0], 67.25)
         codes = {event[2] for event in visualise.SEIR_FEED}
         for region in (
             {"CI", "EG", "KE", "NG", "SN", "ZA"},
@@ -548,13 +562,9 @@ class RendererContractTest(unittest.TestCase):
             {"HORMUZ SHIPPING", "RUSSIAN AIRSPACE", "UKRAINE AIRSPACE"}
             <= labels
         )
-        selected = {
-            event[1]
-            for position in (19, 32, 46, 53, 56, 61, 62)
-            for event in visualise.seir_feed_events(position)
-        }
         self.assertTrue(
-            {"BUSINESS", "DISASTER", "FUNNY", "SPORTS", "TECH"} <= selected
+            {"BUSINESS", "DISASTER", "FUNNY", "SPORTS", "TECH"}
+            <= {event[1] for event in visualise.SEIR_FEED}
         )
         self.assertEqual(
             visualise.seir_feed_events(0),
@@ -816,10 +826,10 @@ class RendererContractTest(unittest.TestCase):
             operation[4]: operation for operation in visualise.SEIR_OPERATIONS
         }
         self.assertEqual(
-            operations["UKRAINE CIVIL AIRSPACE CLOSED"][:2], (32.0, 88.0)
+            operations["UKRAINE CIVIL AIRSPACE CLOSED"][:2], (32.0, 89.0)
         )
         self.assertEqual(
-            operations["HORMUZ SAFE PASSAGE HALTED"][:2], (81.0, 88.0)
+            operations["HORMUZ SAFE PASSAGE HALTED"][:2], (81.0, 89.0)
         )
         self.assertFalse(
             {
@@ -871,6 +881,23 @@ class RendererContractTest(unittest.TestCase):
                 route_cache["seir-transport-gulf-layer", rectangle.size]
             ).count(),
             0,
+        )
+        for conflict in ("sudan", "israel"):
+            self.assertGreater(
+                pygame.mask.from_surface(
+                    route_cache[
+                        f"seir-transport-{conflict}-layer", rectangle.size
+                    ]
+                ).count(),
+                0,
+            )
+        self.assertEqual(
+            visualise.seir_motion_direction((3.0, -4.0), 0.8, 0.7),
+            (-3.0, 4.0),
+        )
+        self.assertEqual(
+            visualise.seir_motion_direction((3.0, -4.0), 0.7, 0.8),
+            (3.0, -4.0),
         )
         visualise.draw_seir_transport_routes(
             pygame, route_surface, rectangle, 54, route_cache
@@ -1296,6 +1323,14 @@ def core_self_check():
     recorded = replace(thrown, z=2.0)
     midpoint = interpolate_entity(first.entities[0], recorded, 0.5, timeline)
     assert midpoint.z == 1.0
+    chronus_timeline = replace(
+        timeline, presentation={"kernel": "timeline", "theme": "chronus"}
+    )
+    transport = replace(thrown, name="flight_state")
+    quarter = interpolate_entity(
+        first.entities[0], transport, 0.25, chronus_timeline
+    )
+    assert quarter.x == 1.5 and quarter.y == 2.0
     flying = replace(
         first.entities[0], motion="flight", velocity_x=-0.01, velocity_y=100.0
     )
