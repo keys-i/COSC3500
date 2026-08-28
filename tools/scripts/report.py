@@ -13,6 +13,7 @@ import argparse
 import csv
 import html
 import io
+import math
 import os
 import platform
 import subprocess
@@ -20,6 +21,7 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -29,9 +31,7 @@ OUT = (
 ).resolve()
 PRIMARY_CASE = "cellular/conway/1m"
 PAGE_CASE = "cellular/conway/10m"
-LEVEL_CASES = (
-    ("Predator-prey 100K", "continuous/predator-prey/100k"),
-)
+LEVEL_CASES = (("Predator-prey 100K", "continuous/predator-prey/100k"),)
 SCALING_CASES = (
     ("1K", 1_000, "cellular/conway/1k"),
     ("10K", 10_000, "cellular/conway/10k"),
@@ -257,92 +257,195 @@ def chart_frame(
     subtitle: str,
     body: list[str],
     width: int = 1200,
-    height: int = 600,
+    height: int = 675,
 ) -> str:
     """Wrap SVG chart content in the shared canvas and heading treatment"""
     return "".join(
         [
             (
                 f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" '
-                f'height="{height}" viewBox="0 0 {width} {height}">'
+                f'height="{height}" viewBox="0 0 {width} {height}" '
+                'role="img" aria-labelledby="chart-title chart-description">'
             ),
-            '<rect width="100%" height="100%" fill="#f4f7fb"/>',
-            '<rect width="100%" height="78" fill="#111c31"/>',
+            f'<title id="chart-title">{html.escape(title)}</title>',
+            f'<desc id="chart-description">{html.escape(subtitle)}</desc>',
+            '<rect width="100%" height="100%" fill="#f3eadf"/>',
+            '<rect width="100%" height="84" fill="#2c2118"/>',
             text(34, 35, title, 25, "start", "#ffffff", 700),
-            text(34, 62, subtitle, 14, "start", "#c7d6eb"),
+            text(34, 64, subtitle, 14, "start", "#e8d9c6"),
             *body,
             "</svg>",
         ]
     )
 
 
-def line(points: list[tuple[int, float]], colour: str) -> str:
-    coordinates = " ".join(f"{x:.1f},{y:.1f}" for x, y in points)
-    circles = "".join(
-        f'<circle cx="{x:.1f}" cy="{y:.1f}" r="6" fill="{colour}"/>'
-        for x, y in points
+def nice_axis(maximum: float, intervals: int = 6) -> tuple[float, list[float]]:
+    """Return a rounded upper bound and evenly spaced axis ticks."""
+    if maximum <= 0.0:
+        raise ValueError("chart values must be positive")
+    raw_step = maximum / intervals
+    magnitude = 10.0 ** math.floor(math.log10(raw_step))
+    residual = raw_step / magnitude
+    multiplier = next(
+        value for value in (1.0, 2.0, 2.5, 5.0, 10.0) if residual <= value
     )
-    return (
-        f'<polyline points="{coordinates}" fill="none" stroke="{colour}" '
-        f'stroke-width="4"/>{circles}'
+    step = multiplier * magnitude
+    upper = math.ceil(maximum / step) * step
+    return upper, [step * index for index in range(round(upper / step) + 1)]
+
+
+def tick_label(value: float) -> str:
+    """Format an axis tick without unnecessary decimal zeroes."""
+    return f"{value:.0f}" if value.is_integer() else f"{value:.1f}"
+
+
+def y_axis(
+    left: float,
+    right: float,
+    top: float,
+    bottom: float,
+    maximum: float,
+    ticks: list[float],
+    label: str,
+) -> list[str]:
+    """Draw one labelled linear y-axis with horizontal grid lines."""
+    result = []
+    for value in ticks:
+        y = bottom - value / maximum * (bottom - top)
+        result.extend(
+            [
+                (
+                    f'<line x1="{left}" y1="{y:.1f}" x2="{right}" '
+                    f'y2="{y:.1f}" stroke="#ded2c2" stroke-width="1"/>'
+                ),
+                text(left - 12, y + 5, tick_label(value), 12, "end", "#66584c"),
+            ]
+        )
+    result.extend(
+        [
+            (
+                f'<line x1="{left}" y1="{top}" x2="{left}" y2="{bottom}" '
+                'stroke="#66584c" stroke-width="1.5"/>'
+            ),
+            (
+                f'<line x1="{left}" y1="{bottom}" x2="{right}" '
+                f'y2="{bottom}" stroke="#66584c" stroke-width="1.5"/>'
+            ),
+            (
+                f'<text x="34" y="{(top + bottom) / 2:.1f}" '
+                f'transform="rotate(-90 34 {(top + bottom) / 2:.1f})" '
+                'text-anchor="middle" font-family="Arial, sans-serif" '
+                f'font-size="13" font-weight="700" fill="#4a3c31">'
+                f"{html.escape(label)}</text>"
+            ),
+        ]
     )
+    return result
 
 
 def scaling_svg(rows: list[dict[str, str]]) -> str:
-    """Turn fixed scaling rows into a self-contained SVG throughput chart"""
-    # Charts use measured throughput while fixed cases share one scale
+    """Render scaling throughput as bars with axes, CIs, and RSS context."""
     grouped = {row["size"]: row for row in rows}
     if any(size not in grouped for size, _, _ in SCALING_CASES):
         raise ValueError("scaling.csv needs every 1K through 1B row")
     sizes = [item[0] for item in SCALING_CASES]
-    throughputs = [
-        float(grouped[size]["throughput_munits_per_s"]) for size in sizes
-    ]
-    throughput_max = max(throughputs) * 1.15
-    top, bottom = 155, 475
-    x_values = [120 + index * 160 for index in range(len(SCALING_CASES))]
-    body = [
-        text(
-            600,
-            112,
-            "Throughput by problem size",
-            18,
-            "middle",
-            "#24364b",
-            700,
-        ),
-        (
-            f'<line x1="110" y1="{bottom}" x2="1090" '
-            f'y2="{bottom}" stroke="#52657a"/>'
-        ),
-    ]
-    points = []
-    for x, size, value in zip(x_values, sizes, throughputs, strict=True):
-        y = bottom - value / throughput_max * (bottom - top)
-        points.append((x, y))
-        body.append(
-            text(x, y - 12, f"{value:.2f}", 12, "middle", "#155eef", 700)
-        )
-    body.append(line(points, "#155eef"))
-    for x, size in zip(x_values, sizes, strict=True):
-        body.append(text(x, 510, size, 14, "middle", "#24364b", 700))
-    body.append(
-        text(
-            600,
-            570,
-            "Measured throughput; no extrapolated points.",
-            13,
-            "middle",
-            "#52657a",
-        )
+    ordered = [grouped[size] for size in sizes]
+    throughputs = [float(row["throughput_munits_per_s"]) for row in ordered]
+    ci_low = [1000.0 / float(row["ci_high_ns_per_unit"]) for row in ordered]
+    ci_high = [1000.0 / float(row["ci_low_ns_per_unit"]) for row in ordered]
+    maximum, ticks = nice_axis(max(ci_high) * 1.08)
+    left, right, top, bottom = 92.0, 1150.0, 138.0, 500.0
+    slot = (right - left) / len(sizes)
+    x_values = [left + slot * (index + 0.5) for index in range(len(sizes))]
+    colours = (
+        "#486581",
+        "#2a7f9e",
+        "#2a9d8f",
+        "#78a55a",
+        "#d6a33b",
+        "#e07a3f",
+        "#c75146",
     )
+    sample_counts = {row["samples"] for row in ordered}
+    sample_note = (
+        f"{next(iter(sample_counts))} measured sample"
+        f"{'s' if next(iter(sample_counts)) != '1' else ''} per size"
+        if len(sample_counts) == 1
+        else "mixed sample counts"
+    )
+    body = [
+        (
+            '<rect x="58" y="108" width="1110" height="514" rx="16" '
+            'fill="#fffaf2" stroke="#ddcfbd"/>'
+        ),
+        *y_axis(
+            left,
+            right,
+            top,
+            bottom,
+            maximum,
+            ticks,
+            "Throughput (million cell-updates/s)",
+        ),
+    ]
+    for x, size, value, low, high, colour in zip(
+        x_values, sizes, throughputs, ci_low, ci_high, colours, strict=True
+    ):
+        y = bottom - value / maximum * (bottom - top)
+        bar_height = bottom - y
+        body.extend(
+            [
+                (
+                    f'<rect x="{x - 47:.1f}" y="{y:.1f}" width="94" '
+                    f'height="{bar_height:.1f}" rx="7" fill="{colour}"/>'
+                ),
+                text(x, y - 12, f"{value:.3f}", 13, "middle", colour, 700),
+                text(x, 528, size, 14, "middle", "#392d24", 700),
+            ]
+        )
+        if high - low > 1e-9:
+            low_y = bottom - low / maximum * (bottom - top)
+            high_y = bottom - high / maximum * (bottom - top)
+            body.extend(
+                [
+                    (
+                        f'<line x1="{x:.1f}" y1="{high_y:.1f}" '
+                        f'x2="{x:.1f}" y2="{low_y:.1f}" '
+                        'stroke="#2c2118" stroke-width="2"/>'
+                    ),
+                    (
+                        f'<line x1="{x - 8:.1f}" y1="{high_y:.1f}" '
+                        f'x2="{x + 8:.1f}" y2="{high_y:.1f}" '
+                        'stroke="#2c2118" stroke-width="2"/>'
+                    ),
+                    (
+                        f'<line x1="{x - 8:.1f}" y1="{low_y:.1f}" '
+                        f'x2="{x + 8:.1f}" y2="{low_y:.1f}" '
+                        'stroke="#2c2118" stroke-width="2"/>'
+                    ),
+                ]
+            )
+    body.append(
+        text(621, 557, "Grid cells (log₁₀ scale)", 13, "middle", "#4a3c31", 700)
+    )
+    body.append(text(82, 590, "Peak RSS", 12, "start", "#66584c", 700))
+    for x, row in zip(x_values, ordered, strict=True):
+        rss_mib = float(row["peak_rss_bytes"]) / (1024.0 * 1024.0)
+        rss = (
+            f"{rss_mib / 1024.0:.1f} GiB"
+            if rss_mib >= 1024.0
+            else f"{rss_mib:.1f} MiB"
+        )
+        body.append(text(x, 590, rss, 11, "middle", "#66584c"))
     return chart_frame(
-        "Conway scaling", "L7 build, one shared C++ engine", body
+        "Conway scaling across six orders of magnitude",
+        f"L7 · {sample_note} · fixed seed · checksum verified",
+        body,
     )
 
 
 def levels_svg(rows: list[dict[str, str]]) -> str:
-    """Render each M1 workload's measured speedup across L0..L7"""
+    """Render cumulative speedup and adjacent-level changes as bar charts."""
     labels = [f"L{level}" for level in range(8)]
     grouped = {(row["workload"], row["opt_level"]): row for row in rows}
     if any(
@@ -365,64 +468,167 @@ def levels_svg(rows: list[dict[str, str]]) -> str:
         if values[0] <= 0.0:
             raise ValueError(f"{workload}: L0 throughput must be positive")
         series.append((workload, [value / values[0] for value in values]))
-    maximum = max(value for _, values in series for value in values) * 1.15
-    top, bottom = 155, 475
-    x_values = [135 + index * 135 for index in range(8)]
-    colours = ("#155eef", "#e5484d", "#24a148", "#8e4ec6")
+    workload, values = series[0]
+    raw = [
+        float(grouped[(workload, label)]["throughput_munits_per_s"])
+        for label in labels
+    ]
+    changes = [
+        100.0 * (values[index] / values[index - 1] - 1.0)
+        for index in range(1, 8)
+    ]
+    maximum, ticks = nice_axis(max(values) * 1.08)
+    left, right, top, bottom = 104.0, 775.0, 165.0, 500.0
+    slot = (right - left) / len(labels)
+    x_values = [left + slot * (index + 0.5) for index in range(len(labels))]
+    bar_colours = ["#6f7782"] + [
+        "#2a9d8f" if value >= previous else "#c75146"
+        for previous, value in pairwise(values)
+    ]
+    bar_colours[-1] = "#d39b2f"
+    sample_counts = {grouped[(workload, label)]["samples"] for label in labels}
+    sample_note = (
+        f"{next(iter(sample_counts))} sample"
+        f"{'s' if next(iter(sample_counts)) != '1' else ''} per level"
+        if len(sample_counts) == 1
+        else "mixed sample counts"
+    )
     body = [
-        f'<line x1="100" y1="{bottom}" x2="1110" y2="{bottom}" stroke="#52657a"/>',
+        (
+            '<rect x="44" y="108" width="755" height="505" rx="16" '
+            'fill="#fffaf2" stroke="#ddcfbd"/>'
+        ),
+        (
+            '<rect x="818" y="108" width="342" height="505" rx="16" '
+            'fill="#fffaf2" stroke="#ddcfbd"/>'
+        ),
+        text(421, 140, "Cumulative speedup", 16, "middle", "#392d24", 700),
+        text(
+            989, 140, "Change from previous level", 16, "middle", "#392d24", 700
+        ),
+        *y_axis(
+            left, right, top, bottom, maximum, ticks, "Speedup versus L0 (×)"
+        ),
     ]
     baseline_y = bottom - (bottom - top) / maximum
     body.append(
-        f'<line x1="100" y1="{baseline_y:.1f}" x2="1110" '
-        f'y2="{baseline_y:.1f}" stroke="#9aa9b8" stroke-dasharray="7 7"/>'
+        f'<line x1="{left}" y1="{baseline_y:.1f}" x2="{right}" '
+        f'y2="{baseline_y:.1f}" stroke="#8b7969" stroke-width="2" '
+        'stroke-dasharray="7 7"/>'
     )
-    body.append(text(94, baseline_y + 5, "1x", 12, "end", "#52657a"))
-    for index, ((workload, values), colour) in enumerate(
-        zip(series, colours[: len(series)], strict=True)
+    for x, label, value, colour in zip(
+        x_values, labels, values, bar_colours, strict=True
     ):
-        points = [
-            (x, bottom - value / maximum * (bottom - top))
-            for x, value in zip(x_values, values, strict=True)
-        ]
-        body.append(line(points, colour))
-        legend_x = 135 + index * 260
-        body.append(
-            f'<line x1="{legend_x}" y1="112" x2="{legend_x + 28}" '
-            f'y2="112" stroke="{colour}" stroke-width="4"/>'
+        y = bottom - value / maximum * (bottom - top)
+        body.extend(
+            [
+                (
+                    f'<rect x="{x - 28:.1f}" y="{y:.1f}" width="56" '
+                    f'height="{bottom - y:.1f}" rx="6" fill="{colour}"/>'
+                ),
+                text(x, y - 10, f"{value:.3f}×", 11, "middle", colour, 700),
+                text(x, 526, label, 13, "middle", "#392d24", 700),
+            ]
         )
-        body.append(
-            text(
-                legend_x + 36,
-                117,
-                f"{workload} · L7 {values[-1]:.2f}x",
-                12,
-                "start",
-                colour,
-                700,
-            )
-        )
-    for x, label in zip(x_values, labels, strict=True):
-        body.append(text(x, 510, label, 13, "middle", "#24364b", 700))
     body.append(
         text(
-            600,
+            440,
             570,
-            "Speedup vs each workload's L0; checksums must match.",
+            f"{raw[0]:.3f} → {raw[-1]:.3f} M entity-updates/s",
             13,
             "middle",
-            "#52657a",
+            "#66584c",
+            700,
         )
     )
+
+    change_limit, _ = nice_axis(max(abs(value) for value in changes), 4)
+    change_left, change_right = 884.0, 1138.0
+    zero = (change_left + change_right) / 2.0
+    half_width = (change_right - change_left) / 2.0
+    body.append(
+        f'<line x1="{zero:.1f}" y1="166" x2="{zero:.1f}" y2="510" '
+        'stroke="#8b7969" stroke-width="1.5"/>'
+    )
+    for index, (label, change) in enumerate(
+        zip(labels[1:], changes, strict=True)
+    ):
+        y = 183.0 + index * 45.0
+        end = zero + change / change_limit * half_width
+        colour = "#2a9d8f" if change >= 0.0 else "#c75146"
+        body.extend(
+            [
+                text(852, y + 5, label, 12, "start", "#392d24", 700),
+                (
+                    f'<rect x="{min(zero, end):.1f}" y="{y - 11:.1f}" '
+                    f'width="{max(abs(end - zero), 1.0):.1f}" height="22" '
+                    f'rx="4" fill="{colour}"/>'
+                ),
+                text(
+                    end + (7 if change >= 0.0 else -7),
+                    y + 5,
+                    f"{change:+.1f}%",
+                    11,
+                    "start" if change >= 0.0 else "end",
+                    colour,
+                    700,
+                ),
+            ]
+        )
+    body.extend(
+        [
+            (
+                f'<line x1="{change_left}" y1="520" x2="{change_right}" '
+                'y2="520" stroke="#66584c" stroke-width="1.5"/>'
+            ),
+            text(
+                change_left,
+                541,
+                f"−{change_limit:.0f}%",
+                11,
+                "middle",
+                "#66584c",
+            ),
+            text(zero, 541, "0%", 11, "middle", "#66584c"),
+            text(
+                change_right,
+                541,
+                f"+{change_limit:.0f}%",
+                11,
+                "middle",
+                "#66584c",
+            ),
+            text(
+                1011,
+                570,
+                "Step change in throughput",
+                12,
+                "middle",
+                "#66584c",
+                700,
+            ),
+            '<rect x="1053" y="17" width="112" height="51" rx="10" fill="#d39b2f"/>',
+            text(1109, 49, f"{values[-1]:.3f}×", 20, "middle", "#2c2118", 700),
+            text(
+                600,
+                647,
+                f"All levels matched checksum {grouped[(workload, 'L0')]['checksum']}",
+                13,
+                "middle",
+                "#4a3c31",
+                700,
+            ),
+        ]
+    )
     return chart_frame(
-        "M1 optimisation levels",
-        "Fixed continuous workload × eight isolated release builds",
+        "Serial optimisation ladder",
+        f"{workload} · eight isolated release builds · {sample_note}",
         body,
     )
 
 
 def pages_svg(rows: list[dict[str, str]]) -> str:
-    """Render the verified Linux base-page and huge-page comparison"""
+    """Render the verified page comparison as labelled horizontal bars."""
     grouped = {row["page_policy"]: row for row in rows}
     if "base" not in grouped or "huge" not in grouped:
         raise ValueError("pages.csv needs base and huge rows")
@@ -437,62 +643,102 @@ def pages_svg(rows: list[dict[str, str]]) -> str:
         float(grouped[name]["throughput_munits_per_s"])
         for name in ("base", "huge")
     ]
-    maximum = max(values) * 1.2
-    top, bottom = 155, 475
+    maximum, ticks = nice_axis(max(values) * 1.08)
+    left, right = 260.0, 1110.0
+    axis_y = 475.0
     body = [
-        text(
-            600, 112, "Throughput by page policy", 18, "middle", "#24364b", 700
+        (
+            '<rect x="58" y="112" width="1110" height="500" rx="16" '
+            'fill="#fffaf2" stroke="#ddcfbd"/>'
         ),
-        f'<line x1="180" y1="{bottom}" x2="1020" y2="{bottom}" stroke="#52657a"/>',
-    ]
-    for x, name, value, colour in zip(
-        (300, 720),
-        ("base", "huge"),
-        values,
-        ("#52657a", "#155eef"),
-        strict=True,
-    ):
-        height = value / maximum * (bottom - top)
-        y = bottom - height
-        body.append(
-            f'<rect x="{x}" y="{y:.1f}" width="180" height="{height:.1f}" rx="6" fill="{colour}"/>'
-        )
-        body.append(
-            text(x + 90, y - 16, f"{value:.2f}", 15, "middle", colour, 700)
-        )
-        body.append(
-            text(
-                x + 90,
-                510,
-                "4 KiB base" if name == "base" else "2 MiB huge",
-                14,
-                "middle",
-                "#24364b",
-                700,
-            )
-        )
-    body.append(
         text(
-            600,
-            552,
-            f"Huge/base throughput = {values[1] / values[0]:.2f}x",
+            613,
+            148,
+            "Throughput by verified page backing",
             16,
             "middle",
-            "#24364b",
+            "#392d24",
             700,
+        ),
+    ]
+    for tick in ticks:
+        x = left + tick / maximum * (right - left)
+        body.extend(
+            [
+                (
+                    f'<line x1="{x:.1f}" y1="178" x2="{x:.1f}" '
+                    f'y2="{axis_y}" stroke="#ded2c2" stroke-width="1"/>'
+                ),
+                text(x, axis_y + 22, tick_label(tick), 12, "middle", "#66584c"),
+            ]
         )
-    )
     body.append(
-        text(
-            600,
-            578,
-            "Backing verified from /proc/self/smaps; advice alone is not evidence.",
-            12,
-            "middle",
-            "#52657a",
-        )
+        f'<line x1="{left}" y1="{axis_y}" x2="{right}" y2="{axis_y}" '
+        'stroke="#66584c" stroke-width="1.5"/>'
     )
-    return chart_frame("Page-size effect", "10M-cell Conway case", body)
+    for y, name, value, colour in zip(
+        (245.0, 355.0),
+        ("base", "huge"),
+        values,
+        ("#486581", "#8b5fa8"),
+        strict=True,
+    ):
+        end = left + value / maximum * (right - left)
+        body.extend(
+            [
+                text(
+                    left - 24,
+                    y + 6,
+                    "4 KiB base" if name == "base" else "2 MiB huge",
+                    14,
+                    "end",
+                    "#392d24",
+                    700,
+                ),
+                (
+                    f'<rect x="{left}" y="{y - 22:.1f}" '
+                    f'width="{end - left:.1f}" height="44" rx="8" '
+                    f'fill="{colour}"/>'
+                ),
+                text(end + 12, y + 6, f"{value:.3f}", 14, "start", colour, 700),
+            ]
+        )
+    change = 100.0 * (values[1] / values[0] - 1.0)
+    body.extend(
+        [
+            text(
+                685,
+                532,
+                "Throughput (million cell-updates/s)",
+                13,
+                "middle",
+                "#4a3c31",
+                700,
+            ),
+            text(
+                613,
+                575,
+                f"Huge versus base: {change:+.2f}%",
+                16,
+                "middle",
+                "#8b5fa8" if change >= 0.0 else "#c75146",
+                700,
+            ),
+            text(
+                600,
+                647,
+                "Backing verified from /proc/self/smaps; memory advice alone is not evidence.",
+                12,
+                "middle",
+                "#66584c",
+            ),
+        ]
+    )
+    return chart_frame(
+        "Page-size effect",
+        "10M-cell Conway · identical binary and checksum",
+        body,
+    )
 
 
 def page_backing_verified(rows: list[dict[str, str]] | None) -> bool:
