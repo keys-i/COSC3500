@@ -80,10 +80,14 @@ if [[ -r /opt/rh/gcc-toolset-13/enable ]]; then
 fi
 
 # Root links let each formatter find the canonical file in tools/config
+clangd_config=tools/config/cpp/.clangd
+if [[ -d /home/groups/cosc3500/shared/matmul/include ]]; then
+    clangd_config=tools/config/cpp/.clangd-cluster
+fi
 for config in \
     .clang-format:tools/config/cpp/.clang-format \
     .clang-tidy:tools/config/cpp/.clang-tidy \
-    .clangd:tools/config/cpp/.clangd \
+    .clangd:"$clangd_config" \
     .gersemirc:tools/config/cpp/.gersemirc \
     .luarc.json:tools/config/lua/language-server.json \
     .stylua.toml:tools/config/lua/.stylua.toml \
