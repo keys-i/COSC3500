@@ -5,7 +5,7 @@
 #SBATCH --partition=cosc3500
 #SBATCH --account=cosc3500
 #SBATCH --cpus-per-task=1
-#SBATCH --time=00:10:00
+#SBATCH --time=00:15:00
 #SBATCH --output=slurm-%j.out
 #SBATCH --error=slurm-%j.err
 
