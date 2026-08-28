@@ -32,7 +32,7 @@ struct Case {
 };
 
 /// Return the fixed suite used by scripts and the benchmark report
-[[nodiscard]] const std::array<Case, 11U> &m1_cases() noexcept;
+[[nodiscard]] const std::array<Case, 12U> &m1_cases() noexcept;
 /// Look up one program, or return null when the requested case is unsupported
 [[nodiscard]] const Program *program(std::string_view target,
                                      std::string_view case_name = {}) noexcept;

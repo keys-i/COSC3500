@@ -30,10 +30,7 @@ OUT = (
 PRIMARY_CASE = "cellular/conway/1m"
 PAGE_CASE = "cellular/conway/10m"
 LEVEL_CASES = (
-    ("Conway 1M", PRIMARY_CASE),
-    ("PDE heat", "pde/heat"),
-    ("Chess", "turn/chess"),
-    ("Carrom", "timeline/carrom"),
+    ("Predator-prey 100K", "continuous/predator-prey/100k"),
 )
 SCALING_CASES = (
     ("1K", 1_000, "cellular/conway/1k"),
@@ -382,7 +379,7 @@ def levels_svg(rows: list[dict[str, str]]) -> str:
     )
     body.append(text(94, baseline_y + 5, "1x", 12, "end", "#52657a"))
     for index, ((workload, values), colour) in enumerate(
-        zip(series, colours, strict=True)
+        zip(series, colours[: len(series)], strict=True)
     ):
         points = [
             (x, bottom - value / maximum * (bottom - top))
@@ -419,7 +416,7 @@ def levels_svg(rows: list[dict[str, str]]) -> str:
     )
     return chart_frame(
         "M1 optimisation levels",
-        "Four registered workloads × eight isolated release builds",
+        "Fixed continuous workload × eight isolated release builds",
         body,
     )
 
@@ -498,10 +495,17 @@ def pages_svg(rows: list[dict[str, str]]) -> str:
     return chart_frame("Page-size effect", "10M-cell Conway case", body)
 
 
+def page_backing_verified(rows: list[dict[str, str]] | None) -> bool:
+    """Return whether every measured page policy has verified backing."""
+    return bool(rows) and all(
+        row["page_backing_verified"] == "true" for row in rows
+    )
+
+
 def page_experiment(
     samples: int, minimum_ms: int, build: Path | None = None
 ) -> list[dict[str, str]]:
-    """Compare Linux base and huge page runs and require backing checks"""
+    """Compare Linux base and huge page runs and record backing checks"""
     # Linux smaps shows whether base or huge pages actually backed the run
     if sys.platform != "linux":
         raise ValueError("page experiment requires Linux (/proc/self/smaps)")
@@ -527,10 +531,15 @@ def page_experiment(
         for row in rows
         if row["page_backing_verified"] != "true"
     ]
-    if unverified:
-        raise ValueError(f"page backing unverified for {', '.join(unverified)}")
     if len({row["checksum"] for row in rows}) != 1:
         raise ValueError("base and huge pages produced different checksums")
+    if unverified:
+        print(
+            f"report: page backing unverified for {', '.join(unverified)}; "
+            "comparison marked UNVERIFIED",
+            file=sys.stderr,
+        )
+        return rows
     (OUT / "pages.svg").write_text(pages_svg(rows), encoding="utf-8")
     return rows
 
@@ -568,8 +577,10 @@ def summary(
                 "",
                 "## Optimisation levels",
                 "",
-                "| Level | Conway 1M | PDE heat | Chess | Carrom |",
-                "| ---: | ---: | ---: | ---: | ---: |",
+                "| Level | "
+                + " | ".join(workload for workload, _ in LEVEL_CASES)
+                + " |",
+                "| ---: | " + " | ".join("---:" for _ in LEVEL_CASES) + " |",
             ]
         )
         for label in labels:
@@ -603,7 +614,18 @@ def summary(
                 f"| {policy} | {float(row['throughput_munits_per_s']):.3f} | "
                 f"{rss:.1f} | {row['page_backing_verified']} |"
             )
-        lines.extend(["", f"Huge/base throughput: **{huge / base:.3f}x**"])
+        if page_backing_verified(pages):
+            lines.extend(["", f"Huge/base throughput: **{huge / base:.3f}x**"])
+        else:
+            lines.extend(
+                [
+                    "",
+                    (
+                        "Page-backing comparison: **UNVERIFIED** "
+                        "(`/proc/self/smaps` did not confirm both policies)."
+                    ),
+                ]
+            )
     lines.append("")
     return "\n".join(lines)
 
@@ -679,8 +701,10 @@ def graph(
     (OUT / "scaling.svg").write_text(scaling_svg(scaling), encoding="utf-8")
     if levels:
         (OUT / "levels.svg").write_text(levels_svg(levels), encoding="utf-8")
-    if pages:
+    if pages and page_backing_verified(pages):
         (OUT / "pages.svg").write_text(pages_svg(pages), encoding="utf-8")
+    elif pages:
+        (OUT / "pages.svg").unlink(missing_ok=True)
     (OUT / "summary.md").write_text(
         summary(scaling, levels, pages), encoding="utf-8"
     )
@@ -788,8 +812,9 @@ def self_check() -> None:
             write_csv(output / f"case-{index}.csv", SCALING_FIELDS, [row])
         if merge_cases(output) != scaling:
             raise AssertionError("case merge changed scaling rows")
-        write_csv(output / "levels-0-3.csv", LEVEL_FIELDS, levels[:16])
-        write_csv(output / "levels-4-7.csv", LEVEL_FIELDS, levels[16:])
+        split = 4 * len(LEVEL_CASES)
+        write_csv(output / "levels-0-3.csv", LEVEL_FIELDS, levels[:split])
+        write_csv(output / "levels-4-7.csv", LEVEL_FIELDS, levels[split:])
         if merge_levels(output) != levels:
             raise AssertionError("level merge changed level rows")
         for name, content in (
@@ -803,6 +828,15 @@ def self_check() -> None:
     report = summary(scaling, levels, pages)
     if "M cell-updates/s" not in report or "Huge/base throughput" not in report:
         raise AssertionError("summary is incomplete")
+    unverified_pages = [
+        {**row, "page_backing_verified": "false"} for row in pages
+    ]
+    unverified_report = summary(scaling, levels, unverified_pages)
+    if (
+        "Page-backing comparison: **UNVERIFIED**" not in unverified_report
+        or "Huge/base throughput" in unverified_report
+    ):
+        raise AssertionError("unverified page backing was reported as measured")
     print("report self-check: PASS")
 
 
