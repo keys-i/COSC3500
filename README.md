@@ -13,8 +13,8 @@ Serial C++20 simulation coursework for macOS, Rangpur and Bunya.
 
 You need CMake 3.25+, Ninja, GNU Make, Bash, a C++20 compiler, [uv][uv] and
 LuaJIT 2.1 for M1's embedded rules. On a Mac, the Brewfile installs the local
-set. On a cluster, use its supported module stack or the included Spack
-environment.
+set. On Rangpur, setup uses GCC Toolset 13; other clusters need their supported
+C++20 module stack.
 
 ```bash
 git clone --recurse-submodules https://github.com/keys-i/COSC3500.git
