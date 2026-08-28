@@ -218,6 +218,45 @@ static_assert(page_backing_verified("huge", 4096U, 2U * mib, 2U * mib, true));
 static_assert(!page_backing_verified("huge", 4096U, 4U * mib, 2U * mib, true));
 static_assert(!page_backing_verified("huge", 4096U, 2U * mib, 4U * mib, true));
 
+#if defined(__linux__) && defined(PR_GET_THP_DISABLE) &&                       \
+    defined(PR_SET_THP_DISABLE)
+class BasePageAllocation final {
+  public:
+    explicit BasePageAllocation(const bool requested) noexcept {
+        if (!requested)
+            return;
+        const int disabled = prctl(PR_GET_THP_DISABLE, 0L, 0L, 0L, 0L);
+        if (disabled < 0) {
+            valid_ = false;
+        } else if (disabled == 0 &&
+                   prctl(PR_SET_THP_DISABLE, 1L, 0L, 0L, 0L) != 0) {
+            valid_ = false;
+        } else {
+            changed_ = disabled == 0;
+        }
+    }
+
+    ~BasePageAllocation() { static_cast<void>(restore()); }
+
+    [[nodiscard]] bool valid() const noexcept { return valid_; }
+
+    [[nodiscard]] bool restore() noexcept {
+        if (!changed_)
+            return valid_;
+        if (prctl(PR_SET_THP_DISABLE, 0L, 0L, 0L, 0L) != 0) {
+            valid_ = false;
+            return false;
+        }
+        changed_ = false;
+        return true;
+    }
+
+  private:
+    bool changed_ = false;
+    bool valid_ = true;
+};
+#endif
+
 template <class Integer>
 [[nodiscard]] bool parse_integer(const std::string_view text, Integer &value,
                                  const int base = 10) noexcept {
@@ -544,23 +583,24 @@ void report_pde(const Scenario &scenario, const State &state) {
 int run(Scenario scenario, const std::string_view name, const bool snapshots,
         const bool benchmark = false) {
     // Fault benchmark state into base pages before retaining NOHUGEPAGE on it
-#if defined(__linux__) && defined(PR_SET_THP_DISABLE)
+#if defined(__linux__) && defined(PR_GET_THP_DISABLE) &&                       \
+    defined(PR_SET_THP_DISABLE)
     const char *requested_page_policy = std::getenv("M1_PAGE_POLICY");
     const bool base_page_allocation =
         requested_page_policy != nullptr &&
         std::strcmp(requested_page_policy, "base") == 0;
-    if (base_page_allocation &&
-        prctl(PR_SET_THP_DISABLE, 1L, 0L, 0L, 0L) != 0) {
+    BasePageAllocation base_pages{base_page_allocation};
+    if (!base_pages.valid()) {
         report_error("m1: cannot disable transparent huge pages\n");
         return 2;
     }
 #endif
     State state = initialise(scenario);
     PageProbe page_policy{state};
-#if defined(__linux__) && defined(PR_SET_THP_DISABLE)
+#if defined(__linux__) && defined(PR_GET_THP_DISABLE) &&                       \
+    defined(PR_SET_THP_DISABLE)
     // NOHUGEPAGE now pins the state policy; restore defaults for later storage
-    if (base_page_allocation &&
-        prctl(PR_SET_THP_DISABLE, 0L, 0L, 0L, 0L) != 0) {
+    if (!base_pages.restore()) {
         report_error("m1: cannot restore transparent huge pages\n");
         return 2;
     }
