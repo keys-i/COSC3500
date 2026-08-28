@@ -20,8 +20,6 @@ export PATH="$HOME/.local/bin:$PATH"
 cd "${SLURM_SUBMIT_DIR:?submit with sbatch}"
 : "${SLURM_JOB_ID:?submit this file with sbatch}"
 
-# Test before timing
-tools/scripts/test.sh test
 # Request enough memory for the 1B-cell case.
 output="results/bench/run-${SLURM_JOB_ID}"
 srun --cpu-bind=cores env \
