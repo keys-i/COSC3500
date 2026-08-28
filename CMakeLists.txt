@@ -240,10 +240,7 @@ if(HPC_BUILD_M0)
 endif()
 
 # Build later coursework targets only when their sources exist
-set(
-  optional_entrypoints
-  "m2|${PROJECT_SOURCE_DIR}/proj/m2/main.cpp|parallel"
-)
+set(optional_entrypoints "m2|${PROJECT_SOURCE_DIR}/proj/m2/main.cpp|parallel")
 foreach(entrypoint IN LISTS optional_entrypoints)
   string(REPLACE "|" ";" fields "${entrypoint}")
   list(GET fields 0 name)
