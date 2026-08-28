@@ -13,7 +13,7 @@ configure() {
     # The release preset keeps tests and timing on the same executable
     local build="$root/build/evidence"
     cmake --preset evidence -S "$root" >/dev/null
-    cmake --build "$build" --target m0 m1 simulation benchmark >/dev/null || return
+    cmake --build "$build" --target m0 m1 simulation benchmark --verbose >&2 || return
     printf '%s\n' "$build"
 }
 seed_contract() {
