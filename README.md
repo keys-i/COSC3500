@@ -73,9 +73,8 @@ snapshot timing and visual cues.
 
 ## Evidence status
 
-The speed experiment measures one shared engine build at 10K, 100K, and 1M
-Conway cells. The 10M to 1B files are capacity inputs, not default local
-timing runs. Linux page backing is separate evidence.
+The Conway scaling experiment measures one shared engine build from 100K
+through 1B cells under Slurm. Linux page backing is separate evidence.
 
 Carrom has recorded terminal matches for seeds `0` through `20`, plus `31`,
 `33`, and `41`, with replay checks covering the selected evidence seeds. Linux
