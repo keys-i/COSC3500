@@ -38,8 +38,8 @@ its own compiler and Slurm path in [the cluster guide](docs/cluster.md)
 | PDE | Heston equation | `templates/heston` |
 
 Continuous agents are exercised by the predator-prey benchmark used for the
-L0–L7 optimisation ladder. The production scenarios above share the same
-parser, compiled-rule boundary and deterministic output contract.
+L0–L7 optimisation ladder. The scenarios above use the same parser and
+compiled-rule interface and produce repeatable output.
 
 ## Read what you need
 

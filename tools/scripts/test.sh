@@ -13,7 +13,7 @@ configure() {
     # The release preset keeps tests and timing on the same executable
     local build="$root/build/evidence"
     cmake --preset evidence -S "$root" >/dev/null
-    cmake --build "$build" --target m0 m1 simulation benchmark --verbose >&2 || return
+    cmake --build "$build" --target m0 m1 simulation hpc_bench benchmark --verbose >&2 || return
     printf '%s\n' "$build"
 }
 seed_contract() {
@@ -70,6 +70,8 @@ test() {
     [[ -z ${CTEST_OUTPUT_JUNIT:-} ]] ||
         ctest_args+=(--output-junit "$CTEST_OUTPUT_JUNIT")
     ctest --test-dir "$build" "${ctest_args[@]}"
+    # Catch scenario changes that leave the benchmark reference or work count stale
+    "$build/bench/hpc_bench" --binary "$build/bin/m1" --case cellular/conway --samples 1 --minimum-case-ms 1
     python3 tools/scripts/report.py self-check
     case ${TEST_SEED_CONTRACTS:-1} in
         1) seed_contracts "$build/bin/m1" ;;

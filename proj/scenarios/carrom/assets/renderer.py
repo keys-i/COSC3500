@@ -49,7 +49,6 @@ CARROM_PLAYERS: Any = ()
 
 def bind(api, assets):
     """Bind helpers and load carrom asset, glyph, and player tables"""
-    # The visualiser supplies helpers while TSV files define the theme
     globals().update(api)
     paths = load_asset_table(assets)
     globals().update(

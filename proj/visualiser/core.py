@@ -2990,10 +2990,9 @@ def draw_ambient(pygame, screen, frame, camera, cue, position, theme):
 def render(
     pygame, screen, fonts, frames, position, cues, cache, options, title
 ):
-    """Draw one presentation position through the complete generic pipeline
+    """Draw the scene, cues, and HUD for one playback position
 
-    The pipeline selects a theme and camera, then draws world layers and HUD
-    A scenario renderer may take over after the generic frame is selected
+    A scenario renderer may take over after the frame is selected
     """
     # Rendering layers background, negative cues, world, overlays, then HUD
     if (numbers := cache.get("frame_numbers")) is None:

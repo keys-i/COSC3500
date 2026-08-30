@@ -123,7 +123,6 @@ def benchmark(
     env: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Run one benchmark case and check its CSV row"""
-    # The benchmark executable emits one checked row for the requested case
     output = run(
         [
             str(build / "bench/hpc_bench"),
@@ -280,7 +279,7 @@ def chart_frame(
 
 
 def diagram_frame(title: str, description: str, body: list[str]) -> str:
-    """Wrap one square slide figure in the report's visual language."""
+    """Build an 800x800 SVG for a slide figure."""
     return "".join(
         [
             (
@@ -327,7 +326,7 @@ def arrow(x1: float, y1: float, x2: float, y2: float) -> str:
 
 
 def path_arrow(path: str, *, dashed: bool = False) -> str:
-    """Draw a routed connector whose path carries the meaning."""
+    """Draw an SVG path with an arrowhead."""
     dash = ' stroke-dasharray="10 9"' if dashed else ""
     return (
         f'<path d="{path}" fill="none" stroke="#c75146" '
@@ -478,13 +477,13 @@ def static_slide_figures() -> dict[str, str]:
             text(
                 400,
                 647,
-                "checksum + counters must match L0",
+                "checksum must match L0",
                 20,
                 "middle",
                 "#236d64",
                 700,
             ),
-            text(400, 674, "reject if checksum or counters differ", 14),
+            text(400, 674, "reject if checksums differ across levels", 14),
         ]
     )
     figures["controls.svg"] = diagram_frame(

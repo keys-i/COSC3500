@@ -169,7 +169,7 @@ has_two_contiguous_populations(const Scenario &scenario) noexcept {
 template <class Index = GridIndex>
 [[nodiscard]] BasicGrid<Index> make_grid(const Scenario &scenario,
                                          const double requested_radius = 0.0) {
-    // A cell spans at most one interaction cutoff in each dimension
+    // Each cell spans at least the cutoff, unless that world dimension is smaller
     const double radius =
         requested_radius > 0.0 ? requested_radius : maximum_cutoff(scenario);
     const std::size_t maximum_cells =

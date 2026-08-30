@@ -49,7 +49,6 @@ CHESS_PLAYERS: Any = ()
 
 def bind(api, assets):
     """Bind helpers and load chess piece, material, and player tables"""
-    # The shared visualiser supplies drawing helpers while tables define assets
     globals().update(api)
     paths = load_asset_table(assets)
     globals()["CHESS_ROOT"] = paths["piece_root"]

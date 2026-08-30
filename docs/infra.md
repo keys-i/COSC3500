@@ -51,8 +51,6 @@ Generated files stay out of Git. `make clean` clears the selected build while
 
 ## Checks
 
-`make help` prints the maintained front doors. Local and hosted checks call the
-same scripts, so a green workflow means the repository commands passed rather
-than a second CI-only implementation. Cluster measurements are kept separate:
-hosted runners can catch breakage, but they cannot support a Rangpur speed or
-page-backing claim.
+`make help` lists the available commands. Local checks and CI run the same
+scripts. CI checks for regressions; performance and page-backing claims require
+measurements on Rangpur.
