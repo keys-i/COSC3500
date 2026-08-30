@@ -12,7 +12,7 @@ boundary=bounded
 seed=31
 
 [output]
-snapshot_stride=48
+snapshot_stride=8
 view=grid
 
 [presentation]

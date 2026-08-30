@@ -233,7 +233,6 @@ template <class GridIndex>
 #endif
 #endif
 #if M1_OPT_LEVEL >= 6
-    // Pair-cache setup keeps optional storage bounded before allocation
     // Bound optional neighbour storage independently of population size
     constexpr std::size_t candidate_storage_cap =
         std::size_t{256U} * 1024U * 1024U;

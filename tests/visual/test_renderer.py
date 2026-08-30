@@ -28,8 +28,7 @@ SEA_LAND_SAMPLE_DEGREES = 0.25
 
 
 def _unwrap_ring(ring):
-    """Shift a polygon ring so neighbouring longitudes stay close together"""
-    # Keep adjacent points close before indexing polygons across the date line
+    """Unwrap polygon longitudes across the date line"""
     unwrapped = []
     for longitude, latitude in ring:
         if unwrapped:
@@ -43,8 +42,7 @@ def _unwrap_ring(ring):
 
 
 def _seir_land_index():
-    """Build the coarse grid used to check rendered land ownership"""
-    # A coarse grid narrows polygon candidates for repeated land checks
+    """Index land polygons in a coarse grid to narrow point-in-polygon checks"""
     polygons, cells = [], {}
     for _country, name, rings, _centre in visualise.seir_regions({}):
         for source_ring in rings:
@@ -493,7 +491,7 @@ class RendererContractTest(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                state == 2 and line.startswith("MAJOR MACRO >")
+                state == 2 and line.startswith("COLONEL ELISP >")
                 for state, line in first
             )
         )
@@ -523,6 +521,22 @@ class RendererContractTest(unittest.TestCase):
                 for state, _ in visualise.conway_chatter(without_nano)
             )
         )
+        mixed_only = replace(frame, entities=[cells[3]], number=144)
+        mixed_chatter = visualise.conway_chatter(mixed_only)
+        self.assertTrue(mixed_chatter)
+        self.assertTrue(
+            all(
+                state == 4 and line.startswith("VIM 75% / EMACS 25% >")
+                for state, line in mixed_chatter
+            )
+        )
+        self.assertEqual(
+            len({line for _, line in mixed_chatter}), len(mixed_chatter)
+        )
+        self.assertTrue(
+            any("> LOYALTY: VIM HOLDS 75%" in line for _, line in mixed_chatter)
+        )
+        self.assertTrue(any("> EMACS:" in line for _, line in mixed_chatter))
 
     def test_seir_feed_keeps_current_events_and_global_coverage(self):
         recent_feed = visualise.seir_feed_events(62)

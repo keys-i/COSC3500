@@ -38,16 +38,16 @@ const std::array<Case, 12U> &m1_cases() noexcept {
           "entity_updates=1000000 "}},
         {"cellular/conway",
          {"templates/conway",
-          "steps=720 characters=12 initial=1761 active=1493 "
-          "entity_updates=20160000 "
-          "candidate_checks=159814080 sensed_interactions=0 captures=0 "
-          "births=443439 "
-          "deaths=447056 cell_updates=20160000 "
+          "steps=4320 characters=12 initial=540 active=13747 "
+          "entity_updates=120960000 "
+          "candidate_checks=958884480 sensed_interactions=0 captures=0 "
+          "births=0 "
+          "deaths=0 cell_updates=120960000 "
           "turns=0 "
           "timeline_events=0 run_seed=31 render_seed=15517599431202433770 "
-          "result=1 state_bytes=56045 "
-          "checksum=550ff6f8d497dcc7\n",
-          20'160'000U, 56'045U, "cell_updates", "550ff6f8d497dcc7", ""}},
+          "result=1 state_bytes=56012 "
+          "checksum=6ce54b0339ca49ad\n",
+          120'960'000U, 56'012U, "cell_updates", "6ce54b0339ca49ad", ""}},
         {"pde/heat",
          {"test/pde-heat", "", 139'392U, 181U, "cell_updates", "invariant",
           "steps=128 characters=0 initial=0 active=0 entity_updates=0 "

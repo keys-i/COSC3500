@@ -18,6 +18,7 @@ EXPORTS = (
 )
 
 draw_text: Any = None
+font_for: Any = None
 
 # Quarter-shares for the three founding houses: Vim, Emacs, Nano.
 ANCESTRY = (
@@ -35,6 +36,7 @@ ANCESTRY = (
     (2, 0, 2),
     (0, 2, 2),
 )
+ANCESTRY_NAMES = ("VIM", "EMACS", "NANO")
 
 
 def _rows(path):
@@ -160,16 +162,30 @@ def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
     realm_cells, mixed_cells, free_cells = conway_realm_summary(frame)
     counts = vim, emacs, nano
     percents = vim_percent, emacs_percent, nano_percent
-    colours = tuple(CONWAY_STATES[state][0] for state in (1, 2, 3))
-    panel = pygame.Surface((820, 280), pygame.SRCALPHA)
+    colours = tuple(
+        CONWAY_STATES[state][0] for state in range(1, len(ANCESTRY))
+    )
+    panel = pygame.Surface((820, 256), pygame.SRCALPHA)
     panel.fill((11, 16, 18, 224))
     pygame.draw.rect(
         panel, (210, 218, 211), panel.get_rect(), 2, border_radius=10
     )
-    bar = pygame.Rect(24, 48, 772, 28)
+    bar = pygame.Rect(24, 24, 772, 28)
     total = sum(counts)
+    labels = tuple(faction["name"].upper() for faction in CONWAY_FACTIONS)
+    sizes = tuple(
+        min(17, max(13, conway_label_size(percent))) for percent in percents
+    )
+    minimums = tuple(
+        font_for(pygame, fonts, size, True).size(label)[0] + 12 if count else 0
+        for label, size, count in zip(labels, sizes, counts)
+    )
+    remaining = bar.width - sum(minimums)
     widths = (
-        [round(bar.width * count / total) for count in counts]
+        [
+            minimum + round(remaining * count / total) if count else 0
+            for minimum, count in zip(minimums, counts)
+        ]
         if total
         else [0, 0, bar.width]
     )
@@ -191,48 +207,30 @@ def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
     panel.blit(fill, bar)
     pygame.draw.rect(panel, (235, 248, 241), bar, 2, border_radius=10)
     left = bar.left
-    for faction, count, percent, colour, segment_width in zip(
-        CONWAY_FACTIONS, counts, percents, colours, widths
+    for label, size, count, colour, segment_width in zip(
+        labels, sizes, counts, colours, widths
     ):
         if count:
             draw_text(
                 pygame,
                 panel,
                 fonts,
-                f"{faction['name']} {percent}%",
-                (left + segment_width // 2, bar.top - 5),
-                conway_label_size(percent),
-                colour,
+                label,
+                (left + segment_width // 2, bar.centery),
+                size,
+                (11, 16, 18) if colour == colours[2] else (246, 249, 247),
                 1.0,
                 True,
-                "midbottom",
+                "center",
             )
         left += segment_width
-    strategy_turn = frame.number // 180
-    faction = CONWAY_FACTIONS[strategy_turn % len(CONWAY_FACTIONS)]
-    strategy = ("growth", "marriage", "alliance", "war")[
-        (strategy_turn // len(CONWAY_FACTIONS)) % 4
-    ]
-    draw_text(
-        pygame,
-        panel,
-        fonts,
-        f"{faction['name'].upper()} · {strategy.upper()}: "
-        f"{faction[strategy].upper()}",
-        (28, 25),
-        14,
-        colours[int(faction["state"]) - 1],
-        1.0,
-        True,
-        "topleft",
-    )
     draw_text(
         pygame,
         panel,
         fonts,
         f"ANCESTRY / LOYALTY · {realm_cells} REALM CELLS · {mixed_cells} MIXED · "
         f"{free_cells} FREE LAND",
-        (28, 82),
+        (28, 58),
         13,
         (210, 218, 211),
         1.0,
@@ -240,7 +238,7 @@ def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
         "topleft",
     )
     # Clip chatter so older rows can scroll upward without spilling
-    chat = pygame.Rect(16, 108, 788, 154)
+    chat = pygame.Rect(16, 84, 788, 154)
     pygame.draw.rect(panel, (11, 16, 18, 218), chat, border_radius=7)
     pygame.draw.rect(panel, (93, 108, 109), chat, 1, border_radius=7)
     draw_text(
@@ -248,14 +246,14 @@ def draw_scene_chrome(pygame, screen, fonts, frame, camera, position, theme):
         panel,
         fonts,
         "FRONTLINE COMMS",
-        (28, 118),
+        (28, 94),
         16,
         (210, 218, 211),
         1.0,
         True,
         "topleft",
     )
-    viewport = pygame.Rect(28, 144, 764, 108)
+    viewport = pygame.Rect(28, 120, 764, 108)
     panel.set_clip(viewport)
     scroll = min((frame.number % 36) / 6.0, 1.0) * 22
     for row, (state, line) in enumerate(conway_chatter(frame)):
@@ -337,10 +335,17 @@ def conway_label_size(percent):
 
 def conway_chatter(frame):
     """Build rolling faction messages for the current simulation frame"""
+    populations = [0] * len(ANCESTRY)
+    for entity in frame.entities:
+        if entity.shape == "cell" and 0 < entity.state_id < len(ANCESTRY):
+            populations[entity.state_id] += 1
     live = {
         state
-        for state, share in zip((1, 2, 3), _ancestry_counts(frame))
-        if share
+        for state in (1, 2, 3)
+        if any(
+            populations[speaker] * ANCESTRY[speaker][state - 1]
+            for speaker in range(1, len(ANCESTRY))
+        )
     }
     lines = []
     message = frame.number // 36
@@ -348,12 +353,85 @@ def conway_chatter(frame):
         cycle, slot = divmod(turn, len(CONWAY_SEQUENCE))
         state = CONWAY_SEQUENCE[slot]
         if state in live:
-            occurrence = cycle if state == 3 else cycle * 2 + slot // 2
-            target, taunt = CONWAY_TAUNTS[state][
-                occurrence % len(CONWAY_TAUNTS[state])
+            speakers = [
+                speaker
+                for speaker in range(1, len(ANCESTRY))
+                if populations[speaker]
+                for _ in range(ANCESTRY[speaker][state - 1])
             ]
-            if target == "NANO" and 3 not in live:
-                target, taunt = CONWAY_TAUNTS[state][0]
-            rank = CONWAY_RANKS[state][occurrence % len(CONWAY_RANKS[state])]
-            lines.append((state, f"{rank} > {target}: {taunt}"))
+            speaker = speakers[turn % len(speakers)]
+            occurrence = cycle if state == 3 else cycle * 2 + slot // 2
+            if speaker == state:
+                target, taunt = _conway_taunt(
+                    state,
+                    occurrence,
+                    {ANCESTRY_NAMES[state - 1] for state in live},
+                )
+                rank = CONWAY_RANKS[state][
+                    occurrence % len(CONWAY_RANKS[state])
+                ]
+            else:
+                target, taunt = _mixed_banter(speaker, state, occurrence, live)
+                rank = _lineage_name(speaker)
+            lines.append((speaker, f"{rank} > {target}: {taunt}"))
     return lines
+
+
+def _lineage_name(state):
+    return " / ".join(
+        f"{name} {share * 25}%"
+        for name, share in zip(ANCESTRY_NAMES, ANCESTRY[state])
+        if share
+    )
+
+
+def _conway_taunt(state, occurrence, targets):
+    taunts = CONWAY_TAUNTS[state]
+    for offset in range(len(taunts)):
+        target, text = taunts[(occurrence + offset) % len(taunts)]
+        if target in targets:
+            return target, text
+    return taunts[occurrence % len(taunts)]
+
+
+def _mixed_banter(speaker, voice, occurrence, live):
+    shares = ANCESTRY[speaker]
+    parents = [index + 1 for index, share in enumerate(shares) if share]
+    strongest = max(shares)
+    leaders = [parent for parent in parents if shares[parent - 1] == strongest]
+    if len(leaders) == 1:
+        leader = leaders[0]
+        minority = next(parent for parent in parents if parent != leader)
+        if voice != leader:
+            return _conway_taunt(
+                leader, occurrence, {ANCESTRY_NAMES[minority - 1]}
+            )
+        leader_name, minority_name = (
+            ANCESTRY_NAMES[leader - 1],
+            ANCESTRY_NAMES[minority - 1],
+        )
+        messages = (
+            (
+                f"{leader_name} HOLDS {strongest * 25}%; "
+                f"{minority_name} BLOOD STAYS, {minority_name} ORDERS DO NOT"
+            ),
+            (
+                f"THE CROWN FOLLOWS {leader_name} {strongest * 25}%; "
+                f"{minority_name} KEEPS {(4 - strongest) * 25}% OF THE LINE"
+            ),
+        )
+        return "LOYALTY", messages[occurrence % len(messages)]
+    outsiders = live.difference(parents)
+    if occurrence % 2 and outsiders:
+        return _conway_taunt(
+            voice, occurrence, {ANCESTRY_NAMES[min(outsiders) - 1]}
+        )
+    first, second = (ANCESTRY_NAMES[parent - 1] for parent in parents)
+    messages = (
+        f"{first} AND {second} HOLD 50% EACH; COMMAND IS SHARED",
+        (
+            f"{first} AND {second} SPLIT THE LINE 50/50; "
+            "NEITHER HOUSE COMMANDS ALONE"
+        ),
+    )
+    return "LOYALTY", messages[(occurrence // 2) % len(messages)]
