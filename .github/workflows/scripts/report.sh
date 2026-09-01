@@ -8,19 +8,21 @@ temporary=${RUNNER_TEMP:?}
 action=${1:-}
 tick='`'
 [[ $# == 1 ]] || {
-    echo 'usage: report.sh test|quality|security|binary|perf' >&2
+    echo 'usage: report.sh test|quality|coverage|smoke|security|binary|perf' >&2
     exit 2
 }
 cd "$root"
 
 test_report() {
-    local junit=$temporary/ctest.xml log=$temporary/test.log status started=$SECONDS
+    local junit=$temporary/ctest.xml log=$temporary/test.log status
+    local started
+    started=$(date +%s)
     set +e
     CTEST_OUTPUT_JUNIT=$junit tools/scripts/test.sh test 2>&1 | tee "$log"
     status=${PIPESTATUS[0]}
     set -e
     python3 - "$junit" "$summary" "${RUNNER_OS:-local}" \
-        "$((SECONDS - started))" "$status" "${TEST_SEED_CONTRACTS:-1}" \
+        "$(( $(date +%s) - started ))" "$status" "${TEST_SEED_CONTRACTS:-1}" \
         "${CTEST_EXCLUDE_REGEX:-}" <<'PY'
 import pathlib
 import sys
@@ -94,10 +96,52 @@ quality_report() {
     } >>"$summary"
 }
 
+coverage_report() {
+    local log=$temporary/coverage.txt status
+    set +e
+    make cov 2>&1 | tee "$log"
+    status=${PIPESTATUS[0]}
+    set -e
+    {
+        if ((status == 0)); then
+            printf '## Coverage evidence\n\n| Result | Command |\n|---|---|\n'
+            printf '| PASS | %smake cov%s |\n\n%s%s%stext\n' "$tick" "$tick" "$tick" "$tick" "$tick"
+            awk '/^Filename/{report=1} report' "$log"
+        else
+            printf '## Coverage evidence\n\n| Result | Command |\n|---|---|\n'
+            printf '| FAIL | %smake cov%s |\n\n%s%s%stext\n' "$tick" "$tick" "$tick" "$tick" "$tick"
+            tail -n 80 "$log"
+        fi
+        printf '```\n'
+    } >>"$summary"
+    return "$status"
+}
+
+smoke_report() {
+    local csv=$temporary/benchmark.csv
+    cmake --preset evidence -S "$root"
+    cmake --build "$root/build/evidence" --target m1 hpc_bench
+    "$root/build/evidence/bench/hpc_bench" \
+        --binary "$root/build/evidence/bin/m1" \
+        --case cellular/conway/10k \
+        --samples 1 \
+        --minimum-case-ms 1 \
+        --csv | tee "$csv"
+    {
+        printf '## Benchmark smoke evidence\n\n'
+        printf '| Result | Case | Samples |\n|---|---|---:|\n'
+        printf '| PASS | %scellular/conway/10k%s | 1 |\n\n%s%s%scsv\n' \
+            "$tick" "$tick" "$tick" "$tick" "$tick"
+        cat "$csv"
+        printf '```\n'
+    } >>"$summary"
+}
+
 security_report() {
     local kind=${REPORT_KIND:?} mode=${REPORT_MODE:?} label=${REPORT_LABEL:?}
     local log=$temporary/security-$kind-$mode.log status evidence result
-    local started=$SECONDS
+    local started
+    started=$(date +%s)
     set +e
     tools/scripts/security "$kind" "$mode" --preset dev >"$log" 2>&1
     status=$?
@@ -125,7 +169,7 @@ security_report() {
         printf '## %s\n\n' "$label"
         printf '| Result | Mode | Test case | Wall time |\n|---|---|---|---:|\n'
         printf "| %s | ${tick}%s %s${tick} | ${tick}templates/conway/10k${tick} | %ss |\n" \
-            "$result" "$kind" "$mode" "$((SECONDS - started))"
+            "$result" "$kind" "$mode" "$(( $(date +%s) - started ))"
         printf '\n%s%s%stext\n%s\n%s%s%s\n' \
             "$tick" "$tick" "$tick" "$evidence" "$tick" "$tick" "$tick"
     } >>"$summary"
@@ -213,11 +257,13 @@ perf_report() {
 case $action in
     test) test_report ;;
     quality) quality_report ;;
+    coverage) coverage_report ;;
+    smoke) smoke_report ;;
     security) security_report ;;
     binary) binary_report ;;
     perf) perf_report ;;
     *)
-        echo 'usage: report.sh test|quality|security|binary|perf' >&2
+        echo 'usage: report.sh test|quality|coverage|smoke|security|binary|perf' >&2
         exit 2
         ;;
 esac
