@@ -38,7 +38,7 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Build and run benchmark smoke test
-        run: .github/workflows/scripts/benchmark-smoke.sh
+        run: .github/workflows/scripts/report.sh smoke
 
   perf:
     name: Linux perf counters

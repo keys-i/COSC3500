@@ -104,12 +104,5 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends clang llvm cmake ninja-build
-      - name: Build, test, and print coverage
-        run: make cov | tee coverage.txt
-      - name: Summary
-        run: |
-          {
-            printf "## Coverage: PASS\n\n- Command: \`make cov\`\n\n\`\`\`text\n"
-            awk '/^Filename/{report=1} report' coverage.txt
-            printf '```\n'
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Build, test, and report coverage
+        run: .github/workflows/scripts/report.sh coverage
