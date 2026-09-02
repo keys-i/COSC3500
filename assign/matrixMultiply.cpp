@@ -15,10 +15,9 @@
  * @return : your student ID
  *
  * */
-__attribute__((target("avx,fma"), optimize("O3"))) int matrixMultiply(int N, const floatType *A,
-                                                      const floatType *B,
-                                                      floatType *C, int *args,
-                                                      int argCount) {
+__attribute__((target("avx,fma"), optimize("Ofast"))) int
+matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
+               int *args, int argCount) {
     // Your code must be able to deal with N=0 scenario without crashing.
     if (N <= 0)
         return STUDENTID;
