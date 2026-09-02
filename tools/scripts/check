@@ -4,15 +4,12 @@ set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
 action=${1:-}
-case $action in fmt | lint | cov) ;; *)
-    echo 'usage: check <fmt|lint|cov>' >&2
+mode=${2:-}
+case "$action:$mode:$#" in fmt::1 | fmt:--fix:2 | lint::1 | cov::1) ;; *)
+    echo 'usage: check {fmt [--fix]|lint|cov}' >&2
     exit 2
     ;;
 esac
-[[ $# == 1 ]] || {
-    echo 'usage: check <fmt|lint|cov>' >&2
-    exit 2
-}
 
 llvm_tool() {
     # Homebrew keeps LLVM tools outside the default macOS path
@@ -57,18 +54,27 @@ done < <(
 )
 
 fmt() {
-    # Formatting is check-only; authors choose when to rewrite files
-    ((${#sources[@]})) && "$(llvm_tool clang-format)" --dry-run --Werror \
+    local -a cpp_opts=(--dry-run --Werror)
+    local -a cmake_opts=(--check --warnings-as-errors)
+    local -a lua_opts=(--check --verify)
+    local -a python_opts=(--check)
+    if [[ $mode == --fix ]]; then
+        cpp_opts=(-i --Werror)
+        cmake_opts=(--in-place --warnings-as-errors)
+        lua_opts=(--verify)
+        python_opts=()
+    fi
+    ((${#sources[@]})) && "$(llvm_tool clang-format)" "${cpp_opts[@]}" \
         --style="file:$root/tools/config/cpp/.clang-format" "${sources[@]}"
     ((${#cmake_sources[@]})) && uv run --locked --offline gersemi \
-        --check --warnings-as-errors \
+        "${cmake_opts[@]}" \
         --config "$root/tools/config/cpp/.gersemirc" \
         "${cmake_sources[@]}"
-    ((${#lua_sources[@]})) && stylua --check --verify \
+    ((${#lua_sources[@]})) && stylua "${lua_opts[@]}" \
         --config-path "$root/tools/config/lua/.stylua.toml" \
         "${lua_sources[@]}"
     ((${#python_sources[@]})) && uv run --locked --offline ruff format \
-        --check --config "$root/tools/config/python/ruff.toml" \
+        "${python_opts[@]}" --config "$root/tools/config/python/ruff.toml" \
         "${python_sources[@]}"
     git -C "$root" diff --check
 }

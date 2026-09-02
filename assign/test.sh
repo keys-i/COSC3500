@@ -10,7 +10,7 @@ for ((x = start; x < end; x *= 2)); do :; done
 
 mkdir -p results
 csv=results/cpu.csv
-printf 'N,mkl_per_second,you_per_second,runtime_ratio,error,grade,calculated_score,status\n' > "$csv"
+printf 'N,mkl_per_second,you_per_second,runtime_ratio,error,grade,status\n' > "$csv"
 
 for ((n = start; n <= end; n *= 2)); do
     printf 'Running N=%s...\n' "$n"
@@ -20,11 +20,11 @@ for ((n = start; n <= end; n *= 2)); do
     job_id=${job_id%%;*}
     output="results/cpu-$n-$job_id.out"
 
-    [[ -f $output ]] || { printf '%s,,,,,,,submission-failed\n' "$n" >> "$csv"; continue; }
+    [[ -f $output ]] || { printf '%s,,,,,,submission-failed\n' "$n" >> "$csv"; continue; }
     awk -v n="$n" '
-        /^CPU\[/ { r=$(NF-2); printf "%s,%s,%s,%s,%s,%s,%.3f,completed\n",$(NF-5),$(NF-4),$(NF-3),r,$(NF-1),$NF,3+log(12/r)/log(2); ok=1; exit }
+        /^CPU\[/ { r=$(NF-2); printf "%s,%s,%s,%s,%s,%.3f,completed\n",$(NF-5),$(NF-4),$(NF-3),r,$(NF-1),3+log(12/r)/log(2); ok=1; exit }
         /TIME LIMIT/ { timeout=1 }
-        END { if (!ok) printf "%s,,,,,,,%s\n",n,timeout ? "timeout" : "failed" }
+        END { if (!ok) printf "%s,,,,,,%s\n",n,timeout ? "timeout" : "failed" }
     ' "$output" >> "$csv"
 done
 
