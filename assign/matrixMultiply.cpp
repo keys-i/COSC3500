@@ -15,9 +15,10 @@
  * @return : your student ID
  *
  * */
-int matrixMultiply(int N, const floatType *__restrict__ A,
-                   const floatType *__restrict__ B,
-                   floatType *__restrict__ C, int *args, int argCount) {
+__attribute__((target("avx,fma"))) int matrixMultiply(int N, const floatType *A,
+                                                      const floatType *B,
+                                                      floatType *C, int *args,
+                                                      int argCount) {
     // Your code must be able to deal with N=0 scenario without crashing.
     if (N <= 0)
         return STUDENTID;
@@ -28,25 +29,27 @@ int matrixMultiply(int N, const floatType *__restrict__ A,
     float *c = reinterpret_cast<float *>(C);
     float *packed = new float[2ULL * rows * N];
 
-    const auto multiply = [](__m256 av, __m256 swap, const floatType &b) {
-        return _mm256_addsub_ps(_mm256_mul_ps(av, _mm256_set1_ps(b.real())),
-                                _mm256_mul_ps(swap, _mm256_set1_ps(b.imag())));
-    };
+    const auto multiply =
+        [](__m256 av, __m256 swap, const floatType &b)
+            __attribute__((always_inline, target("avx,fma"))) {
+                return _mm256_fmaddsub_ps(
+                    av, _mm256_set1_ps(b.real()),
+                    _mm256_mul_ps(swap, _mm256_set1_ps(b.imag())));
+            };
 
-    #pragma omp parallel
+#pragma omp parallel
     {
-        #pragma omp for schedule(static)
+#pragma omp for schedule(static)
         for (int row = 0; row < rows; row += 8) {
             float *out = packed + 2ULL * row * N;
             for (int k = 0; k < N; ++k) {
                 const float *in = a + 2ULL * (row + k * N);
                 _mm256_storeu_ps(out + 16ULL * k, _mm256_loadu_ps(in));
-                _mm256_storeu_ps(out + 16ULL * k + 8,
-                                 _mm256_loadu_ps(in + 8));
+                _mm256_storeu_ps(out + 16ULL * k + 8, _mm256_loadu_ps(in + 8));
             }
         }
 
-        #pragma omp for schedule(static)
+#pragma omp for schedule(static)
         for (int col = 0; col < cols; col += 8) {
             for (int row = 0; row < rows; row += 8) {
                 const float *p = packed + 2ULL * row * N;
@@ -62,21 +65,14 @@ int matrixMultiply(int N, const floatType *__restrict__ A,
                         const floatType b0 = B[k + first * N];
                         const floatType b1 = B[k + (first + 1) * N];
                         const __m256 av0 = _mm256_loadu_ps(p + 16ULL * k);
-                        const __m256 av1 =
-                            _mm256_loadu_ps(p + 16ULL * k + 8);
-                        const __m256 swap0 =
-                            _mm256_permute_ps(av0, 0xB1);
-                        const __m256 swap1 =
-                            _mm256_permute_ps(av1, 0xB1);
+                        const __m256 av1 = _mm256_loadu_ps(p + 16ULL * k + 8);
+                        const __m256 swap0 = _mm256_permute_ps(av0, 0xB1);
+                        const __m256 swap1 = _mm256_permute_ps(av1, 0xB1);
 
-                        sum00 =
-                            _mm256_add_ps(sum00, multiply(av0, swap0, b0));
-                        sum01 =
-                            _mm256_add_ps(sum01, multiply(av1, swap1, b0));
-                        sum10 =
-                            _mm256_add_ps(sum10, multiply(av0, swap0, b1));
-                        sum11 =
-                            _mm256_add_ps(sum11, multiply(av1, swap1, b1));
+                        sum00 = _mm256_add_ps(sum00, multiply(av0, swap0, b0));
+                        sum01 = _mm256_add_ps(sum01, multiply(av1, swap1, b0));
+                        sum10 = _mm256_add_ps(sum10, multiply(av0, swap0, b1));
+                        sum11 = _mm256_add_ps(sum11, multiply(av1, swap1, b1));
                     }
 
                     float *out = c + 2ULL * (row + first * N);
