@@ -22,7 +22,7 @@ int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
         return STUDENTID;
 
     // WRITE YOUR CODE HERE
-    const int rows = N & ~7, cols = N & ~3, stride = 2 * N;
+    const int rows = N & ~7, cols = N & ~7, stride = 2 * N;
     const float *a = reinterpret_cast<const float *>(A);
     float *c = reinterpret_cast<float *>(C);
     float *packed = new float[2ULL * rows * N];
@@ -46,11 +46,11 @@ int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
         }
 
         #pragma omp for schedule(static)
-        for (int col = 0; col < cols; col += 4) {
+        for (int col = 0; col < cols; col += 8) {
             for (int row = 0; row < rows; row += 8) {
                 const float *p = packed + 2ULL * row * N;
 
-                for (int pair = 0; pair < 4; pair += 2) {
+                for (int pair = 0; pair < 8; pair += 2) {
                     const int first = col + pair;
                     __m256 sum00 = _mm256_setzero_ps();
                     __m256 sum01 = _mm256_setzero_ps();
@@ -87,7 +87,7 @@ int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
             }
 
             for (int row = rows; row < N; ++row)
-                for (int j = 0; j < 4; ++j) {
+                for (int j = 0; j < 8; ++j) {
                     floatType sum = 0;
                     for (int k = 0; k < N; ++k)
                         sum += A[row + k * N] * B[k + (col + j) * N];
