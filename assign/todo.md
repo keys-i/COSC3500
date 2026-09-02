@@ -18,18 +18,26 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - thread-private packed `A` (invalid)
+### Latest CPU benchmark - restored shared-buffer baseline
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 7962.285 | 10444.837 | 0.762 | 1.280e+02 | 6.977 |
-| 256 | 1407.574 | 1599.129 | 0.880 | 1.145e+10 | 6.769 |
-| 512 | 196.137 | 250.965 | 0.782 | 1.564e+05 | 6.940 |
-| 1024 | 24.211 | 30.494 | 0.794 | inf | 6.918 |
-| 2048 | 3.285 | 4.120 | 0.797 | 2.048e+03 | 6.912 |
-| 4096 | 0.411 | 0.525 | 0.782 | 3.840e+03 | 6.940 |
+| 128 | 8982.443 | 10469.785 | 0.858 | 3.205e-08 | 6.806 |
+| 256 | 1427.135 | 1642.707 | 0.869 | 2.697e-08 | 6.788 |
+| 512 | 200.510 | 252.805 | 0.793 | 2.528e-08 | 6.920 |
+| 1024 | 25.907 | 32.770 | 0.791 | 2.354e-08 | 6.923 |
+| 2048 | 3.352 | 3.347 | 1.002 | 2.262e-08 | 6.582 |
+| 4096 | 0.411 | 0.429 | 0.958 | 2.217e-08 | 6.647 |
 
-The thread-private packed-`A` trial is invalid: every size has a catastrophic correctness error, including `inf` at `N=1024`. Ignore its apparent speed and restore the last correct shared packed buffer with default OpenMP placement before any further tuning.
+#### Repeated `N=2048` baseline
+
+| Run | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 2.809 | 3.109 | 0.904 | 2.262e-08 | 6.731 |
+| 2 | 3.349 | 3.293 | 1.017 | 2.262e-08 | 6.561 |
+| 3 | 3.302 | 3.308 | 0.998 | 2.262e-08 | 6.588 |
+
+The shared-buffer kernel is correct, but its three-run median is `0.998x`; the earlier `0.785x` result was not reproducible. Reaching `0.80x` requires about `24.8%` more throughput. Next, expand only the outer cache tile from 16 to 20 columns while retaining the measured 8x4 microkernel; keep it only if the `N=2048` median improves.
 
 ### 1. AVX first
 
@@ -92,7 +100,9 @@ The thread-private packed-`A` trial is invalid: every size has a catastrophic co
 - [x] Bind the four OpenMP threads close together; reject its `0.812x` result at `N=2048`.
 - [x] Spread the four OpenMP threads; reject it alone at `N=2048` despite its `0.677x` result at `N=4096`.
 - [x] Give each spread-bound thread a private packed-`A` copy; reject it because every tested size failed correctness.
-- [ ] Restore the shared packed-`A` buffer and default OpenMP placement; verify correctness before further CPU tuning.
+- [x] Restore the shared packed-`A` buffer and default OpenMP placement; correctness is restored at every tested size.
+- [x] Run three unchanged `N=2048` samples; the median ratio is `0.998x`.
+- [ ] Expand the outer cache tile from 16 to 20 columns; keep it only if the three-run `N=2048` median improves beyond `0.998x`.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -109,7 +119,8 @@ The thread-private packed-`A` trial is invalid: every size has a catastrophic co
 
 ### CPU target
 
-- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; the retained correct paired-broadcast baseline achieved `0.785x`; ignore the invalid thread-private result.
+- [x] Record an observed `<= 0.80x` MKL result at `N=2048`; `0.785x` was not reproducible.
+- [ ] Reach a three-run median of `<= 0.80x` at `N=2048` using four cores; current median is `0.998x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
