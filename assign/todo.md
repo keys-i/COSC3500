@@ -18,17 +18,17 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - packed `8x8` AVX plus four-core OpenMP
+### Latest CPU benchmark - restricted packed `8x8` AVX plus four-core OpenMP
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 8127.628 | 8526.396 | 0.953 | 2.290e-08 | 6.654 |
-| 256 | 1145.504 | 1165.158 | 0.983 | 2.215e-08 | 6.610 |
-| 512 | 152.487 | 135.008 | 1.129 | 1.652e-08 | 6.410 |
-| 1024 | 25.239 | 22.322 | 1.131 | 1.291e-08 | 6.407 |
-| 2048 | 3.356 | 1.991 | 1.686 | 1.187e-08 | 5.831 |
+| 128 | 9089.133 | 8361.791 | 1.087 | 2.247e-08 | 6.465 |
+| 256 | 1482.225 | 1210.078 | 1.225 | 1.674e-08 | 6.292 |
+| 512 | 201.069 | 173.845 | 1.157 | 1.476e-08 | 6.375 |
+| 1024 | 25.968 | 22.810 | 1.138 | 1.291e-08 | 6.398 |
+| 2048 | 3.370 | 1.957 | 1.722 | 1.187e-08 | 5.801 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. The `0.80x` target corresponds to grade `6.907`; it needs another `1.41x` speedup at `N=1024` and `2.11x` at `N=2048`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Restricted pointers regressed `N=2048` from `1.686x` to `1.722x`, so revert them. The accepted kernel still needs `1.41x` at `N=1024` and `2.11x` at `N=2048` to reach `0.80x`.
 
 ### 1. AVX first
 
@@ -45,6 +45,7 @@
 - [x] Group two `8x2` microkernels into an `8x4` cache tile; keep it for the large `N=2048` gain.
 - [x] Group four `8x2` microkernels into an `8x8` cache tile; keep its small improvement at every tested size.
 - [x] Stop increasing the tile width: `8x8` improved `N=2048` by only `1.1%`.
+- [ ] Replace one multiply/add-sub pair with FMA; verify the error and benchmark every size.
 - [ ] Unroll `k` only if compiler reports still show a dependency stall.
 - [x] Record the single-core result: `9.158x` MKL at `N=1024`; the planned `4.0x` milestone was not reached.
 
@@ -66,7 +67,7 @@
 - [x] Benchmark packed `8x2` against packed `4x2`; keep it for its `2.3%` gain at `N=2048` and up to `3.6%` elsewhere.
 - [x] Benchmark packed `8x4` against packed `8x2`; keep its `26.6%` gain at `N=2048` despite a `0.8%` regression at `N=512`.
 - [x] Benchmark packed `8x8` against packed `8x4`; keep it for its `1.1%` gain at `N=2048` and up to `4.3%` elsewhere.
-- [ ] Add restricted `A`, `B`, and `C` parameters; keep them only if the benchmark improves.
+- [x] Test restricted `A`, `B`, and `C` parameters; reject their `2.1%` regression at `N=2048`.
 - [ ] Use compiler vectorisation reports to find remaining missed-vectorisation blockers.
 - [ ] Benchmark `-O3`, `-Ofast`, `-march=native`, `-funroll-loops`, and `-flto` one at a time.
 - [ ] Test useful flag combinations only after their individual effects are known.
@@ -84,7 +85,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `1.686x`.
+- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; best accepted ratio: `1.686x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
