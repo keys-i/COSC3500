@@ -1,12 +1,21 @@
 [project]
 name = "cosc3500-visualiser"
 version = "0.1.0"
-description = "Offline renderer for COSC3500 simulation snapshots"
+description = "Offline renderer for COSC3500 simulation"
 requires-python = ">=3.12"
 dependencies = [
     "av>=16,<19",
     "pygame>=2.6.1,<3",
+    "reportlab>=4.2,<5",
+    "typer>=0.15,<1",
 ]
 
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = [
+    "basedpyright==1.39.10",
+    "gersemi==0.28.1",
+    "ruff==0.16.4",
+]

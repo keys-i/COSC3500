@@ -1,0 +1,6 @@
+piece	value	glyph
+pawn	1	p
+knight	3	n
+bishop	3	b
+rook	5	r
+queen	9	q

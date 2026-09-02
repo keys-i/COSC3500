@@ -1,0 +1,28 @@
+[scenario]
+version=4
+kernel=continuous
+
+[world]
+width=4
+height=4
+time_step=1
+steps=2
+seed=1
+boundary=bounded
+
+[presentation]
+title=Poster test
+theme=neutral
+duration_seconds=8
+
+[characters]
+count=1
+
+[character.dot]
+count=1
+speed=0
+
+[cue.poster]
+frame=1
+kind=poster
+text=not the first frame

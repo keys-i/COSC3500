@@ -4,21 +4,14 @@ on:
   pull_request:
     paths: &security_paths
       - '.github/workflows/security.yml'
+      - '.github/workflows/scripts/**'
       - 'CMakeLists.txt'
       - 'CMakePresets.json'
       - 'Makefile'
       - 'benches/**'
       - 'proj/m0/main.cpp'
       - 'proj/m1/**'
-      - 'tools/config/clang.yml'
-      - 'tools/config/tool.yml'
-      - 'tools/config/toolchains/**'
-      - 'tools/scripts/tools/check'
-      - 'tools/scripts/tools/lib.sh'
-      - 'tools/scripts/tools/make'
-      - 'tools/scripts/tools/profile'
-      - 'tools/scripts/tools/san'
-      - 'tools/scripts/tools/summary'
+      - 'tools/**'
   push:
     branches: [main]
     paths: *security_paths
@@ -41,188 +34,122 @@ jobs:
     permissions:
       actions: read
       contents: read
-      packages: read
       security-events: write
-    env:
-      CC: gcc-14
-      CODEQL_OVERLAY_DATABASE_MODE: none
-      CXX: g++-14
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          submodules: recursive
       - name: Initialise CodeQL
-        # v4.37.8
+        # v4.37.9
         uses: >-
           github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938
         with:
           languages: c-cpp
           build-mode: manual
           queries: security-extended
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install compiler
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          g++-14 libluajit-5.1-dev ninja-build pkg-config
-      - name: Build for CodeQL
-        run: >-
-          ./tools/scripts/tools/summary codeql-build --
-          make codeql PRESET=bunya-check
+      - name: Build C++ inputs
+        run: make m PRESET=dev
+      - name: Inspect native binary
+        run: .github/workflows/scripts/report.sh binary
       - name: Analyse
-        # v4.37.8
+        # v4.37.9
         uses: >-
           github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938
-      - name: Save CodeQL build logs
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: security-codeql
-          path: results/actions/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  static:
-    name: Static analysis
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CC: clang-18
-      CXX: clang++-18
-      GXX: g++-14
-      SCAN_BUILD: scan-build-18
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install analyzers
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          clang-18 clang-tools-18 g++-14 libluajit-5.1-dev ninja-build
-          pkg-config
-      - name: Run Clang Static Analyzer and GCC fanalyzer
-        run: >-
-          ./tools/scripts/tools/summary security-static --
-          make check analyze PRESET=rangpur-check
-      - name: Save static-analysis logs
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: security-static
-          path: |
-            results/actions/
-            build/scan-build/reports/
-          if-no-files-found: ignore
-          retention-days: 7
 
   sanitizers:
-    name: ${{ matrix.name }}
+    name: Sanitizer / ${{ matrix.label }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: ASan + UBSan + LSan
-            san: au
-          - name: TSan
-            san: t
-          - name: MSan / instrumented libc++
-            san: m
-    env:
-      CC: clang-18
-      CXX: clang++-18
-      HPC_LLVM_SOURCE: ${{ github.workspace }}/build/llvm-project
+          - label: ASan + UBSan
+            mode: au
+          - label: LSan
+            mode: l
+          - label: TSan
+            mode: t
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Restore instrumented libc++
-        if: matrix.san == 'm'
-        id: msan-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: build/msan-runtime/install
-          key: >-
-            msan-libcxx-18.1.8-${{ runner.os }}-${{ runner.arch }}-v1
-      - name: Check out LLVM runtime sources
-        if: >-
-          matrix.san == 'm' &&
-          steps.msan-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: llvm/llvm-project
-          ref: 3b5b5c1ec4a3095ab096dd780e84d7ab81f3d7ff
-          path: build/llvm-project
-          persist-credentials: false
-          sparse-checkout: |
-            cmake
-            libcxx
-            libcxxabi
-            llvm/cmake
-            runtimes
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install compiler
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          clang-18 libluajit-5.1-dev ninja-build pkg-config
-      - name: Install MSan tools
-        if: matrix.san == 'm'
-        run: sudo apt-get install --yes --no-install-recommends llvm-18
-      - name: Run sanitizer
-        run: >-
-          ./tools/scripts/tools/summary san-${{ matrix.san }} --
-          make san ${{ matrix.san }}
-      - name: Save sanitizer logs
-        if: always()
+        # v7.0.1
         uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          name: security-san-${{ matrix.san }}
-          path: |
-            results/actions/
-            build/msan-runtime/build/CMakeFiles/CMakeConfigureLog.yaml
-          if-no-files-found: ignore
-          retention-days: 7
+          persist-credentials: false
+          submodules: recursive
+      - name: Run ${{ matrix.label }}
+        env:
+          REPORT_KIND: san
+          REPORT_LABEL: ${{ matrix.label }}
+          REPORT_MODE: ${{ matrix.mode }}
+        run: .github/workflows/scripts/report.sh security
 
   valgrind:
-    name: Valgrind / Memcheck
+    name: Valgrind / Memcheck + profilers
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      CC: clang-18
-      CXX: clang++-18
+    timeout-minutes: 30
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install Valgrind and compiler
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          clang-18 libluajit-5.1-dev ninja-build pkg-config valgrind
-      - name: Run Valgrind tool
-        run: >-
-          ./tools/scripts/tools/summary valgrind-memcheck --
-          make profile memcheck
-      - name: Save Valgrind reports
-        if: always()
+          submodules: recursive
+      - name: Install Valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends valgrind
+      - name: Run Memcheck
+        env:
+          REPORT_KIND: valgrind
+          REPORT_LABEL: Memcheck
+          REPORT_MODE: memcheck
+        run: .github/workflows/scripts/report.sh security
+      - name: Run Cachegrind
+        if: github.event_name != 'pull_request'
+        env:
+          REPORT_KIND: valgrind
+          REPORT_LABEL: Cachegrind
+          REPORT_MODE: cachegrind
+        run: .github/workflows/scripts/report.sh security
+      - name: Run Callgrind
+        if: github.event_name != 'pull_request'
+        env:
+          REPORT_KIND: valgrind
+          REPORT_LABEL: Callgrind
+          REPORT_MODE: callgrind
+        run: .github/workflows/scripts/report.sh security
+      - name: Run Massif
+        if: github.event_name != 'pull_request'
+        env:
+          REPORT_KIND: valgrind
+          REPORT_LABEL: Massif
+          REPORT_MODE: massif
+        run: .github/workflows/scripts/report.sh security
+
+  msan:
+    name: MSan / instrumented libc++
+    if: vars.MSAN_ENABLED == 'true' && vars.MSAN_RUNNER != ''
+    runs-on: ${{ vars.MSAN_RUNNER }}
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        # v7.0.1
         uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          name: security-valgrind-memcheck
-          path: |
-            results/actions/
-            results/profiles/
-          if-no-files-found: ignore
-          retention-days: 7
+          persist-credentials: false
+          submodules: recursive
+      - name: Run MSan
+        env:
+          MSAN_LIBCXX: /opt/msan-libcxx
+          REPORT_KIND: san
+          REPORT_LABEL: MSan / instrumented libc++
+          REPORT_MODE: m
+        run: .github/workflows/scripts/report.sh security

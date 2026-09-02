@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# Run format, lint, and coverage checks from the repository root
+set -euo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+action=${1:-}
+case $action in fmt | lint | cov) ;; *)
+    echo 'usage: check <fmt|lint|cov>' >&2
+    exit 2
+    ;;
+esac
+[[ $# == 1 ]] || {
+    echo 'usage: check <fmt|lint|cov>' >&2
+    exit 2
+}
+
+llvm_tool() {
+    # Homebrew keeps LLVM tools outside the default macOS path
+    command -v "$1" || {
+        local candidate
+        candidate="$(brew --prefix llvm 2>/dev/null || true)/bin/$1"
+        [[ -x $candidate ]] && {
+            printf '%s\n' "$candidate"
+            return
+        }
+        echo "$1 is required; run ./tools/scripts/setup.sh" >&2
+        exit 127
+    }
+}
+coverage_tool() {
+    command -v "$1" && return
+    [[ $(uname) == Darwin ]] && xcrun --find "$1" 2>/dev/null && return
+    echo "$1 is required; run ./tools/scripts/setup.sh" >&2
+    exit 127
+}
+
+sources=() cpp_sources=() cmake_sources=() lua_sources=() python_sources=()
+# Include untracked source so new files cannot bypass local checks
+while IFS= read -r -d '' source; do
+    [[ $source == third_party/* || ! -f $root/$source ]] && continue
+    case $source in
+        CMakeLists.txt | */CMakeLists.txt | *.cmake)
+            cmake_sources+=("$root/$source")
+            ;;
+        *.cpp | *.cc | *.cxx)
+            sources+=("$root/$source")
+            cpp_sources+=("$root/$source")
+            ;;
+        *.h | *.hh | *.hpp) sources+=("$root/$source") ;;
+        *.lua) lua_sources+=("$root/$source") ;;
+        *.py) python_sources+=("$root/$source") ;;
+    esac
+done < <(
+    git -C "$root" ls-files --cached --others --exclude-standard -z \
+        '*.cpp' '*.cc' '*.cxx' '*.h' '*.hh' '*.hpp' '*.lua' '*.py' \
+        ':(glob)**/CMakeLists.txt' ':(glob)**/*.cmake'
+)
+
+fmt() {
+    # Formatting is check-only; authors choose when to rewrite files
+    ((${#sources[@]})) && "$(llvm_tool clang-format)" --dry-run --Werror \
+        --style="file:$root/tools/config/cpp/.clang-format" "${sources[@]}"
+    ((${#cmake_sources[@]})) && uv run --locked --offline gersemi \
+        --check --warnings-as-errors \
+        --config "$root/tools/config/cpp/.gersemirc" \
+        "${cmake_sources[@]}"
+    ((${#lua_sources[@]})) && stylua --check --verify \
+        --config-path "$root/tools/config/lua/.stylua.toml" \
+        "${lua_sources[@]}"
+    ((${#python_sources[@]})) && uv run --locked --offline ruff format \
+        --check --config "$root/tools/config/python/ruff.toml" \
+        "${python_sources[@]}"
+    git -C "$root" diff --check
+}
+lint() {
+    local preset=${PRESET:-dev}
+    local -a extra=()
+    cmake --preset "$preset" -S "$root"
+    [[ $(uname) != Darwin ]] || extra=(
+        --extra-arg="--sysroot=$(xcrun --sdk macosx --show-sdk-path)"
+        --extra-arg=-stdlib=libc++
+    )
+    ((${#cpp_sources[@]})) && "$(llvm_tool clang-tidy)" \
+        -p "$root/build/$preset" \
+        --quiet \
+        --config-file="$root/tools/config/cpp/.clang-tidy" \
+        "${extra[@]}" "${cpp_sources[@]}"
+    ((${#python_sources[@]})) && uv run --locked --offline ruff check \
+        --config "$root/tools/config/python/ruff.toml" \
+        "${python_sources[@]}"
+    # basedpyright reads its project file from the repository root
+    [[ ! -e $root/pyrightconfig.json || -L $root/pyrightconfig.json ]] || {
+        echo 'pyrightconfig.json must be the ignored tool link' >&2
+        exit 2
+    }
+    ln -sfn tools/config/python/pyrightconfig.json "$root/pyrightconfig.json"
+    uv run --locked --offline basedpyright --project "$root/pyrightconfig.json"
+    lua-language-server --check="$root" --checklevel=Warning \
+        --configpath="$root/tools/config/lua/language-server.json" \
+        --logpath="$root/build/$preset/lua-log"
+}
+run_tests() {
+    local preset=${PRESET:-dev}
+    cmake --preset "$preset" -S "$root"
+    cmake --build --preset "$preset"
+    ctest --test-dir "$root/build/$preset" --output-on-failure
+}
+cov() {
+    # One profile name per process avoids collisions during CTest
+    local profiles=$root/build/coverage/profiles profdata cov
+    [[ ! -L $profiles ]] || {
+        echo "refusing symlink: $profiles" >&2
+        exit 2
+    }
+    cmake -E remove_directory "$profiles"
+    cmake -E make_directory "$profiles"
+    (
+        export PRESET=coverage LLVM_PROFILE_FILE="$profiles/%p.profraw"
+        run_tests
+    )
+    profdata=$(coverage_tool llvm-profdata)
+    cov=$(coverage_tool llvm-cov)
+    "$profdata" merge -sparse "$profiles"/*.profraw \
+        -o "$profiles/coverage.profdata"
+    "$cov" report "$root/build/coverage/bin/m1" \
+        -object "$root/build/coverage/bin/m0" \
+        -object "$root/build/coverage/bench/hpc_bench" \
+        -instr-profile="$profiles/coverage.profdata" \
+        -ignore-filename-regex='(^|/)(third_party|build/coverage/generated)/'
+}
+case $action in fmt) fmt ;; lint) lint ;; cov) cov ;; esac

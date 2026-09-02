@@ -1,0 +1,13 @@
+[scenario]
+version=4
+kernel=timeline
+
+[world]
+width=1
+height=1
+steps=1
+boundary=bounded
+
+[asset.dead]
+file=dead.ttf
+kind=font

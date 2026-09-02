@@ -1,0 +1,13 @@
+[scenario]
+version=4
+kernel=cellular
+
+[world]
+width=18446744073709551616
+height=1
+steps=1
+boundary=bounded
+
+[cellular]
+states=2
+cells=0

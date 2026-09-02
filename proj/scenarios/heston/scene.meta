@@ -1,0 +1,15 @@
+[scene]
+kind=benchmark
+art=ready
+
+[poster]
+subtitle=Heston PDE accuracy benchmark.
+meme=HESTON PDE
+
+[visual]
+reference=option-pricing benchmark
+palette=navy,blue,white
+layers=price-field,accuracy-metrics
+scale=stock-price by variance grid
+camera=not renderable
+safe_margin=0.06

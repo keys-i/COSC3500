@@ -1,0 +1,19 @@
+[scene]
+kind=demo
+art=ready
+
+[poster]
+subtitle=177-country coupled SEIR model.
+meme=CHRONUS
+
+[visual]
+reference=mission-control atlas and calendar
+palette=midnight navy,cyan glass,orange sick,red exposed,blue healed,green vaccinated,grey dead
+layers=atlas,routes,vehicles,calendar,health-rail,event-feed
+scale=population-weighted administrative regions
+camera=static world atlas
+safe_margin=0.03
+disclaimer=Simulated health and transport data; not medical or navigation advice.
+projection=flat
+reduced_motion=false
+terminal_hold_seconds=0
