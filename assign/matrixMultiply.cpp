@@ -26,6 +26,8 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
     const int rows = N & ~7, cols = N & ~15, stride = 2 * N;
     const float *a = reinterpret_cast<const float *>(A);
     float *c = reinterpret_cast<float *>(C);
+    float *packed =
+        static_cast<float *>(_mm_malloc(2ULL * rows * N * sizeof(float), 64));
 
     const __m256 imagSign = _mm256_castpd_ps(_mm256_set1_pd(-0.0));
     const auto accumulate =
@@ -40,11 +42,8 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                                         _mm256_fmadd_ps(signed1, real, sum1));
             };
 
-#pragma omp parallel proc_bind(spread)
+#pragma omp parallel
     {
-        float *packed = static_cast<float *>(
-            _mm_malloc(2ULL * rows * N * sizeof(float), 64));
-
 #pragma omp for schedule(static)
         for (int row = 0; row < rows; row += 8) {
             float *out = packed + 2ULL * row * N;
@@ -119,8 +118,6 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                     C[row + (col + j) * N] = sum;
                 }
         }
-
-        _mm_free(packed);
     }
 
     for (int col = cols; col < N; ++col)
@@ -131,5 +128,6 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
             C[row + col * N] = sum;
         }
 
+    _mm_free(packed);
     return STUDENTID;
 }
