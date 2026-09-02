@@ -22,68 +22,69 @@ int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
         return STUDENTID;
 
     // WRITE YOUR CODE HERE
-    memset(C, 0, sizeof(floatType) * N * N);
-    const int stride = 2 * N, end = N & ~3;
+    const int rows = N & ~3, stride = 2 * N;
     const float *a = reinterpret_cast<const float *>(A);
     float *c = reinterpret_cast<float *>(C);
+    float *packed = new float[2ULL * rows * N];
 
-    const auto add = [](__m256 a, __m256 swap, __m256 br, __m256 bi,
-                        float *out) {
-        _mm256_storeu_ps(
-            out, _mm256_add_ps(_mm256_loadu_ps(out),
-                               _mm256_addsub_ps(_mm256_mul_ps(a, br),
-                                                _mm256_mul_ps(swap, bi))));
+    const auto multiply = [](__m256 av, __m256 swap, const floatType &b) {
+        return _mm256_addsub_ps(_mm256_mul_ps(av, _mm256_set1_ps(b.real())),
+                                _mm256_mul_ps(swap, _mm256_set1_ps(b.imag())));
     };
 
-#pragma omp parallel for schedule(static)
-    for (int col = 0; col < end; col += 4) {
-        const floatType *b0 = B + col * N, *b1 = b0 + N;
-        const floatType *b2 = b1 + N, *b3 = b2 + N;
-        floatType *o0 = C + col * N, *o1 = o0 + N;
-        floatType *o2 = o1 + N, *o3 = o2 + N;
-        float *c0 = c + col * stride, *c1 = c0 + stride;
-        float *c2 = c1 + stride, *c3 = c2 + stride;
+    #pragma omp parallel
+    {
+        #pragma omp for schedule(static)
+        for (int row = 0; row < rows; row += 4) {
+            float *out = packed + 2ULL * row * N;
+            for (int k = 0; k < N; ++k)
+                _mm256_storeu_ps(out + 8ULL * k,
+                                 _mm256_loadu_ps(a + 2ULL * (row + k * N)));
+        }
 
-        for (int k = 0; k < N; ++k) {
-            const floatType q0 = b0[k], q1 = b1[k], q2 = b2[k], q3 = b3[k];
-            const __m256 r0 = _mm256_set1_ps(q0.real()),
-                         i0 = _mm256_set1_ps(q0.imag());
-            const __m256 r1 = _mm256_set1_ps(q1.real()),
-                         i1 = _mm256_set1_ps(q1.imag());
-            const __m256 r2 = _mm256_set1_ps(q2.real()),
-                         i2 = _mm256_set1_ps(q2.imag());
-            const __m256 r3 = _mm256_set1_ps(q3.real()),
-                         i3 = _mm256_set1_ps(q3.imag());
-            const float *ak = a + k * stride;
+        #pragma omp for schedule(static)
+        for (int col = 0; col < N - 1; col += 2) {
+            for (int row = 0; row < rows; row += 4) {
+                __m256 sum0 = _mm256_setzero_ps();
+                __m256 sum1 = _mm256_setzero_ps();
+                const float *p = packed + 2ULL * row * N;
 
-            int row = 0;
-            for (; row + 3 < N; row += 4) {
-                const int i = 2 * row;
-                const __m256 av = _mm256_loadu_ps(ak + i);
-                const __m256 swap = _mm256_permute_ps(av, 0xB1);
-                add(av, swap, r0, i0, c0 + i);
-                add(av, swap, r1, i1, c1 + i);
-                add(av, swap, r2, i2, c2 + i);
-                add(av, swap, r3, i3, c3 + i);
+                for (int k = 0; k < N; ++k) {
+                    const __m256 av = _mm256_loadu_ps(p + 8ULL * k);
+                    const __m256 swap = _mm256_permute_ps(av, 0xB1);
+                    sum0 =
+                        _mm256_add_ps(sum0, multiply(av, swap, B[k + col * N]));
+                    sum1 = _mm256_add_ps(
+                        sum1, multiply(av, swap, B[k + (col + 1) * N]));
+                }
+
+                float *out = c + 2ULL * (row + col * N);
+                _mm256_storeu_ps(out, sum0);
+                _mm256_storeu_ps(out + stride, sum1);
             }
 
-            for (; row < N; ++row) {
-                const floatType x = A[row + k * N];
-                o0[row] += x * q0;
-                o1[row] += x * q1;
-                o2[row] += x * q2;
-                o3[row] += x * q3;
+            for (int row = rows; row < N; ++row) {
+                floatType sum0 = 0, sum1 = 0;
+                for (int k = 0; k < N; ++k) {
+                    const floatType av = A[row + k * N];
+                    sum0 += av * B[k + col * N];
+                    sum1 += av * B[k + (col + 1) * N];
+                }
+                C[row + col * N] = sum0;
+                C[row + (col + 1) * N] = sum1;
             }
         }
     }
 
-    for (int col = end; col < N; ++col)
+    if (N & 1)
         for (int row = 0; row < N; ++row) {
             floatType sum = 0;
             for (int k = 0; k < N; ++k)
-                sum += A[row + k * N] * B[k + col * N];
-            C[row + col * N] = sum;
+                sum += A[row + k * N] * B[k + (N - 1) * N];
+            C[row + (N - 1) * N] = sum;
         }
+
+    delete[] packed;
 
     return STUDENTID;
 }
