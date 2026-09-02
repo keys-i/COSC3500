@@ -24,11 +24,13 @@ int matrixMultiply(int N, const floatType* A, const floatType* B, floatType* C, 
     const int blkSize = 32;
     
     memset(C, 0, sizeof(floatType) * N * N);
-    
+
+    #pragma omp parallel for schedule(static)
     for (int colBlk = 0; colBlk < N; colBlk += blkSize) {
         const int colEnd =
             (colBlk + blkSize < N) ? colBlk + blkSize : N;
-    
+
+        #pragma omp parallel for schedule(static)
         for (int kBlk = 0; kBlk < N; kBlk += blkSize) {
             const int kEnd =
                 (kBlk + blkSize < N) ? kBlk + blkSize : N;
