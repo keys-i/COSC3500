@@ -18,17 +18,17 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - packed `8x2` AVX plus four-core OpenMP
+### Latest CPU benchmark - packed `8x4` AVX plus four-core OpenMP
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 8125.370 | 7577.524 | 1.072 | 2.290e-08 | 6.485 |
-| 256 | 1144.375 | 1048.388 | 1.092 | 2.215e-08 | 6.458 |
-| 512 | 152.579 | 135.581 | 1.125 | 1.652e-08 | 6.415 |
-| 1024 | 19.638 | 17.127 | 1.147 | 1.369e-08 | 6.387 |
-| 2048 | 2.480 | 1.150 | 2.157 | 1.224e-08 | 5.476 |
+| 128 | 8122.854 | 8173.190 | 0.994 | 2.290e-08 | 6.594 |
+| 256 | 1145.275 | 1116.974 | 1.025 | 2.215e-08 | 6.549 |
+| 512 | 152.466 | 134.474 | 1.134 | 1.652e-08 | 6.404 |
+| 1024 | 19.620 | 17.099 | 1.147 | 1.369e-08 | 6.387 |
+| 2048 | 2.483 | 1.457 | 1.704 | 1.224e-08 | 5.816 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. The `0.80x` target corresponds to grade `6.907`; it needs another `1.43x` speedup at `N=1024` and `2.70x` at `N=2048`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. The `0.80x` target corresponds to grade `6.907`; it needs another `1.43x` speedup at `N=1024` and `2.13x` at `N=2048`.
 
 ### 1. AVX first
 
@@ -42,8 +42,9 @@
 - [x] Rework column tiling while keeping the contiguous `k -> row` access order.
 - [x] Pack `A` into four-row panels and keep a `4x2` output tile in AVX registers across `k`.
 - [x] Expand the packed kernel to `8x2`; keep it because it improved every tested size.
-- [ ] Group two `8x2` microkernels into an `8x4` cache tile so the second column pair reuses the hot packed `A` panel.
-- [ ] Unroll `k` only if `8x4` still shows a dependency stall.
+- [x] Group two `8x2` microkernels into an `8x4` cache tile; keep it for the large `N=2048` gain.
+- [ ] Group four `8x2` microkernels into an `8x8` cache tile while the packed `A` panel remains hot.
+- [ ] Unroll `k` only if `8x8` still shows a dependency stall.
 - [x] Record the single-core result: `9.158x` MKL at `N=1024`; the planned `4.0x` milestone was not reached.
 
 ### 2. OpenMP second
@@ -62,7 +63,8 @@
 - [x] Parallelise output-column pairs with `schedule(static)` so each pair belongs to one thread.
 - [x] Remove the unused `blkSize` declaration.
 - [x] Benchmark packed `8x2` against packed `4x2`; keep it for its `2.3%` gain at `N=2048` and up to `3.6%` elsewhere.
-- [ ] Benchmark packed `8x4` against packed `8x2` at every size; keep it only if `N=2048` improves.
+- [x] Benchmark packed `8x4` against packed `8x2`; keep its `26.6%` gain at `N=2048` despite a `0.8%` regression at `N=512`.
+- [ ] Benchmark packed `8x8` against packed `8x4` at every size; keep it only if `N=2048` improves.
 - [ ] Use compiler vectorisation reports to find missed-vectorisation and aliasing blockers.
 - [ ] Test restricted local aliases for `A`, `B`, and `C`; keep them only if they improve generated code.
 - [ ] Benchmark `-O3`, `-Ofast`, `-march=native`, `-funroll-loops`, and `-flto` one at a time.
@@ -81,7 +83,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `2.157x`.
+- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `1.704x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
