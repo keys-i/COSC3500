@@ -15,7 +15,7 @@
  * @return : your student ID
  *
  * */
-__attribute__((target("avx,fma"), optimize("Ofast"))) int
+__attribute__((target("avx,fma"), optimize("O3", "unroll-loops"))) int
 matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                int *args, int argCount) {
     // Your code must be able to deal with N=0 scenario without crashing.

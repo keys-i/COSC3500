@@ -18,18 +18,18 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - source-level `O3`, 16-column tile, `8x` unrolling
+### Latest CPU benchmark - rejected source-level `Ofast` trial
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 8127.918 | 12655.567 | 0.642 | 3.280e-08 | 7.224 |
-| 256 | 1143.496 | 1760.363 | 0.650 | 3.222e-08 | 7.206 |
-| 512 | 152.435 | 206.113 | 0.740 | 2.701e-08 | 7.019 |
-| 1024 | 19.642 | 25.985 | 0.756 | 2.434e-08 | 6.989 |
-| 2048 | 2.481 | 2.737 | 0.906 | 2.295e-08 | 6.727 |
-| 4096 | 0.313 | 0.320 | 0.976 | 2.236e-08 | 6.620 |
+| 128 | 8120.760 | 676.238 | 12.009 | 3.280e-08 | 2.999 |
+| 256 | 1145.108 | 84.970 | 13.477 | 3.222e-08 | 2.833 |
+| 512 | 152.759 | 10.640 | 14.357 | 2.701e-08 | 2.741 |
+| 1024 | 19.651 | 1.330 | 14.775 | 2.434e-08 | 2.700 |
+| 2048 | 2.483 | 0.166 | 14.929 | 2.295e-08 | 2.685 |
+| 4096 | 0.312 | 0.021 | 15.016 | 2.236e-08 | 2.677 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Source-level `O3` with eight-way unrolling raised `N=2048` throughput from the previous best `2.603` to `2.737` matrices/s (`5.1%`), so keep both. The ratio remains above the `0.80x` target at `N=2048` and `4096`. Test source-level `Ofast` next; the Makefile remains unchanged.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. `Ofast` collapsed `N=2048` throughput from `2.737` to `0.166` matrices/s (`93.9%` slower) without improving error, so reject it. Restore `O3` and test the source-level `unroll-loops` attribute next. The Makefile remains unchanged.
 
 ### 1. AVX first
 
@@ -79,8 +79,8 @@
 - [x] Test restricted `A`, `B`, and `C` parameters; reject their `2.1%` regression at `N=2048`.
 - [ ] Use compiler vectorisation reports to find remaining missed-vectorisation blockers.
 - [x] Test source-level `optimize("O3")` with eight-way unrolling; keep its `5.1%` `N=2048` throughput gain.
-- [ ] Replace source-level `O3` with `Ofast`; keep it only if throughput improves without unacceptable error.
-- [ ] Test source-level `unroll-loops` only if `Ofast` is insufficient.
+- [x] Replace source-level `O3` with `Ofast`; reject its `93.9%` `N=2048` throughput regression.
+- [ ] Restore `O3` and add source-level `unroll-loops`; keep it only if `N=2048` exceeds `2.737` matrices/s.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -97,7 +97,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; latest ratio: `0.906x` (`0.794x` best, not repeated).
+- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; retained `O3` ratio: `0.906x` (`0.794x` best, not repeated).
 
 ## GPU - `matrixMultiplyGPU.cu`
 
