@@ -18,18 +18,18 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - close OpenMP binding (rejected)
+### Latest CPU benchmark - spread OpenMP binding (rejected at `N=2048`)
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 9617.418 | 10707.523 | 0.898 | 3.205e-08 | 6.740 |
-| 256 | 1067.354 | 1605.722 | 0.665 | 3.222e-08 | 7.174 |
-| 512 | 142.174 | 206.056 | 0.690 | 2.701e-08 | 7.120 |
-| 1024 | 18.259 | 25.753 | 0.709 | 2.434e-08 | 7.081 |
-| 2048 | 2.305 | 2.839 | 0.812 | 2.295e-08 | 6.885 |
-| 4096 | 0.290 | 0.329 | 0.883 | 2.236e-08 | 6.764 |
+| 128 | 9075.714 | 10641.838 | 0.853 | 3.205e-08 | 6.814 |
+| 256 | 1359.227 | 1432.348 | 0.949 | 2.697e-08 | 6.660 |
+| 512 | 194.792 | 225.533 | 0.864 | 2.528e-08 | 6.796 |
+| 1024 | 24.149 | 32.764 | 0.737 | 2.354e-08 | 7.025 |
+| 2048 | 3.299 | 3.630 | 0.909 | 2.262e-08 | 6.723 |
+| 4096 | 0.297 | 0.439 | 0.677 | 2.217e-08 | 7.148 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Binding threads close together produced `0.812x` at `N=2048`, missing both the `0.80x` target and retained `0.785x` baseline, so reject it. Test `proc_bind(spread)` as the only new change; keep it only if `N=2048` beats `0.785x`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Spreading threads improved `N=4096` to `0.677x`, but the judged `N=2048` result was `0.909x`, so do not keep binding alone. Next, retain spread placement for one trial while giving each thread a private, locally allocated packed-`A` copy; keep the pair only if `N=2048` beats `0.785x` and memory use remains acceptable.
 
 ### 1. AVX first
 
@@ -90,7 +90,8 @@
 - [x] Read `B` through its interleaved `float` representation and broadcast directly; reject its `1.019x` result at `N=2048`.
 - [x] Use aligned AVX loads/stores for the packed `A` buffer; reject its `1.088x` result at `N=2048`.
 - [x] Bind the four OpenMP threads close together; reject its `0.812x` result at `N=2048`.
-- [ ] Spread the four OpenMP threads to test memory-bandwidth placement; keep it only if `N=2048` beats `0.785x`.
+- [x] Spread the four OpenMP threads; reject it alone at `N=2048` despite its `0.677x` result at `N=4096`.
+- [ ] Give each spread-bound thread a private packed-`A` copy to remove cross-thread/NUMA reads; keep it only if `N=2048` beats `0.785x`.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -107,7 +108,7 @@
 
 ### CPU target
 
-- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; the retained paired-broadcast baseline achieved `0.785x`; close thread binding produced `0.812x` and was rejected.
+- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; the retained paired-broadcast baseline achieved `0.785x`; spread binding produced `0.909x` and was rejected alone.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
