@@ -62,7 +62,7 @@ __attribute__((target("avx,fma"))) int matrixMultiply(int N, const floatType *A,
                     __m256 sum10 = _mm256_setzero_ps();
                     __m256 sum11 = _mm256_setzero_ps();
 
-                    #pragma GCC unroll 2
+#pragma GCC unroll 4
                     for (int k = 0; k < N; ++k) {
                         const floatType b0 = B[k + first * N];
                         const floatType b1 = B[k + (first + 1) * N];
