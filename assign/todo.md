@@ -20,17 +20,20 @@
 
 ### 1. AVX first
 
-- [ ] Temporarily remove both OpenMP pragmas so AVX is measured on one core.
-- [ ] Implement complex multiply-add with AVX instead of scalar `std::complex<float>` operations.
-- [ ] Handle the remaining rows when `N` is not a multiple of the AVX vector width.
-- [ ] Unroll the AVX loop and use multiple accumulators to reduce dependency stalls.
-- [ ] Verify the error at `N=128`, then benchmark `128, 256, 512, 1024`.
-- [ ] Keep AVX only if it beats the scalar blocked kernel at every meaningful size.
+- [x] Temporarily remove both OpenMP pragmas so AVX is measured on one core.
+- [x] Implement complex multiply-add with AVX instead of scalar `std::complex<float>` operations.
+- [x] Handle the remaining rows when `N` is not a multiple of the AVX vector width.
+- [x] Verify the error at `N=128`, then benchmark `128, 256, 512, 1024`.
+- [x] Keep AVX: at `N=1024` it achieved `9.158x` MKL with error `1.369e-08`.
+- [ ] Add a register-tiled AVX microkernel that reuses each `A` load across several output columns.
+- [ ] Keep several `C` accumulators in registers across the `k` loop instead of loading and storing them every iteration.
+- [ ] Unroll only after the register-tiled kernel works and the compiler report shows a remaining dependency stall.
+- [ ] Reach a single-core ratio near `4.0x` MKL before adding OpenMP.
 
 ### 2. OpenMP second
 
-- [ ] Add exactly one OpenMP parallel loop around the outer column-block loop.
-- [ ] Do not parallelise the `kBlock` loop: multiple threads would update the same elements of `C`.
+- [ ] Add exactly one OpenMP parallel loop around the outer column or column-tile loop.
+- [ ] Do not parallelise the `k` loop: multiple threads would update the same elements of `C`.
 - [ ] Confirm the GradeBot uses four threads and each thread owns separate output columns.
 - [ ] Benchmark static scheduling, then try another schedule only if measurements justify it.
 - [ ] Verify that AVX plus four-core OpenMP is faster than either optimisation alone.
@@ -40,7 +43,7 @@
 - [ ] Keep the provided `-std=c++11 -O2 -mavx -fopenmp` build as the required baseline.
 - [ ] Use compiler vectorisation reports to find missed-vectorisation and aliasing blockers.
 - [ ] Test restricted local aliases for `A`, `B`, and `C`; keep them only if they improve generated code.
-- [ ] Tune `blockSize` with `16, 32, 64, 128` at `N=1024` and `N=2048`.
+- [ ] Tune row and column tile sizes at `N=1024` and `N=2048`.
 - [ ] Benchmark `-O3`, `-Ofast`, `-march=native`, `-funroll-loops`, and `-flto` one at a time.
 - [ ] Test useful flag combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
