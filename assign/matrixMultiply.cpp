@@ -55,26 +55,35 @@ __attribute__((target("avx,fma"))) int matrixMultiply(int N, const floatType *A,
             for (int row = 0; row < rows; row += 8) {
                 const float *p = packed + 2ULL * row * N;
 
-                for (int pair = 0; pair < 8; pair += 2) {
-                    const int first = col + pair;
-                    __m256 sum00 = _mm256_setzero_ps();
-                    __m256 sum01 = _mm256_setzero_ps();
-                    __m256 sum10 = _mm256_setzero_ps();
-                    __m256 sum11 = _mm256_setzero_ps();
+                for (int group = 0; group < 8; group += 4) {
+                    const int first = col + group;
+                    __m256 sum00 = _mm256_setzero_ps(), sum01 = sum00;
+                    __m256 sum10 = sum00, sum11 = sum00;
+                    __m256 sum20 = sum00, sum21 = sum00;
+                    __m256 sum30 = sum00, sum31 = sum00;
 
-#pragma GCC unroll 4
+#pragma GCC unroll 2
                     for (int k = 0; k < N; ++k) {
-                        const floatType b0 = B[k + first * N];
-                        const floatType b1 = B[k + (first + 1) * N];
                         const __m256 av0 = _mm256_loadu_ps(p + 16ULL * k);
                         const __m256 av1 = _mm256_loadu_ps(p + 16ULL * k + 8);
                         const __m256 swap0 = _mm256_permute_ps(av0, 0xB1);
                         const __m256 swap1 = _mm256_permute_ps(av1, 0xB1);
 
+                        const floatType b0 = B[k + first * N];
                         sum00 = _mm256_add_ps(sum00, multiply(av0, swap0, b0));
                         sum01 = _mm256_add_ps(sum01, multiply(av1, swap1, b0));
+
+                        const floatType b1 = B[k + (first + 1) * N];
                         sum10 = _mm256_add_ps(sum10, multiply(av0, swap0, b1));
                         sum11 = _mm256_add_ps(sum11, multiply(av1, swap1, b1));
+
+                        const floatType b2 = B[k + (first + 2) * N];
+                        sum20 = _mm256_add_ps(sum20, multiply(av0, swap0, b2));
+                        sum21 = _mm256_add_ps(sum21, multiply(av1, swap1, b2));
+
+                        const floatType b3 = B[k + (first + 3) * N];
+                        sum30 = _mm256_add_ps(sum30, multiply(av0, swap0, b3));
+                        sum31 = _mm256_add_ps(sum31, multiply(av1, swap1, b3));
                     }
 
                     float *out = c + 2ULL * (row + first * N);
@@ -82,6 +91,10 @@ __attribute__((target("avx,fma"))) int matrixMultiply(int N, const floatType *A,
                     _mm256_storeu_ps(out + 8, sum01);
                     _mm256_storeu_ps(out + stride, sum10);
                     _mm256_storeu_ps(out + stride + 8, sum11);
+                    _mm256_storeu_ps(out + 2 * stride, sum20);
+                    _mm256_storeu_ps(out + 2 * stride + 8, sum21);
+                    _mm256_storeu_ps(out + 3 * stride, sum30);
+                    _mm256_storeu_ps(out + 3 * stride + 8, sum31);
                 }
             }
 
