@@ -795,7 +795,7 @@ def draw_seir_plane(pygame, screen, centre, direction, colour, outline, accent):
             point(_px(-9), 0),
         ),
     )
-    pygame.draw.lines(screen, outline, True, shape, _px(2))
+    pygame.draw.aalines(screen, outline, True, shape)
     pygame.draw.circle(screen, (26, 40, 52), point(_px(7), 0), _px(1))
 
 
@@ -881,7 +881,7 @@ def draw_seir_ship(pygame, screen, centre, direction, kind):
         tuple((x + _px(2), y + _px(2)) for x, y in hull),
     )
     pygame.draw.polygon(screen, (226, 232, 240), hull)
-    pygame.draw.lines(screen, outline, True, hull, _px(2))
+    pygame.draw.aalines(screen, outline, True, hull)
     if profile == "container":
         for forward, colour in (
             (-4, (236, 72, 153)),
