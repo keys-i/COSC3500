@@ -18,17 +18,17 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - packed `8x4` AVX plus four-core OpenMP
+### Latest CPU benchmark - packed `8x8` AVX plus four-core OpenMP
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 8122.854 | 8173.190 | 0.994 | 2.290e-08 | 6.594 |
-| 256 | 1145.275 | 1116.974 | 1.025 | 2.215e-08 | 6.549 |
-| 512 | 152.466 | 134.474 | 1.134 | 1.652e-08 | 6.404 |
-| 1024 | 19.620 | 17.099 | 1.147 | 1.369e-08 | 6.387 |
-| 2048 | 2.483 | 1.457 | 1.704 | 1.224e-08 | 5.816 |
+| 128 | 8127.628 | 8526.396 | 0.953 | 2.290e-08 | 6.654 |
+| 256 | 1145.504 | 1165.158 | 0.983 | 2.215e-08 | 6.610 |
+| 512 | 152.487 | 135.008 | 1.129 | 1.652e-08 | 6.410 |
+| 1024 | 25.239 | 22.322 | 1.131 | 1.291e-08 | 6.407 |
+| 2048 | 3.356 | 1.991 | 1.686 | 1.187e-08 | 5.831 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. The `0.80x` target corresponds to grade `6.907`; it needs another `1.43x` speedup at `N=1024` and `2.13x` at `N=2048`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. The `0.80x` target corresponds to grade `6.907`; it needs another `1.41x` speedup at `N=1024` and `2.11x` at `N=2048`.
 
 ### 1. AVX first
 
@@ -43,8 +43,9 @@
 - [x] Pack `A` into four-row panels and keep a `4x2` output tile in AVX registers across `k`.
 - [x] Expand the packed kernel to `8x2`; keep it because it improved every tested size.
 - [x] Group two `8x2` microkernels into an `8x4` cache tile; keep it for the large `N=2048` gain.
-- [ ] Group four `8x2` microkernels into an `8x8` cache tile while the packed `A` panel remains hot.
-- [ ] Unroll `k` only if `8x8` still shows a dependency stall.
+- [x] Group four `8x2` microkernels into an `8x8` cache tile; keep its small improvement at every tested size.
+- [x] Stop increasing the tile width: `8x8` improved `N=2048` by only `1.1%`.
+- [ ] Unroll `k` only if compiler reports still show a dependency stall.
 - [x] Record the single-core result: `9.158x` MKL at `N=1024`; the planned `4.0x` milestone was not reached.
 
 ### 2. OpenMP second
@@ -54,7 +55,7 @@
 - [x] Confirm the GradeBot uses four threads and each thread owns separate output columns.
 - [x] Benchmark static scheduling.
 - [ ] Try another schedule only if measurements justify it.
-- [x] Verify packed AVX plus four-core OpenMP: the `N=1024` ratio improved from `9.158x` to `1.147x`, about `7.98x` faster.
+- [x] Verify packed AVX plus four-core OpenMP: the `N=1024` ratio improved from `9.158x` to `1.131x`, about `8.10x` faster.
 
 ### 3. Maximum C++11/compiler tuning
 
@@ -64,9 +65,9 @@
 - [x] Remove the unused `blkSize` declaration.
 - [x] Benchmark packed `8x2` against packed `4x2`; keep it for its `2.3%` gain at `N=2048` and up to `3.6%` elsewhere.
 - [x] Benchmark packed `8x4` against packed `8x2`; keep its `26.6%` gain at `N=2048` despite a `0.8%` regression at `N=512`.
-- [ ] Benchmark packed `8x8` against packed `8x4` at every size; keep it only if `N=2048` improves.
-- [ ] Use compiler vectorisation reports to find missed-vectorisation and aliasing blockers.
-- [ ] Test restricted local aliases for `A`, `B`, and `C`; keep them only if they improve generated code.
+- [x] Benchmark packed `8x8` against packed `8x4`; keep it for its `1.1%` gain at `N=2048` and up to `4.3%` elsewhere.
+- [ ] Add restricted `A`, `B`, and `C` parameters; keep them only if the benchmark improves.
+- [ ] Use compiler vectorisation reports to find remaining missed-vectorisation blockers.
 - [ ] Benchmark `-O3`, `-Ofast`, `-march=native`, `-funroll-loops`, and `-flto` one at a time.
 - [ ] Test useful flag combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -83,7 +84,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `1.704x`.
+- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `1.686x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 

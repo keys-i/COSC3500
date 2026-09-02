@@ -15,8 +15,9 @@
  * @return : your student ID
  *
  * */
-int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
-                   int *args, int argCount) {
+int matrixMultiply(int N, const floatType *__restrict__ A,
+                   const floatType *__restrict__ B,
+                   floatType *__restrict__ C, int *args, int argCount) {
     // Your code must be able to deal with N=0 scenario without crashing.
     if (N <= 0)
         return STUDENTID;
