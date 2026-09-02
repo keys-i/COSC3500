@@ -14,203 +14,96 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: ${{ matrix.os }} / ${{ matrix.compiler }}
+  test:
+    name: Test / ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            compiler: GCC 14
-            preset: bunya-check
-            cc: gcc-14
-            cxx: g++-14
-            packages: g++-14 libluajit-5.1-dev ninja-build pkg-config
-          - os: ubuntu-24.04
-            compiler: Clang 18
-            preset: rangpur-check
-            cc: clang-18
-            cxx: clang++-18
-            packages: clang-18 libluajit-5.1-dev ninja-build pkg-config
-          - os: macos-15
-            compiler: AppleClang
-            preset: mac-check
-            cc: clang
-            cxx: clang++
-            packages: none
-    env:
-      CC: ${{ matrix.cc }}
-      CXX: ${{ matrix.cxx }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Refresh Linux package index
-        if: runner.os == 'Linux'
-        run: sudo apt-get update
-      - name: Install Linux compiler
-        if: runner.os == 'Linux'
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          ${{ matrix.packages }}
-      - name: Install macOS build dependencies
-        if: runner.os == 'macOS'
-        run: ./tools/scripts/tools/install
-      - name: Build and run CTest
-        run: >-
-          ./tools/scripts/tools/summary check-test --
-          make test PRESET=${{ matrix.preset }}
-      - name: Exercise CMake clean
-        run: >-
-          ./tools/scripts/tools/summary check-clean --
-          make clean PRESET=${{ matrix.preset }}
-      - name: Save check logs
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: check-${{ matrix.os }}-${{ matrix.compiler }}
-          path: results/actions/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  quality:
-    name: Formatting and lint
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      ACTIONLINT: /home/runner/go/bin/actionlint
-      CC: clang-18
-      CLANG_FORMAT: clang-format-18
-      CLANG_TIDY: clang-tidy-18
-      CXX: clang++-18
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install linters
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          clang-18 clang-format-18 clang-tidy-18 cppcheck ninja-build
-          libluajit-5.1-dev pkg-config shellcheck shfmt
-      - name: Install actionlint
-        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-      - name: Check formatting
-        run: >-
-          ./tools/scripts/tools/summary check-format --
-          make fmt PRESET=rangpur-check
-      - name: Run linters
-        run: >-
-          ./tools/scripts/tools/summary check-lint --
-          make check lint PRESET=rangpur-check
-      - name: Save lint logs
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: check-quality
-          path: |
-            results/actions/
-            build/rangpur-check/reports/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  coverage:
-    name: Coverage / ${{ matrix.kind }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - kind: LLVM
-            preset: coverage-clang
-            coverage: llvm
-            cc: clang-18
-            cxx: clang++-18
-            packages: >-
-              clang-18 libluajit-5.1-dev llvm-18 ninja-build pkg-config
-          - kind: GCC
-            preset: coverage-gcc
-            coverage: gcov
-            cc: gcc-14
-            cxx: g++-14
-            packages: g++-14 libluajit-5.1-dev ninja-build pkg-config
-    env:
-      CC: ${{ matrix.cc }}
-      CXX: ${{ matrix.cxx }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install coverage compiler
-        run: >-
-          sudo apt-get install --yes --no-install-recommends
-          ${{ matrix.packages }}
-      - name: Generate coverage report
-        run: >-
-          ./tools/scripts/tools/summary coverage-${{ matrix.coverage }} --
-          make cov ${{ matrix.coverage }} PRESET=${{ matrix.preset }}
-      - name: Save coverage reports
-        if: always()
-        uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: coverage-${{ matrix.coverage }}
-          path: |
-            results/actions/
-            results/coverage/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  visualiser:
-    name: Visualiser round trip
-    runs-on: ubuntu-24.04
     timeout-minutes: 15
-    permissions:
-      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-24.04
+          - name: macOS
+            os: macos-15
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          submodules: recursive
+      - name: Install FFmpeg
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg
       - name: Set up uv
-        # v9.0.0
+        # v10.0.1
         uses: >-
           astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
           version: 0.12.2
+          python-version: '3.13'
           enable-cache: true
-      - name: Refresh package index
-        run: sudo apt-get update
-      - name: Install system dependencies
-        run: >-
-          sudo apt-get install --yes --no-install-recommends ffmpeg
-          libluajit-5.1-dev ninja-build pkg-config
-      - name: Sync visualiser dependencies
+      - name: Install visual test runtime
         run: uv sync --locked
-      - name: Build M1
-        run: make build PRESET=profile TARGET=m1
-      - name: Run visualiser tests
-        run: >-
-          ./tools/scripts/tools/summary visualiser-roundtrip --
-          ctest --test-dir build/profile --output-on-failure
-          -R '^m1\.visualiser-'
-      - name: Save visualiser logs
-        if: always()
+      - name: Build and test
+        env:
+          CTEST_EXCLUDE_REGEX: ${{ runner.os == 'macOS' && '^m1\.visualiser' || '' }}
+          CTEST_PARALLEL_LEVEL: 2
+          TEST_SEED_CONTRACTS: ${{ runner.os == 'macOS' && '0' || '1' }}
+        run: .github/workflows/scripts/report.sh test
+
+  quality:
+    name: Format, lint, and type-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      UV_NO_SYNC: 1
+    steps:
+      - name: Check out repository
+        # v7.0.1
         uses: >-
-          actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          name: check-visualiser
-          path: results/actions/
-          if-no-files-found: ignore
-          retention-days: 7
+          persist-credentials: false
+          submodules: recursive
+      - name: Install Lua linters
+        run: .github/workflows/scripts/lua-tools.sh
+      - name: Set up uv
+        # v10.0.1
+        uses: >-
+          astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          version: 0.12.2
+          python-version: '3.13'
+          enable-cache: true
+      - name: Install Python quality tools
+        run: uv sync --locked
+      - name: Check formatting
+        run: make fmt
+      - name: Run linters and type-checkers
+        run: make lint PRESET=dev
+      - name: Summarise checked surface
+        run: .github/workflows/scripts/report.sh quality
+
+  coverage:
+    name: LLVM coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        # v7.0.1
+        uses: >-
+          actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install LLVM
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends clang llvm cmake ninja-build
+      - name: Build, test, and report coverage
+        run: .github/workflows/scripts/report.sh coverage

@@ -1,0 +1,10 @@
+kind	outline_red	outline_green	outline_blue	route_red	route_green	route_blue	profile
+cargo	234	168	53	113	84	33	container
+fuel	244	63	94	114	35	64	tanker
+bulk	163	230	53	72	103	40	bulk
+ferry	66	211	227	28	105	122	passenger
+cruise	192	132	252	98	60	125	passenger
+passenger	56	189	248	27	95	125	passenger
+ro-ro	251	146	60	128	70	25	container
+fishing	45	212	191	20	105	94	utility
+research	248	250	252	100	115	130	utility

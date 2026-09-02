@@ -1,0 +1,32 @@
+# Two-field Heston PDE evaluated on one spot-variance grid
+# Rates use years and prices use the same units as spot and strike
+# Model constants in rules.lua: r=0.03, q=0, kappa=2, theta=0.04
+[scenario]
+version=4
+kernel=pde
+
+[world]
+width=2049
+height=321
+steps=256
+seed=0
+boundary=bounded
+
+[rules]
+file=rules.lua
+
+# x is spot, y is variance, and both fields are sampled at the same point
+[pde]
+fields=call,put
+x_min=0
+x_max=42000
+y_min=0
+y_max=0.5
+final_time=0.24931506849315068
+sample_x=5200
+sample_y=0.04
+x_focus=5250
+x_scale=800
+y_focus=0
+y_scale=0.03
+theta=0.33333333333333333

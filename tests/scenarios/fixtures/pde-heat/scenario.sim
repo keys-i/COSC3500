@@ -1,0 +1,24 @@
+# Compact analytic heat-equation check for the Lua-defined PDE kernel
+[scenario]
+version=4
+kernel=pde
+
+[world]
+width=33
+height=33
+steps=128
+boundary=bounded
+
+[pde]
+fields=heat
+x_min=0
+x_max=1
+y_min=0
+y_max=1
+final_time=0.01
+sample_x=0.5
+sample_y=0.5
+theta=0.3333333333333333
+
+[rules]
+file=heat.lua

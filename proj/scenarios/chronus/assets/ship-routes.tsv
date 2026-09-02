@@ -1,0 +1,301 @@
+source	destination	begins	kind	path_model	length_km	passages	origin_snap_km	destination_snap_km	ais_samples	ais_log_mean	ais_density	ais_band
+SHA	SGP	0	cargo	SeaRoute 1.6.0 Marnet	4065.5		8.6	6.3	402	5.9424	0.4295	normal
+SGP	CMB	1	fuel	SeaRoute 1.6.0 Marnet	2985.9	malacca	6.3	7.3	295	8.1780	0.5772	normal
+CMB	CPT	2	bulk	SeaRoute 1.6.0 Marnet	8501.6	south_africa	7.3	8.3	845	3.8964	0.2685	sparse
+CPT	SAN	3	cargo	SeaRoute 1.6.0 Marnet	6510.9		8.3	5.3	647	1.5667	0.0738	sparse
+SHA	LAP	4	cargo	SeaRoute 1.6.0 Marnet	10640.2		8.6	5.4	1059	3.0380	0.2013	sparse
+BUS	VAN	5	bulk	SeaRoute 1.6.0 Marnet	8717.3		15.7	4.0	867	2.3101	0.1409	sparse
+SYP	AKP	0	ferry	SeaRoute 1.6.0 Marnet	2400.4		1.8	20.6	236	0.9565	0.0268	sparse
+MIA	NAS	0	cruise	SeaRoute 1.6.0 Marnet	302.1		18.4	8.1	27	5.5694	0.4161	normal
+RTA	SGP	0	fuel	SeaRoute 1.6.0 Marnet	6970.2	malacca,ormuz	9.8	6.3	692	7.8986	0.5638	normal
+HOU	RTM	1	fuel	SeaRoute 1.6.0 Marnet	9344.0		3.4	6.3	929	3.7652	0.2550	sparse
+JEA	JNP	0	cargo	SeaRoute 1.6.0 Marnet	2216.3	ormuz	35.9	15.0	216	8.8840	0.6174	normal
+CHN	SGP	1	cargo	SeaRoute 1.6.0 Marnet	2989.3	malacca	16.4	6.3	295	6.2185	0.4497	normal
+YTN	RTM	2	cargo	SeaRoute 1.6.0 Marnet	18198.2	malacca,gibraltar,suez,babalmandab	7.2	6.3	1813	8.1928	0.5906	normal
+NGB	LAP	3	cargo	SeaRoute 1.6.0 Marnet	10789.0		4.5	5.4	1074	3.2452	0.2148	sparse
+YOK	HNL	0	passenger	SeaRoute 1.6.0 Marnet	6563.7		9.9	25.3	651	4.2322	0.2819	sparse
+SEA	ANC	0	cruise	SeaRoute 1.6.0 Marnet	3001.6		8.9	15.8	296	3.2096	0.2081	sparse
+DOV	CAL	0	ferry	SeaRoute 1.6.0 Marnet	48.5		3.1	0.5	1	17.2169	1.0000	busy
+PIR	ALX	0	passenger	SeaRoute 1.6.0 Marnet	974.1		3.1	11.9	94	11.2724	0.7114	busy
+BCN	CIV	0	cruise	SeaRoute 1.6.0 Marnet	823.6		5.3	6.4	79	8.6717	0.6040	normal
+DUR	SGP	2	bulk	SeaRoute 1.6.0 Marnet	9175.1	malacca	13.8	6.3	913	5.5098	0.4027	normal
+SAN	RTM	2	cargo	SeaRoute 1.6.0 Marnet	10162.3		5.3	6.3	1011	4.1653	0.2752	sparse
+VAN	YOK	3	bulk	SeaRoute 1.6.0 Marnet	8016.8		4.0	9.9	797	1.6976	0.0805	sparse
+BUE	CPT	3	bulk	SeaRoute 1.6.0 Marnet	7161.6		30.0	8.3	710	1.2522	0.0537	sparse
+LAG	RTM	1	fuel	SeaRoute 1.6.0 Marnet	7877.0		7.9	6.3	783	9.3419	0.6443	normal
+MMB	JNP	1	cargo	SeaRoute 1.6.0 Marnet	4591.7		17.9	15.0	455	1.7809	0.0872	sparse
+TNG	RTM	0	ro-ro	SeaRoute 1.6.0 Marnet	2540.0		19.4	6.3	250	12.8783	0.7852	busy
+REK	TOS	0	fishing	SeaRoute 1.6.0 Marnet	2472.5		9.6	35.6	243	1.4066	0.0604	sparse
+HBA	MCM	0	research	SeaRoute 1.6.0 Marnet	5736.0		13.0	962.9	475	0.1500	0.0067	sparse
+BUS	VLA	0	ro-ro	SeaRoute 1.6.0 Marnet	961.2		15.7	13.7	92	5.6993	0.4228	normal
+QNG	YOK	0	cargo	SeaRoute 1.6.0 Marnet	2055.0		5.3	9.9	202	13.3141	0.8121	busy
+KAR	JEA	0	cargo	SeaRoute 1.6.0 Marnet	1413.1	ormuz	1.5	35.9	136	6.5273	0.4765	normal
+KAR	CMB	0	cargo	SeaRoute 1.6.0 Marnet	2636.8		1.5	7.3	260	8.8029	0.6107	normal
+CHT	SGP	0	cargo	SeaRoute 1.6.0 Marnet	2820.4	malacca	6.2	6.3	278	5.0987	0.3893	normal
+MNG	CMB	0	bulk	SeaRoute 1.6.0 Marnet	2469.9		99.5	7.3	235	4.2713	0.3020	sparse
+KOC	CMB	0	cargo	SeaRoute 1.6.0 Marnet	713.5		13.1	7.3	68	12.8435	0.7785	busy
+MUM	JEA	0	fuel	SeaRoute 1.6.0 Marnet	2205.8	ormuz	4.5	35.9	215	8.1901	0.5839	normal
+VIS	SGP	0	bulk	SeaRoute 1.6.0 Marnet	2927.2	malacca	12.8	6.3	289	4.8191	0.3758	normal
+KOL	SGP	0	cargo	SeaRoute 1.6.0 Marnet	3046.8	malacca	45.2	6.3	298	4.5325	0.3423	normal
+MLE	CMB	0	passenger	SeaRoute 1.6.0 Marnet	797.8		6.9	7.3	76	5.0173	0.3826	normal
+SYP	MEL	0	cargo	SeaRoute 1.6.0 Marnet	1107.8		1.8	2.8	107	4.8127	0.3691	normal
+MEL	FRE	0	cargo	SeaRoute 1.6.0 Marnet	3126.5		2.8	0.5	309	2.2885	0.1342	sparse
+BNE	SYP	0	cargo	SeaRoute 1.6.0 Marnet	946.6		3.4	1.8	91	8.6453	0.5973	normal
+DAR	SGP	0	cargo	SeaRoute 1.6.0 Marnet	3584.3		30.0	6.3	353	6.1733	0.4430	normal
+FRE	SGP	0	bulk	SeaRoute 1.6.0 Marnet	4327.2	sunda	0.5	6.3	428	4.5675	0.3557	normal
+PTK	CMB	0	cargo	SeaRoute 1.6.0 Marnet	2638.7	malacca	0.9	7.3	260	7.3930	0.5570	normal
+JKT	SGP	0	cargo	SeaRoute 1.6.0 Marnet	959.4		1.9	6.3	92	11.0049	0.6980	busy
+MNL	SGP	0	cargo	SeaRoute 1.6.0 Marnet	2534.4		4.6	6.3	250	2.4303	0.1544	sparse
+LCH	SGP	0	cargo	SeaRoute 1.6.0 Marnet	1496.9		4.2	6.3	146	4.2507	0.2953	sparse
+HCM	SGP	0	cargo	SeaRoute 1.6.0 Marnet	1232.3		50.5	6.3	116	7.1408	0.5235	normal
+ODS	PIR	0	bulk	SeaRoute 1.6.0 Marnet	1317.9	bosporus	17.6	3.1	128	15.5961	0.9597	busy
+NOV	PIR	0	fuel	SeaRoute 1.6.0 Marnet	1509.5	bosporus	15.0	3.1	147	13.4234	0.8389	busy
+KAR	RTM	0	cargo	SeaRoute 1.6.0 Marnet	11467.8	gibraltar,suez,babalmandab	1.5	6.3	1141	9.9024	0.6644	normal
+CMB	RTM	0	cargo	SeaRoute 1.6.0 Marnet	12639.7	gibraltar,suez,babalmandab	7.3	6.3	1258	8.9196	0.6309	normal
+SGP	CPT	0	cargo	SeaRoute 1.6.0 Marnet	10594.2	south_africa,sunda	6.3	8.3	1054	2.6216	0.1611	sparse
+CPT	RTM	0	cargo	SeaRoute 1.6.0 Marnet	11683.7		8.3	6.3	1163	6.3604	0.4631	normal
+WEL	SYP	0	cargo	SeaRoute 1.6.0 Marnet	2343.7		36.0	1.8	229	0.7080	0.0134	sparse
+POM	SYP	1	bulk	SeaRoute 1.6.0 Marnet	3239.6		20.8	1.8	320	4.7961	0.3624	normal
+HON	POM	2	fuel	SeaRoute 1.6.0 Marnet	1627.9		65.0	20.8	154	1.8226	0.0940	sparse
+NOU	SYP	3	ro-ro	SeaRoute 1.6.0 Marnet	2047.2		18.8	1.8	201	1.1762	0.0470	sparse
+API	AKP	0	passenger	SeaRoute 1.6.0 Marnet	3223.4		0.7	20.6	318	0.9676	0.0336	sparse
+NUK	AKP	1	cargo	SeaRoute 1.6.0 Marnet	2203.7		34.4	20.6	215	0.7105	0.0201	sparse
+DIL	SYP	2	bulk	SeaRoute 1.6.0 Marnet	5119.6		1.1	1.8	508	3.6814	0.2416	sparse
+SRB	SGP	3	fuel	SeaRoute 1.6.0 Marnet	1455.8		9.9	6.3	142	9.9887	0.6779	busy
+KKB	SGP	0	ro-ro	SeaRoute 1.6.0 Marnet	1563.9		4.0	6.3	153	5.5123	0.4094	normal
+PDK	SGP	1	passenger	SeaRoute 1.6.0 Marnet	388.8		52.1	6.3	32	9.9309	0.6711	busy
+PEN	SGP	2	cargo	SeaRoute 1.6.0 Marnet	781.8	malacca	4.7	6.3	75	12.9847	0.7987	busy
+BAT	MNL	3	bulk	SeaRoute 1.6.0 Marnet	201.4		29.3	4.6	16	16.3143	0.9664	busy
+CEB	MNL	0	fuel	SeaRoute 1.6.0 Marnet	745.6		12.0	4.6	71	13.1200	0.8054	busy
+DAV	MNL	1	ro-ro	SeaRoute 1.6.0 Marnet	1604.6		10.3	4.6	157	10.5051	0.6846	busy
+DNG	SGP	2	passenger	SeaRoute 1.6.0 Marnet	1969.0		22.1	6.3	193	4.4966	0.3356	normal
+KMP	SGP	3	cargo	SeaRoute 1.6.0 Marnet	1237.8		18.2	6.3	120	3.7210	0.2483	sparse
+BKK	SGP	0	bulk	SeaRoute 1.6.0 Marnet	1552.4		26.8	6.3	151	5.3862	0.3960	normal
+SAT	SGP	1	fuel	SeaRoute 1.6.0 Marnet	1440.7		23.3	6.3	140	4.4780	0.3289	sparse
+JHR	SGP	2	ro-ro	SeaRoute 1.6.0 Marnet	91.0		0.8	6.3	6	16.3343	0.9732	busy
+MAC	YTN	3	passenger	SeaRoute 1.6.0 Marnet	209.7		1.2	7.2	17	13.4175	0.8322	busy
+KHH	YTN	0	cargo	SeaRoute 1.6.0 Marnet	721.2		9.8	7.2	68	9.0438	0.6376	normal
+GZH	YTN	1	bulk	SeaRoute 1.6.0 Marnet	314.1		44.0	7.2	25	13.7409	0.8658	busy
+DAL	QNG	2	fuel	SeaRoute 1.6.0 Marnet	525.8		7.4	5.3	49	14.0751	0.8859	busy
+KEL	YTN	3	ro-ro	SeaRoute 1.6.0 Marnet	891.0		5.3	7.2	85	13.9189	0.8792	busy
+INC	BUS	0	passenger	SeaRoute 1.6.0 Marnet	776.8		37.8	15.7	72	14.1702	0.8926	busy
+MOK	BUS	1	cargo	SeaRoute 1.6.0 Marnet	480.5		101.9	15.7	36	12.9098	0.7919	busy
+HKT	BUS	2	bulk	SeaRoute 1.6.0 Marnet	275.6		2.6	15.7	24	14.8815	0.9262	busy
+ABD	RTA	3	fuel	SeaRoute 1.6.0 Marnet	497.2		36.3	9.8	45	11.3987	0.7181	busy
+BSH	RTA	0	ro-ro	SeaRoute 1.6.0 Marnet	379.5		5.6	9.8	34	13.3821	0.8255	busy
+BSR	RTA	1	passenger	SeaRoute 1.6.0 Marnet	543.1		51.1	9.8	48	9.5366	0.6577	normal
+RLF	RTA	2	cargo	SeaRoute 1.6.0 Marnet	226.6		42.6	9.8	17	12.4132	0.7651	busy
+AUH	RTA	3	bulk	SeaRoute 1.6.0 Marnet	702.4		3.0	9.8	67	11.8798	0.7315	busy
+KFK	RTA	0	fuel	SeaRoute 1.6.0 Marnet	922.6	ormuz	25.2	9.8	88	13.3762	0.8188	busy
+MAH	RTA	1	ro-ro	SeaRoute 1.6.0 Marnet	373.5		1.4	9.8	34	9.4759	0.6510	normal
+MSL	RTA	2	passenger	SeaRoute 1.6.0 Marnet	289.8		6.6	9.8	25	11.9729	0.7383	busy
+AMK	JEA	3	cargo	SeaRoute 1.6.0 Marnet	3215.1	ormuz,babalmandab	68.7	35.9	311	6.5898	0.4832	normal
+PSD	JEA	0	bulk	SeaRoute 1.6.0 Marnet	4233.1	ormuz,babalmandab	28.3	35.9	417	6.2377	0.4564	normal
+MOG	MMB	1	fuel	SeaRoute 1.6.0 Marnet	1043.8		7.9	17.9	101	0.9793	0.0403	sparse
+BEI	MMB	2	ro-ro	SeaRoute 1.6.0 Marnet	2237.8		6.2	17.9	220	1.9362	0.1141	sparse
+MPT	CPT	3	passenger	SeaRoute 1.6.0 Marnet	2235.2	south_africa	7.1	8.3	220	7.1562	0.5302	normal
+RBY	DUR	0	cargo	SeaRoute 1.6.0 Marnet	331.2		89.6	13.8	23	8.9138	0.6242	normal
+PEL	CPT	1	bulk	SeaRoute 1.6.0 Marnet	985.1	south_africa	3.7	8.3	95	7.9849	0.5705	normal
+WVB	CPT	2	fuel	SeaRoute 1.6.0 Marnet	1406.8		13.1	8.3	137	3.6758	0.2349	sparse
+LUA	CPT	3	ro-ro	SeaRoute 1.6.0 Marnet	3129.2		33.0	8.3	308	4.2468	0.2886	sparse
+LBR	LAG	0	passenger	SeaRoute 1.6.0 Marnet	1072.4		13.9	7.9	104	7.3615	0.5503	normal
+CNK	LAG	1	cargo	SeaRoute 1.6.0 Marnet	2430.8		12.6	7.9	239	6.7076	0.4966	normal
+NDB	TNG	2	bulk	SeaRoute 1.6.0 Marnet	2181.6		98.9	19.4	206	7.0174	0.5101	normal
+ALG	BCN	3	fuel	SeaRoute 1.6.0 Marnet	533.2		5.7	5.3	50	12.2471	0.7584	busy
+ORN	BCN	0	ro-ro	SeaRoute 1.6.0 Marnet	705.5		4.3	5.3	67	12.0258	0.7450	busy
+ANB	PIR	1	passenger	SeaRoute 1.6.0 Marnet	1591.4		6.9	3.1	155	14.5714	0.9128	busy
+LGU	PIR	2	cargo	SeaRoute 1.6.0 Marnet	1324.3		14.4	3.1	129	14.3029	0.8993	busy
+MLT	PIR	3	bulk	SeaRoute 1.6.0 Marnet	947.3		2.3	3.1	91	13.4837	0.8523	busy
+TRP	PIR	0	fuel	SeaRoute 1.6.0 Marnet	1264.3		7.4	3.1	123	6.1054	0.4362	normal
+HFA	ALX	1	ro-ro	SeaRoute 1.6.0 Marnet	622.4		4.1	11.9	59	11.3996	0.7248	busy
+MRS	PIR	2	passenger	SeaRoute 1.6.0 Marnet	1100.8		5.6	3.1	106	14.8854	0.9329	busy
+IZM	PIR	3	cargo	SeaRoute 1.6.0 Marnet	401.2		2.5	3.1	37	16.6135	0.9799	busy
+RJK	CIV	0	bulk	SeaRoute 1.6.0 Marnet	1743.4		3.7	6.4	171	13.4626	0.8456	busy
+KOP	CIV	1	fuel	SeaRoute 1.6.0 Marnet	1826.8		0.9	6.4	179	14.6313	0.9195	busy
+MSE	BCN	2	ro-ro	SeaRoute 1.6.0 Marnet	362.2		4.3	5.3	33	13.6779	0.8591	busy
+SIN	RTM	3	passenger	SeaRoute 1.6.0 Marnet	2093.2		4.8	6.3	205	12.6995	0.7718	busy
+DUB	RTM	0	cargo	SeaRoute 1.6.0 Marnet	1161.9		9.2	6.3	112	14.5699	0.9060	busy
+GDN	RTM	1	bulk	SeaRoute 1.6.0 Marnet	1648.2		32.3	6.3	160	14.9095	0.9396	busy
+RIG	RTM	2	fuel	SeaRoute 1.6.0 Marnet	1978.8		19.1	6.3	194	15.5107	0.9530	busy
+STO	RTM	3	ro-ro	SeaRoute 1.6.0 Marnet	1917.7		13.3	6.3	188	15.1218	0.9463	busy
+HLX	RTM	0	passenger	SeaRoute 1.6.0 Marnet	5137.3		1.8	6.3	509	3.5659	0.2282	sparse
+MTL	HLX	1	cargo	SeaRoute 1.6.0 Marnet	1832.2		1.4	1.8	179	6.8926	0.5034	normal
+BOS	HLX	2	bulk	SeaRoute 1.6.0 Marnet	789.0		1.0	1.8	75	2.6573	0.1678	sparse
+BAL	MIA	3	fuel	SeaRoute 1.6.0 Marnet	1682.2		1.3	18.4	164	7.2344	0.5436	normal
+NOL	HOU	0	ro-ro	SeaRoute 1.6.0 Marnet	817.9		2.1	3.4	78	10.8338	0.6913	busy
+ACA	LAP	1	passenger	SeaRoute 1.6.0 Marnet	2824.5		39.0	5.4	277	2.0154	0.1208	sparse
+BLB	MIA	2	cargo	SeaRoute 1.6.0 Marnet	2398.3	panama	5.2	18.4	236	3.8820	0.2617	sparse
+CLL	SAN	3	bulk	SeaRoute 1.6.0 Marnet	9100.6	chili	60.0	5.3	901	1.4390	0.0671	sparse
+VLP	SAN	0	fuel	SeaRoute 1.6.0 Marnet	6726.3	chili	35.9	5.3	666	1.8511	0.1007	sparse
+LPT	BUE	1	ro-ro	SeaRoute 1.6.0 Marnet	107.9		77.9	30.0	1	0.0000	0.0000	sparse
+MVD	BUE	2	passenger	SeaRoute 1.6.0 Marnet	263.7		34.0	30.0	20	1.8875	0.1074	sparse
+RIO	SAN	3	cargo	SeaRoute 1.6.0 Marnet	426.4		4.2	5.3	39	7.0877	0.5168	normal
+SLV	SAN	0	bulk	SeaRoute 1.6.0 Marnet	1859.4		10.1	5.3	182	6.4407	0.4698	normal
+BEL	LAG	1	fuel	SeaRoute 1.6.0 Marnet	6237.9		33.4	7.9	618	2.8243	0.1745	sparse
+PAR	MIA	2	ro-ro	SeaRoute 1.6.0 Marnet	3621.6		24.7	18.4	358	4.4468	0.3221	sparse
+GYT	MIA	3	passenger	SeaRoute 1.6.0 Marnet	3309.2		34.7	18.4	325	4.3282	0.3087	sparse
+NGY	YOK	0	cargo	SeaRoute 1.6.0 Marnet	418.2		11.1	9.9	38	16.6180	0.9866	busy
+AUG	CIV	1	bulk	SeaRoute 1.6.0 Marnet	734.7		12.5	6.4	70	12.0358	0.7517	busy
+BRI	CIV	2	fuel	SeaRoute 1.6.0 Marnet	1115.3		1.0	6.4	108	13.8573	0.8725	busy
+CAT	CIV	3	ro-ro	SeaRoute 1.6.0 Marnet	689.9		6.9	6.4	65	11.2702	0.7047	busy
+PHD	FRE	0	passenger	SeaRoute 1.6.0 Marnet	1888.9		79.6	0.5	179	4.5614	0.3490	normal
+BRM	DAR	1	cargo	SeaRoute 1.6.0 Marnet	1358.5		13.7	30.0	131	2.3132	0.1477	sparse
+MND	JEA	2	bulk	SeaRoute 1.6.0 Marnet	1740.5	ormuz	31.9	35.9	167	7.2041	0.5369	normal
+MCH	CHN	3	fuel	SeaRoute 1.6.0 Marnet	520.8		90.4	16.4	41	2.2551	0.1275	sparse
+MQM	KAR	0	ro-ro	SeaRoute 1.6.0 Marnet	39.6		38.1	1.5	1	17.0135	0.9933	busy
+SHA	CMB	1	passenger	SeaRoute 1.6.0 Marnet	7028.1	malacca	8.6	7.3	698	6.6481	0.4899	normal
+CMB	SAN	2	cargo	SeaRoute 1.6.0 Marnet	14698.7	south_africa	7.3	5.3	1464	2.8617	0.1812	sparse
+SHA	CPT	3	bulk	SeaRoute 1.6.0 Marnet	14324.8	south_africa,sunda	8.6	8.3	1427	2.9906	0.1946	sparse
+KAR	CPT	0	fuel	SeaRoute 1.6.0 Marnet	8956.0	south_africa	1.5	8.3	891	3.2596	0.2215	sparse
+SYP	FRE	1	ro-ro	SeaRoute 1.6.0 Marnet	4042.4		1.8	0.5	400	2.8705	0.1879	sparse
+ADL	FRE	2	cargo	SeaRoute 1.6.0 Marnet	2535.0		9.9	0.5	250	4.4462	0.3154	sparse
+CAB	LUA	0	cargo	SeaRoute 1.6.0 Marnet	428.6		0.0	0.0	0	0	0.15	modeled
+LOB	LUA	1	fuel	SeaRoute 1.6.0 Marnet	528.5		0.0	0.0	0	0	0.15	modeled
+NAM	WVB	2	ro-ro	SeaRoute 1.6.0 Marnet	981.4		0.0	0.0	0	0	0.15	modeled
+TAK	LAG	3	cargo	SeaRoute 1.6.0 Marnet	556.0		0.0	0.0	0	0	0.15	modeled
+TEM	LAG	4	fuel	SeaRoute 1.6.0 Marnet	419.3		0.0	0.0	0	0	0.15	modeled
+DAK	CNK	5	ro-ro	SeaRoute 1.6.0 Marnet	968.4		0.0	0.0	0	0	0.15	modeled
+PRA	DAK	0	cargo	SeaRoute 1.6.0 Marnet	660.5		0.0	0.0	0	0	0.15	modeled
+DJI	JID	1	fuel	SeaRoute 1.6.0 Marnet	1283.4		0.0	0.0	0	0	0.15	modeled
+DOR	BER	2	ro-ro	SeaRoute 1.6.0 Marnet	361.5		0.0	0.0	0	0	0.15	modeled
+BER	MOG	3	cargo	SeaRoute 1.6.0 Marnet	2418.9		0.0	0.0	0	0	0.15	modeled
+BSA	MOG	4	fuel	SeaRoute 1.6.0 Marnet	1607.3		0.0	0.0	0	0	0.15	modeled
+KIS	MOG	5	ro-ro	SeaRoute 1.6.0 Marnet	498.4		0.0	0.0	0	0	0.15	modeled
+DSE	MMB	0	cargo	SeaRoute 1.6.0 Marnet	319.3		0.0	0.0	0	0	0.15	modeled
+TAN	MMB	1	fuel	SeaRoute 1.6.0 Marnet	99.7		0.0	0.0	0	0	0.15	modeled
+ZAN	DSE	2	ro-ro	SeaRoute 1.6.0 Marnet	75.5		0.0	0.0	0	0	0.15	modeled
+MTW	MMB	3	cargo	SeaRoute 1.6.0 Marnet	716.6		0.0	0.0	0	0	0.15	modeled
+NAC	MMB	4	fuel	SeaRoute 1.6.0 Marnet	1277.7		0.0	0.0	0	0	0.15	modeled
+PEM	MMB	5	ro-ro	SeaRoute 1.6.0 Marnet	1277.7		0.0	0.0	0	0	0.15	modeled
+TOA	MMB	0	cargo	SeaRoute 1.6.0 Marnet	2478.3		0.0	0.0	0	0	0.15	modeled
+MAJ	TOA	1	fuel	SeaRoute 1.6.0 Marnet	1177.8		0.0	0.0	0	0	0.15	modeled
+TOL	TOA	2	ro-ro	SeaRoute 1.6.0 Marnet	1846.7		0.0	0.0	0	0	0.15	modeled
+LUD	WVB	3	cargo	SeaRoute 1.6.0 Marnet	514.5		0.0	0.0	0	0	0.15	modeled
+SAS	CPT	4	fuel	SeaRoute 1.6.0 Marnet	17.8		0.0	0.0	0	0	0.15	modeled
+PTG	LBR	5	ro-ro	SeaRoute 1.6.0 Marnet	330.9		0.0	0.0	0	0	0.15	modeled
+OWE	LUA	0	cargo	SeaRoute 1.6.0 Marnet	1368.9		0.0	0.0	0	0	0.15	modeled
+SKI	ALG	1	fuel	SeaRoute 1.6.0 Marnet	507.9		0.0	0.0	0	0	0.15	modeled
+BEJ	ALG	2	ro-ro	SeaRoute 1.6.0 Marnet	316.1		0.0	0.0	0	0	0.15	modeled
+CAS	TNG	3	cargo	SeaRoute 1.6.0 Marnet	337.0		0.0	0.0	0	0	0.15	modeled
+AGD	CAS	4	fuel	SeaRoute 1.6.0 Marnet	571.7		0.0	0.0	0	0	0.15	modeled
+JID	JEA	5	ro-ro	SeaRoute 1.6.0 Marnet	4234.8		0.0	0.0	0	0	0.15	modeled
+MPL	BUE	0	cargo	SeaRoute 1.6.0 Marnet	774.2		0.0	0.0	0	0	0.15	modeled
+MAD	MPL	1	fuel	SeaRoute 1.6.0 Marnet	945.2		0.0	0.0	0	0	0.15	modeled
+USH	MPL	2	ro-ro	SeaRoute 1.6.0 Marnet	2476.0		0.0	0.0	0	0	0.15	modeled
+NAT	PMT	3	cargo	SeaRoute 1.6.0 Marnet	1511.7		0.0	0.0	0	0	0.15	modeled
+PMT	VLP	4	fuel	SeaRoute 1.6.0 Marnet	1219.1		0.0	0.0	0	0	0.15	modeled
+TAL	VLP	5	ro-ro	SeaRoute 1.6.0 Marnet	426.3		0.0	0.0	0	0	0.15	modeled
+ANT	VLP	0	cargo	SeaRoute 1.6.0 Marnet	1047.5		0.0	0.0	0	0	0.15	modeled
+IQQ	ANT	1	fuel	SeaRoute 1.6.0 Marnet	402.8		0.0	0.0	0	0	0.15	modeled
+PAI	CLL	2	ro-ro	SeaRoute 1.6.0 Marnet	873.8		0.0	0.0	0	0	0.15	modeled
+MAN	CLL	3	cargo	SeaRoute 1.6.0 Marnet	1433.6		0.0	0.0	0	0	0.15	modeled
+GUA	BLB	4	fuel	SeaRoute 1.6.0 Marnet	1550.0		0.0	0.0	0	0	0.15	modeled
+BRQ	CTG	5	ro-ro	SeaRoute 1.6.0 Marnet	283.4		0.0	0.0	0	0	0.15	modeled
+CTG	BLB	0	cargo	SeaRoute 1.6.0 Marnet	606.8		0.0	0.0	0	0	0.15	modeled
+SMT	MIA	1	fuel	SeaRoute 1.6.0 Marnet	2854.8		0.0	0.0	0	0	0.15	modeled
+PBO	CTG	2	ro-ro	SeaRoute 1.6.0 Marnet	503.9		0.0	0.0	0	0	0.15	modeled
+LAC	ACA	3	cargo	SeaRoute 1.6.0 Marnet	407.0		0.0	0.0	0	0	0.15	modeled
+MNZ	ACA	4	fuel	SeaRoute 1.6.0 Marnet	407.0		0.0	0.0	0	0	0.15	modeled
+VRC	HOU	5	ro-ro	SeaRoute 1.6.0 Marnet	1216.0		0.0	0.0	0	0	0.15	modeled
+ALT	HOU	0	cargo	SeaRoute 1.6.0 Marnet	1069.6		0.0	0.0	0	0	0.15	modeled
+PVA	ACA	1	fuel	SeaRoute 1.6.0 Marnet	965.3		0.0	0.0	0	0	0.15	modeled
+ENS	LAP	2	ro-ro	SeaRoute 1.6.0 Marnet	146.0		0.0	0.0	0	0	0.15	modeled
+ITJ	SAN	3	cargo	SeaRoute 1.6.0 Marnet	373.5		0.0	0.0	0	0	0.15	modeled
+REC	SLV	4	fuel	SeaRoute 1.6.0 Marnet	873.5		0.0	0.0	0	0	0.15	modeled
+SUE	SLV	5	ro-ro	SeaRoute 1.6.0 Marnet	873.5		0.0	0.0	0	0	0.15	modeled
+HAZ	MUM	0	cargo	SeaRoute 1.6.0 Marnet	267.9		0.0	0.0	0	0	0.15	modeled
+DHE	MUM	1	fuel	SeaRoute 1.6.0 Marnet	319.9		0.0	0.0	0	0	0.15	modeled
+PIP	MND	2	ro-ro	SeaRoute 1.6.0 Marnet	574.3		0.0	0.0	0	0	0.15	modeled
+NML	KOC	3	cargo	SeaRoute 1.6.0 Marnet	534.8		0.0	0.0	0	0	0.15	modeled
+TUT	CHN	4	fuel	SeaRoute 1.6.0 Marnet	1477.2		0.0	0.0	0	0	0.15	modeled
+GPL	VIS	5	ro-ro	SeaRoute 1.6.0 Marnet	221.3		0.0	0.0	0	0	0.15	modeled
+PRD	KOL	0	cargo	SeaRoute 1.6.0 Marnet	138.6		0.0	0.0	0	0	0.15	modeled
+HLD	KOL	1	fuel	SeaRoute 1.6.0 Marnet	11.7		0.0	0.0	0	0	0.15	modeled
+PBL	MLE	2	ro-ro	SeaRoute 1.6.0 Marnet	2613.1		0.0	0.0	0	0	0.15	modeled
+TRI	CMB	3	cargo	SeaRoute 1.6.0 Marnet	493.7		0.0	0.0	0	0	0.15	modeled
+GAL	CMB	4	fuel	SeaRoute 1.6.0 Marnet	139.3		0.0	0.0	0	0	0.15	modeled
+GWD	KAR	5	ro-ro	SeaRoute 1.6.0 Marnet	404.6		0.0	0.0	0	0	0.15	modeled
+MGO	MUM	0	cargo	SeaRoute 1.6.0 Marnet	459.7		0.0	0.0	0	0	0.15	modeled
+BNT	KKB	1	fuel	SeaRoute 1.6.0 Marnet	614.3		0.0	0.0	0	0	0.15	modeled
+KUC	KKB	2	ro-ro	SeaRoute 1.6.0 Marnet	966.1		0.0	0.0	0	0	0.15	modeled
+SND	KKB	3	cargo	SeaRoute 1.6.0 Marnet	445.7		0.0	0.0	0	0	0.15	modeled
+TJN	JHR	4	fuel	SeaRoute 1.6.0 Marnet	47.9		0.0	0.0	0	0	0.15	modeled
+BLP	SRB	5	ro-ro	SeaRoute 1.6.0 Marnet	970.4		0.0	0.0	0	0	0.15	modeled
+MKS	SRB	0	cargo	SeaRoute 1.6.0 Marnet	842.6		0.0	0.0	0	0	0.15	modeled
+AMB	DIL	1	fuel	SeaRoute 1.6.0 Marnet	1010.7		0.0	0.0	0	0	0.15	modeled
+TER	AMB	2	ro-ro	SeaRoute 1.6.0 Marnet	331.4		0.0	0.0	0	0	0.15	modeled
+BNA	SRB	3	cargo	SeaRoute 1.6.0 Marnet	1205.0		0.0	0.0	0	0	0.15	modeled
+MRY	KKB	4	fuel	SeaRoute 1.6.0 Marnet	361.1		0.0	0.0	0	0	0.15	modeled
+ZMB	DAV	5	ro-ro	SeaRoute 1.6.0 Marnet	631.6		0.0	0.0	0	0	0.15	modeled
+GSO	DAV	0	cargo	SeaRoute 1.6.0 Marnet	297.0		0.0	0.0	0	0	0.15	modeled
+CGO	CEB	1	fuel	SeaRoute 1.6.0 Marnet	262.0		0.0	0.0	0	0	0.15	modeled
+LKA	NUK	2	ro-ro	SeaRoute 1.6.0 Marnet	996.9		0.0	0.0	0	0	0.15	modeled
+SUV	LKA	3	cargo	SeaRoute 1.6.0 Marnet	287.8		0.0	0.0	0	0	0.15	modeled
+TAR	HNL	4	fuel	SeaRoute 1.6.0 Marnet	4118.8		0.0	0.0	0	0	0.15	modeled
+GUM	MNL	5	ro-ro	SeaRoute 1.6.0 Marnet	3083.3		0.0	0.0	0	0	0.15	modeled
+LAE	POM	0	cargo	SeaRoute 1.6.0 Marnet	1569.0		0.0	0.0	0	0	0.15	modeled
+RAB	GUM	1	fuel	SeaRoute 1.6.0 Marnet	2702.5		0.0	0.0	0	0	0.15	modeled
+TAU	AKP	2	ro-ro	SeaRoute 1.6.0 Marnet	218.2		0.0	0.0	0	0	0.15	modeled
+PTP	VLA	3	cargo	SeaRoute 1.6.0 Marnet	2314.9		0.0	0.0	0	0	0.15	modeled
+PVK	PRV	4	fuel	SeaRoute 1.6.0 Marnet	26735.8		0.0	0.0	0	0	0.15	modeled
+TIX	DSN	5	ro-ro	SeaRoute 1.6.0 Marnet	1617.3		0.0	0.0	0	0	0.15	modeled
+DSN	ARK	0	cargo	SeaRoute 1.6.0 Marnet	2552.3		0.0	0.0	0	0	0.15	modeled
+ARK	TOS	1	fuel	SeaRoute 1.6.0 Marnet	1401.5		0.0	0.0	0	0	0.15	modeled
+SDV	TOS	2	ro-ro	SeaRoute 1.6.0 Marnet	1401.5		0.0	0.0	0	0	0.15	modeled
+PRV	ANC	3	cargo	SeaRoute 1.6.0 Marnet	2734.1		0.0	0.0	0	0	0.15	modeled
+KOR	VLA	4	fuel	SeaRoute 1.6.0 Marnet	1142.9		0.0	0.0	0	0	0.15	modeled
+KAL	GDN	5	ro-ro	SeaRoute 1.6.0 Marnet	158.5		0.0	0.0	0	0	0.15	modeled
+GRN	REK	0	cargo	SeaRoute 1.6.0 Marnet	2863.5		0.0	0.0	0	0	0.15	modeled
+NUU	REK	1	fuel	SeaRoute 1.6.0 Marnet	2205.6		0.0	0.0	0	0	0.15	modeled
+TIX	ARK	2	ro-ro	SeaRoute 1.6.0 Marnet	4169.6		0.0	0.0	0	0	0.15	modeled
+PLU	CPT	3	cargo	SeaRoute 1.6.0 Marnet	4380.0		0.0	0.0	0	0	0.15	modeled
+LOB	CPT	4	fuel	SeaRoute 1.6.0 Marnet	2707.8		0.0	0.0	0	0	0.15	modeled
+TEM	CNK	5	ro-ro	SeaRoute 1.6.0 Marnet	2040.9		0.0	0.0	0	0	0.15	modeled
+DAK	CAS	0	cargo	SeaRoute 1.6.0 Marnet	2568.7		0.0	0.0	0	0	0.15	modeled
+JID	ALX	1	fuel	SeaRoute 1.6.0 Marnet	1632.1	suez	0.0	0.0	0	0	0.15	modeled
+DJI	MMB	2	ro-ro	SeaRoute 1.6.0 Marnet	3343.6		0.0	0.0	0	0	0.15	modeled
+MMB	PLU	3	cargo	SeaRoute 1.6.0 Marnet	2850.5		0.0	0.0	0	0	0.15	modeled
+CPT	MCM	4	fuel	SeaRoute 1.6.0 Marnet	14481.4		0.0	0.0	0	0	0.15	modeled
+MPL	VLP	5	ro-ro	SeaRoute 1.6.0 Marnet	4837.1		0.0	0.0	0	0	0.15	modeled
+USH	MCM	0	cargo	SeaRoute 1.6.0 Marnet	9815.7		0.0	0.0	0	0	0.15	modeled
+PMT	CLL	1	fuel	SeaRoute 1.6.0 Marnet	3569.3		0.0	0.0	0	0	0.15	modeled
+ANT	CLL	2	ro-ro	SeaRoute 1.6.0 Marnet	1632.5		0.0	0.0	0	0	0.15	modeled
+PAI	MNL	3	cargo	SeaRoute 1.6.0 Marnet	18309.8		0.0	0.0	0	0	0.15	modeled
+GUA	CTG	4	fuel	SeaRoute 1.6.0 Marnet	2156.8		0.0	0.0	0	0	0.15	modeled
+CTG	MIA	5	ro-ro	SeaRoute 1.6.0 Marnet	2767.6		0.0	0.0	0	0	0.15	modeled
+PBO	BLB	0	cargo	SeaRoute 1.6.0 Marnet	1005.6		0.0	0.0	0	0	0.15	modeled
+VRC	MIA	1	fuel	SeaRoute 1.6.0 Marnet	1904.7		0.0	0.0	0	0	0.15	modeled
+ENS	PVA	2	ro-ro	SeaRoute 1.6.0 Marnet	1971.2		0.0	0.0	0	0	0.15	modeled
+ITJ	SUE	3	cargo	SeaRoute 1.6.0 Marnet	2775.6		0.0	0.0	0	0	0.15	modeled
+REC	LUA	4	fuel	SeaRoute 1.6.0 Marnet	5369.9		0.0	0.0	0	0	0.15	modeled
+SUE	BEL	5	ro-ro	SeaRoute 1.6.0 Marnet	2215.5		0.0	0.0	0	0	0.15	modeled
+MND	RTA	0	cargo	SeaRoute 1.6.0 Marnet	2141.0		0.0	0.0	0	0	0.15	modeled
+MUM	CMB	1	fuel	SeaRoute 1.6.0 Marnet	1723.7		0.0	0.0	0	0	0.15	modeled
+KOC	MLE	2	ro-ro	SeaRoute 1.6.0 Marnet	944.5		0.0	0.0	0	0	0.15	modeled
+CHN	PTK	3	cargo	SeaRoute 1.6.0 Marnet	2624.8		0.0	0.0	0	0	0.15	modeled
+KOL	CHT	4	fuel	SeaRoute 1.6.0 Marnet	587.6		0.0	0.0	0	0	0.15	modeled
+PBL	SGP	5	ro-ro	SeaRoute 1.6.0 Marnet	1633.3		0.0	0.0	0	0	0.15	modeled
+GWD	RTA	0	cargo	SeaRoute 1.6.0 Marnet	1439.4		0.0	0.0	0	0	0.15	modeled
+PTK	JKT	1	fuel	SeaRoute 1.6.0 Marnet	1427.3		0.0	0.0	0	0	0.15	modeled
+JKT	DAR	2	ro-ro	SeaRoute 1.6.0 Marnet	2959.2		0.0	0.0	0	0	0.15	modeled
+MNL	KKB	3	cargo	SeaRoute 1.6.0 Marnet	1376.8		0.0	0.0	0	0	0.15	modeled
+KKB	HCM	4	fuel	SeaRoute 1.6.0 Marnet	1593.2		0.0	0.0	0	0	0.15	modeled
+DIL	DAR	5	ro-ro	SeaRoute 1.6.0 Marnet	850.2		0.0	0.0	0	0	0.15	modeled
+SRB	POM	0	cargo	SeaRoute 1.6.0 Marnet	3966.3		0.0	0.0	0	0	0.15	modeled
+BNT	HCM	1	fuel	SeaRoute 1.6.0 Marnet	1627.5		0.0	0.0	0	0	0.15	modeled
+GUM	HNL	2	ro-ro	SeaRoute 1.6.0 Marnet	6182.6		0.0	0.0	0	0	0.15	modeled
+LAE	HBA	3	cargo	SeaRoute 1.6.0 Marnet	4648.7		0.0	0.0	0	0	0.15	modeled
+RAB	POM	4	fuel	SeaRoute 1.6.0 Marnet	1538.4		0.0	0.0	0	0	0.15	modeled
+TAU	SYP	5	ro-ro	SeaRoute 1.6.0 Marnet	2531.0		0.0	0.0	0	0	0.15	modeled
+LKA	AKP	0	cargo	SeaRoute 1.6.0 Marnet	2293.1		0.0	0.0	0	0	0.15	modeled
+SUV	NOU	1	fuel	SeaRoute 1.6.0 Marnet	1440.0		0.0	0.0	0	0	0.15	modeled
+TAR	GUM	2	ro-ro	SeaRoute 1.6.0 Marnet	3628.8		0.0	0.0	0	0	0.15	modeled
+PTP	BUS	3	cargo	SeaRoute 1.6.0 Marnet	2964.5		0.0	0.0	0	0	0.15	modeled
+PTP	ANC	4	fuel	SeaRoute 1.6.0 Marnet	4260.5		0.0	0.0	0	0	0.15	modeled
+PVK	ANC	5	ro-ro	SeaRoute 1.6.0 Marnet	25427.2		0.0	0.0	0	0	0.15	modeled
+ARK	REK	0	cargo	SeaRoute 1.6.0 Marnet	3605.1		0.0	0.0	0	0	0.15	modeled
+KAL	RTM	1	fuel	SeaRoute 1.6.0 Marnet	1653.7		0.0	0.0	0	0	0.15	modeled
+KOR	BUS	2	ro-ro	SeaRoute 1.6.0 Marnet	1813.2		0.0	0.0	0	0	0.15	modeled
+GRN	TOS	3	cargo	SeaRoute 1.6.0 Marnet	4898.9		0.0	0.0	0	0	0.15	modeled
+NUU	TOS	4	fuel	SeaRoute 1.6.0 Marnet	4241.0		0.0	0.0	0	0	0.15	modeled
+DDK	TIX	5	ro-ro	SeaRoute 1.6.0 Marnet	2108.7	yenisei	0.0	0.0	0	0	0.15	modeled

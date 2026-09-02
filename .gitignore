@@ -1,25 +1,31 @@
-# == Machine files ==
+# Machine files
 .DS_Store
 .cache/
 .venv/
 __pycache__/
 *.py[cod]
 .coverage
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
+.*_cache/
 dist/
 htmlcov/
 *.egg-info/
 CMakeUserPresets.json
 .spack-env/
 
-# == Private course material ==
+# Tool links; configs live in tools/config/<language>
+/.clang*
+/.gersemirc
+/.luarc.json
+/pyrightconfig.json
+/.[rs]*.toml
+
+# Private course material
 /COSC3500_*.pdf
 /output/
+/tmp/
 
-# == Build output ===
-# -- CMake, Ninja, Conan and CTest --
+# Build output
+# CMake, Ninja, Conan and CTest
 [Bb]uild/
 cmake-build-*/
 CMakeFiles/
@@ -27,40 +33,33 @@ CMakeFiles/
 _deps/
 compile_commands.json
 
-# -- C/C++ and CUDA products --
+# C/C++ and CUDA products
 *.[oad]
 *.obj
-*.lo
-*.so
+*.[ls]o
 *.so.*
 *.dylib
-*.gch
-*.pch
+*.[gp]ch
 *.ptx
-*.cubin
-*.fatbin
+*.[cf]*bin
 /proj/*/main
 
-# == Analysis output ==
-# -- Coverage, PGO and BOLT --
-*.gcda
-*.gcno
-*.gcov
-*.profraw
-*.profdata
+# Analysis output
+# Coverage, PGO and BOLT
+*.gc??
+*.prof*
 *.fdata
 
-# -- perf, Nsight, HPCToolkit, Score-P and MUST --
+# perf, Nsight, HPCToolkit, Score-P and MUST
 perf.data*
-*.nsys-rep
-*.ncu-rep
+*.n*-rep
 *.qdrep
 hpctoolkit-*/
 scorep-*/
 MUST_Output*
 
-# == Runtime output ==
-# -- Slurm, sanitizers and crash dumps --
+# Runtime output
+# Slurm, sanitizers and crash dumps
 *.out
 *.err
 *.log
@@ -68,6 +67,6 @@ MUST_Output*
 core.[0-9]*
 vgcore.*
 
-# -- Centralised raw output --
+# Centralised raw output
 /results/*
 !/results/.gitkeep

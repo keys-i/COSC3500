@@ -1,0 +1,17 @@
+[scene]
+kind=demo
+art=ready
+
+[poster]
+subtitle=Orthodox self-play using the Joszs piece pack.
+meme=CHESS
+
+[visual]
+reference=Joszs chess pack on an oak board
+palette=dusty-rose,oak,cream,cocoa,graphite,brass
+layers=carpet,table,board,pieces,capture-trays,clock
+scale=one piece per square
+camera=near-top-down board with both trays in frame
+safe_margin=0.06
+projection=flat
+reduced_motion=false

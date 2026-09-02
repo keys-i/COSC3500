@@ -1,0 +1,16 @@
+[scenario]
+version=4
+kernel=cellular
+
+[world]
+width=3
+height=3
+steps=1
+boundary=bounded
+
+[cellular]
+states=10
+cells=159501900
+
+[rules]
+file=rules.lua

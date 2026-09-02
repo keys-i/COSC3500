@@ -1,0 +1,13 @@
+{
+  "runtime.version": "Lua 5.4",
+  "diagnostics.globals": [
+    "engine",
+    "next_cell",
+    "on_setup",
+    "on_tick",
+    "on_timeline",
+    "on_turn"
+  ],
+  "workspace.checkThirdParty": false,
+  "workspace.ignoreDir": ["build", "third_party"]
+}

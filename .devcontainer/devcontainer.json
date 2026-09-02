@@ -7,7 +7,5 @@
       "toolsToInstall": "uv"
     }
   },
-  "onCreateCommand": "./tools/scripts/tools/install",
-  "updateContentCommand": "make test PRESET=profile",
-  "waitFor": "updateContentCommand"
+  "onCreateCommand": "./tools/scripts/setup.sh"
 }

@@ -1,0 +1,17 @@
+# 100K cells, 10 steps
+[scenario]
+version=4
+kernel=cellular
+
+[world]
+width=400
+height=250
+steps=10
+seed=7
+boundary=bounded
+
+[cellular]
+states=13
+
+[rules]
+file=rules.lua
