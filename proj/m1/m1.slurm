@@ -2,9 +2,12 @@
 #SBATCH --job-name=m1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
+#SBATCH --partition=cosc3500
+#SBATCH --account=cosc3500
 #SBATCH --cpus-per-task=1
-#SBATCH --time=02:00:00
-#SBATCH --output=m1-%j.out
+#SBATCH --time=00:10:00
+#SBATCH --output=slurm-%j.out
+#SBATCH --error=slurm-%j.err
 
 # Run the serial benchmark workflow inside one allocated task
 set -Eeuo pipefail
