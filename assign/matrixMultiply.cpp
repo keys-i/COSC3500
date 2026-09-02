@@ -15,7 +15,7 @@
  * @return : your student ID
  *
  * */
-__attribute__((target("avx,fma,tune=znver2"), optimize("O3", "unroll-loops"))) int
+__attribute__((target("avx,fma"), optimize("O3", "unroll-loops"))) int
 matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                int *args, int argCount) {
     // Your code must be able to deal with N=0 scenario without crashing.
@@ -32,7 +32,7 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
     const __m256 imagSign = _mm256_castpd_ps(_mm256_set1_pd(-0.0));
     const auto accumulate =
         [](__m256 sum, __m256 signedA, __m256 swap, const floatType &b)
-            __attribute__((always_inline, target("avx,fma,tune=znver2"))) {
+            __attribute__((always_inline, target("avx,fma"))) {
                 return _mm256_fnmadd_ps(
                     swap, _mm256_set1_ps(b.imag()),
                     _mm256_fmadd_ps(signedA, _mm256_set1_ps(b.real()), sum));
