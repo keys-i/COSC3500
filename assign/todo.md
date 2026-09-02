@@ -18,17 +18,17 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - packed four-column FMA microkernel with `2x` `k` unrolling
+### Latest CPU benchmark - two-FMA four-column packed microkernel
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 8809.416 | 9899.027 | 0.890 | 2.241e-08 | 6.753 |
-| 256 | 1484.067 | 1595.484 | 0.930 | 1.667e-08 | 6.690 |
-| 512 | 200.518 | 230.965 | 0.868 | 1.477e-08 | 6.789 |
-| 1024 | 25.402 | 30.061 | 0.845 | 1.289e-08 | 6.828 |
-| 2048 | 3.218 | 2.378 | 1.353 | 1.186e-08 | 6.149 |
+| 128 | 8809.188 | 10141.495 | 0.869 | 3.205e-08 | 6.788 |
+| 256 | 1469.425 | 1696.328 | 0.866 | 2.697e-08 | 6.793 |
+| 512 | 199.923 | 248.679 | 0.804 | 2.528e-08 | 6.900 |
+| 1024 | 24.150 | 33.493 | 0.721 | 2.354e-08 | 7.057 |
+| 2048 | 3.358 | 2.518 | 1.334 | 2.262e-08 | 6.169 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Keep the four-column microkernel: at `N=2048`, throughput rose from `2.098` to `2.378` matrices/s (`13.3%`) and the ratio improved from `1.568x` to `1.353x`. Reaching `0.80x` still needs another `1.69x`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Keep two-FMA accumulation: it improved every size and raised `N=2048` throughput from `2.378` to `2.518` matrices/s (`5.9%`). `N=1024` now beats the `0.80x` target; `N=2048` still needs another `1.67x`.
 
 ### 1. AVX first
 
@@ -50,7 +50,8 @@
 - [x] Ask GCC to unroll the hot `k` loop twice; keep the combined changes for their `2.5%` `N=2048` throughput gain.
 - [x] Increase the compiler-directed `k` unroll from two to four; reject its `1.6%` `N=2048` throughput regression.
 - [x] Process four columns in one packed register microkernel; keep its `13.3%` `N=2048` throughput gain.
-- [ ] Accumulate real and negated-imaginary lanes directly with two FMAs instead of multiply, FMA, then add.
+- [x] Accumulate real and negated-imaginary lanes directly with two FMAs; keep its `5.9%` `N=2048` gain.
+- [ ] Remove the stale forced `2x` unroll and let GCC schedule the larger kernel; keep the deletion only if `N=2048` improves.
 - [x] Record the single-core result: `9.158x` MKL at `N=1024`; the planned `4.0x` milestone was not reached.
 
 ### 2. OpenMP second
@@ -89,7 +90,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `1.353x`.
+- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `1.334x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
