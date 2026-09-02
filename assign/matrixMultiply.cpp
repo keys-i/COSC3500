@@ -15,7 +15,7 @@
  * @return : your student ID
  *
  * */
-__attribute__((target("avx,fma"))) int matrixMultiply(int N, const floatType *A,
+__attribute__((target("avx,fma"), optimize("O3"))) int matrixMultiply(int N, const floatType *A,
                                                       const floatType *B,
                                                       floatType *C, int *args,
                                                       int argCount) {
