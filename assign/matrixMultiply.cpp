@@ -21,7 +21,7 @@ int matrixMultiply(int N, const floatType* A, const floatType* B, floatType* C, 
     }  	 	   			     	 		 			 	      
 
     // WRITE YOUR CODE HERE
-    memset(C, 0, sizeof(floatType) * N * N)
+    memset(C, 0, sizeof(floatType) * N * N);
 
     for (int col = 0; col < N; ++col) {
         for (int k = 0; k < N; ++k) {

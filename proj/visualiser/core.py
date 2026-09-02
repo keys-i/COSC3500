@@ -1817,22 +1817,34 @@ def preload_render_assets(pygame, frames, cues, cache):
         image_surface(pygame, path, cache)
 
 
+def canvas_size(frame):
+    """Return a scenario renderer's native canvas or the shared default."""
+    renderer = scene_renderer(frame)
+    return getattr(renderer, "CANVAS_SIZE", WINDOW) if renderer else WINDOW
+
+
 def render_context(pygame, frames, cues, reduced_motion=False):
     """Create the shared surface, font cache, asset cache, and draw options"""
     cache = {}
     preload_render_assets(pygame, frames, cues, cache)
     options = presentation_options(frames[0])
     options.reduced_motion = reduced_motion
-    return pygame.Surface(WINDOW), {}, cache, options
+    return pygame.Surface(canvas_size(frames[0])), {}, cache, options
 
 
 def present_canvas(pygame, screen, canvas):
     width, height = screen.get_size()
-    factor = min(width / WINDOW[0], height / WINDOW[1])
-    size = max(1, round(WINDOW[0] * factor)), max(1, round(WINDOW[1] * factor))
+    canvas_width, canvas_height = canvas.get_size()
+    factor = min(width / canvas_width, height / canvas_height)
+    size = (
+        max(1, round(canvas_width * factor)),
+        max(1, round(canvas_height * factor)),
+    )
     screen.fill((0, 0, 0))
     surface = (
-        canvas if size == WINDOW else pygame.transform.smoothscale(canvas, size)
+        canvas
+        if size == canvas.get_size()
+        else pygame.transform.smoothscale(canvas, size)
     )
     screen.blit(surface, ((width - size[0]) // 2, (height - size[1]) // 2))
 
