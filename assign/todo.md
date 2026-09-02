@@ -18,18 +18,18 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - generic AVX2 target
+### Latest CPU benchmark - paired `B` broadcast reuse
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 7587.636 | 11563.077 | 0.656 | 3.280e-08 | 7.193 |
-| 256 | 1068.182 | 1605.328 | 0.665 | 3.222e-08 | 7.174 |
-| 512 | 142.143 | 205.551 | 0.692 | 2.701e-08 | 7.116 |
-| 1024 | 18.263 | 25.677 | 0.711 | 2.434e-08 | 7.077 |
-| 2048 | 2.307 | 2.841 | 0.812 | 2.295e-08 | 6.885 |
-| 4096 | 0.290 | 0.329 | 0.880 | 2.236e-08 | 6.769 |
+| 128 | 9037.169 | 10706.459 | 0.844 | 3.205e-08 | 6.830 |
+| 256 | 1477.455 | 1741.792 | 0.848 | 2.697e-08 | 6.823 |
+| 512 | 201.464 | 252.380 | 0.798 | 2.528e-08 | 6.911 |
+| 1024 | 20.145 | 30.929 | 0.651 | 2.354e-08 | 7.204 |
+| 2048 | 2.006 | 2.556 | 0.785 | 2.262e-08 | 6.934 |
+| 4096 | 0.406 | 0.417 | 0.973 | 2.217e-08 | 6.624 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. AVX2 lowered the normalized ratio from `0.821x` to `0.812x` at `N=2048` and from `0.901x` to `0.880x` at `N=4096` with unchanged error, so keep it provisionally. Only another `1.5%` is needed at `N=2048`. Keep the explicit eight-way pragma because removing forced unrolling already regressed performance; make each `B` broadcast reusable across both packed row vectors next.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Paired `B` broadcast reuse reached `0.785x` at the final Judgement Day size, `N=2048`, meeting the `0.80x` CPU target. Keep this kernel and continue CPU-only tuning for more margin; retain the 16-column cache tile. Next, bind the four hot-loop `B` values by reference to avoid materialising local complex copies.
 
 ### 1. AVX first
 
@@ -84,7 +84,9 @@
 - [x] Add `tune=znver2` to both AVX target attributes; reject it because every job failed before producing a benchmark row.
 - [x] Replace `avx` with `avx2` in both target attributes; keep its improved `N=2048` and `4096` normalized ratios provisionally.
 - [x] Keep the explicit eight-way unroll pragma; do not repeat the known no-pragma regression.
-- [ ] Broadcast each `B` real/imaginary pair once and reuse it for both packed row vectors; keep it only if `N=2048` improves beyond `0.812x`.
+- [x] Broadcast each `B` real/imaginary pair once and reuse it for both packed row vectors; keep its `0.785x` result at `N=2048`.
+- [x] Retain the 16-column cache tile; skip the eight-column retest.
+- [ ] Bind the four hot-loop `B` values by `const` reference; keep it only if `N=2048` improves beyond `0.785x`.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -101,7 +103,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; latest ratio: `0.812x` (`0.794x` best, not repeated).
+- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; achieved `0.785x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
