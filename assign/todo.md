@@ -18,17 +18,18 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - 16-column tile with `8x` unrolling
+### Latest CPU benchmark - source-level `O3`, 16-column tile, `8x` unrolling
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 7606.922 | 11750.321 | 0.647 | 3.280e-08 | 7.213 |
-| 256 | 1067.107 | 1640.018 | 0.651 | 3.222e-08 | 7.204 |
-| 512 | 142.073 | 192.093 | 0.740 | 2.701e-08 | 7.019 |
-| 1024 | 18.272 | 24.150 | 0.757 | 2.434e-08 | 6.987 |
-| 2048 | 2.305 | 2.597 | 0.887 | 2.295e-08 | 6.758 |
+| 128 | 8127.918 | 12655.567 | 0.642 | 3.280e-08 | 7.224 |
+| 256 | 1143.496 | 1760.363 | 0.650 | 3.222e-08 | 7.206 |
+| 512 | 152.435 | 206.113 | 0.740 | 2.701e-08 | 7.019 |
+| 1024 | 19.642 | 25.985 | 0.756 | 2.434e-08 | 6.989 |
+| 2048 | 2.481 | 2.737 | 0.906 | 2.295e-08 | 6.727 |
+| 4096 | 0.313 | 0.320 | 0.976 | 2.236e-08 | 6.620 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Eight-way unrolling reached `2.597` matrices/s at `N=2048`, failing to beat the `2.603` four-way result. Restore four-way unrolling, keep the 16-column tile provisionally, and test source-level `O3` next. The Makefile must remain unchanged.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Source-level `O3` with eight-way unrolling raised `N=2048` throughput from the previous best `2.603` to `2.737` matrices/s (`5.1%`), so keep both. The ratio remains above the `0.80x` target at `N=2048` and `4096`. Test source-level `Ofast` next; the Makefile remains unchanged.
 
 ### 1. AVX first
 
@@ -54,7 +55,7 @@
 - [x] Remove forced unrolling; reject its `1.1%` `N=2048` throughput regression.
 - [x] Retest `4x` unrolling with the two-FMA kernel; keep its `3.1%` `N=2048` gain.
 - [x] Expand the column cache tile from 8 to 16 while retaining four-column register groups; two runs matched the eight-column baseline within noise.
-- [x] Increase the hot-loop unroll from four to eight; reject it because `2.597` matrices/s did not beat the `2.603` four-way result.
+- [x] Increase the hot-loop unroll from four to eight; it was neutral under `O2` but is retained with the faster `O3` result.
 - [x] Record the single-core result: `9.158x` MKL at `N=1024`; the planned `4.0x` milestone was not reached.
 
 ### 2. OpenMP second
@@ -77,8 +78,9 @@
 - [x] Benchmark packed `8x8` against packed `8x4`; keep it for its `1.1%` gain at `N=2048` and up to `4.3%` elsewhere.
 - [x] Test restricted `A`, `B`, and `C` parameters; reject their `2.1%` regression at `N=2048`.
 - [ ] Use compiler vectorisation reports to find remaining missed-vectorisation blockers.
-- [ ] Test source-level `optimize("O3")` on `matrixMultiply`; restore four-way unrolling first.
-- [ ] Test source-level `Ofast` and `unroll-loops` attributes one at a time only if `O3` is insufficient.
+- [x] Test source-level `optimize("O3")` with eight-way unrolling; keep its `5.1%` `N=2048` throughput gain.
+- [ ] Replace source-level `O3` with `Ofast`; keep it only if throughput improves without unacceptable error.
+- [ ] Test source-level `unroll-loops` only if `Ofast` is insufficient.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -95,7 +97,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; latest ratio: `0.887x` (`0.794x` best, not repeated).
+- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; latest ratio: `0.906x` (`0.794x` best, not repeated).
 
 ## GPU - `matrixMultiplyGPU.cu`
 
