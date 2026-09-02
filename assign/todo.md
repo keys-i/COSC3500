@@ -13,8 +13,8 @@
 ## CPU - `matrixMultiply.cpp`
 
 - [x] Implement a plain triple-loop matrix multiply as the correctness baseline.
-- [ ] Run the CPU debug job at `N=128`; confirm the result is correct.
-- [ ] Record the baseline runtime ratio before changing anything.
+- [x] Run the CPU debug job at `N=128`; confirm the result is correct.
+- [x] Record the baseline runtime ratio before changing anything.
 - [ ] Improve loop order and cache locality; benchmark again.
 - [ ] Add cache blocking; benchmark again.
 - [ ] Add AVX SIMD; benchmark again.

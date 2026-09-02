@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstring>
 #include <matrixMultiply.h>
 #define STUDENTID 49088276 //DO NOT REMOVE
 /**
@@ -20,15 +21,14 @@ int matrixMultiply(int N, const floatType* A, const floatType* B, floatType* C, 
     }  	 	   			     	 		 			 	      
 
     // WRITE YOUR CODE HERE
+    memset(C, 0, sizeof(floatType) * N * N)
+
     for (int col = 0; col < N; ++col) {
-        for (int row = 0; row < N; ++row) {
-            floatType sum = 0;
-
-            for (int k = 0; k < N; ++k) {
-                sum += A[row + k * N] * B[k + col * N];
+        for (int k = 0; k < N; ++k) {
+            const floatType b = B[k + col * N];
+            for (int row = 0; row < N; ++row) {
+                C[row + col * N] += A[row + k * N] * b;
             }
-
-            C[row + col * N] = sum;
         }
     }
     
