@@ -6,9 +6,9 @@
 
 | Implementation | Hardware | Reference | Target ratio |
 | --- | --- | --- | ---: |
-| CPU | 4 CPU cores | MKL | `<= 1.10x` |
-| GPU | 1 CUDA GPU | CUBLAS | `<= 2.00x` |
-| MPI | 2 nodes, 4 CPU cores each | MKL | `<= 1.00x` |
+| CPU | 4 CPU cores | MKL | `<= 0.80x` |
+| GPU | 1 NVIDIA CUDA GPU | CUBLAS | `<= 0.50x` |
+| MPI | 2 nodes, 4 CPU cores each | MKL | `<= 0.30x` |
 
 ## CPU - `matrixMultiply.cpp`
 
@@ -18,17 +18,17 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - AVX plus four-core OpenMP
+### Latest CPU benchmark - packed `4x2` AVX plus four-core OpenMP
 
-| N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Calculated score |
+| N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 8112.843 | 3790.151 | 2.141 | 2.290e-08 | 5.487 |
-| 256 | 1143.555 | 481.435 | 2.375 | 2.215e-08 | 5.337 |
-| 512 | 152.495 | 63.534 | 2.400 | 1.652e-08 | 5.322 |
-| 1024 | 19.637 | 8.152 | 2.409 | 1.369e-08 | 5.317 |
-| 2048 | 2.481 | 0.599 | 4.142 | 1.224e-08 | 4.535 |
+| 128 | 8117.153 | 7522.223 | 1.079 | 2.290e-08 | 6.475 |
+| 256 | 1145.275 | 1015.701 | 1.128 | 2.215e-08 | 6.411 |
+| 512 | 152.711 | 132.375 | 1.154 | 1.652e-08 | 6.378 |
+| 1024 | 19.635 | 16.534 | 1.188 | 1.369e-08 | 6.336 |
+| 2048 | 2.482 | 1.125 | 2.206 | 1.224e-08 | 5.444 |
 
-`calculated_score = 3 + log2(12 / runtime_ratio)` agrees with the GradeBot score. The ratio is stable through `N=1024`, then regresses to `4.142x` at `N=2048`; reaching `1.10x` there needs about `3.77x` more throughput.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. The `0.80x` target corresponds to grade `6.907`; it needs another `1.49x` speedup at `N=1024` and `2.76x` at `N=2048`.
 
 ### 1. AVX first
 
@@ -39,8 +39,10 @@
 - [x] Keep AVX: at `N=1024` it achieved `9.158x` MKL with error `1.369e-08`.
 - [x] Try a four-column register-tiled AVX microkernel.
 - [x] Reject that first register-tiled version because its strided `A` access regressed `N >= 256`.
-- [ ] Rework column tiling while keeping the contiguous `k -> row` access order.
-- [ ] Unroll only after the register-tiled kernel works and the compiler report shows a remaining dependency stall.
+- [x] Rework column tiling while keeping the contiguous `k -> row` access order.
+- [x] Pack `A` into four-row panels and keep a `4x2` output tile in AVX registers across `k`.
+- [ ] Expand the packed kernel to `8x2` so each `B` broadcast feeds two `A` vectors and four independent accumulators.
+- [ ] Unroll `k` only if `8x2` still shows a dependency stall.
 - [x] Record the single-core result: `9.158x` MKL at `N=1024`; the planned `4.0x` milestone was not reached.
 
 ### 2. OpenMP second
@@ -50,15 +52,15 @@
 - [x] Confirm the GradeBot uses four threads and each thread owns separate output columns.
 - [x] Benchmark static scheduling.
 - [ ] Try another schedule only if measurements justify it.
-- [x] Verify AVX plus four-core OpenMP: the `N=1024` ratio improved from `9.158x` to `2.409x`, about `3.80x` faster.
+- [x] Verify packed AVX plus four-core OpenMP: the `N=1024` ratio improved from `9.158x` to `1.188x`, about `7.71x` faster.
 
 ### 3. Maximum C++11/compiler tuning
 
 - [x] Keep the provided `-std=c++11 -O2 -mavx -fopenmp` build as the required baseline.
-- [ ] Make `blkSize` real: tile output columns while retaining contiguous `A` loads, and reuse each `A` vector across the tile.
-- [ ] Parallelise column tiles with `schedule(static)` so each tile belongs to one thread.
-- [ ] Sweep column-tile widths `2, 4, 8` at `N=1024` and `N=2048`; keep only a measured improvement.
-- [ ] Remove the unused `blkSize` declaration if the tiled version is rejected.
+- [x] Test two- and four-column streaming tiles; four columns were within benchmark noise, so keep two.
+- [x] Parallelise output-column pairs with `schedule(static)` so each pair belongs to one thread.
+- [x] Remove the unused `blkSize` declaration.
+- [ ] Benchmark packed `8x2` against packed `4x2` at every size; keep it only if `N=2048` improves.
 - [ ] Use compiler vectorisation reports to find missed-vectorisation and aliasing blockers.
 - [ ] Test restricted local aliases for `A`, `B`, and `C`; keep them only if they improve generated code.
 - [ ] Benchmark `-O3`, `-Ofast`, `-march=native`, `-funroll-loops`, and `-flto` one at a time.
@@ -77,7 +79,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 1.10x` MKL at `N=2048` using four CPU cores; current ratio: `4.142x`.
+- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `2.206x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
@@ -88,7 +90,7 @@
 - [ ] Run the GPU debug job at `N=2048`; confirm correctness and record the baseline ratio.
 - [ ] Add shared-memory tiling and coalesced memory access.
 - [ ] Tune block dimensions using benchmark results.
-- [ ] Reach `<= 2.00x` CUBLAS at `N=2048`.
+- [ ] Reach `<= 0.50x` CUBLAS at `N=2048`.
 
 ## MPI - `matrixMultiplyMPI.cpp`
 
@@ -98,7 +100,7 @@
 - [ ] Handle row counts that do not divide evenly between ranks.
 - [ ] Run the MPI debug job with two ranks at `N=128`; confirm correctness.
 - [ ] Record compute and communication time separately.
-- [ ] Reach `<= 1.00x` MKL at `N=2048` using two nodes and four cores per node.
+- [ ] Reach `<= 0.30x` MKL at `N=2048` using two nodes and four cores per node.
 
 ## Final checks
 
