@@ -20,15 +20,15 @@ int matrixMultiply(int N, const floatType* A, const floatType* B, floatType* C, 
     }  	 	   			     	 		 			 	      
 
     // WRITE YOUR CODE HERE
-    for (int row=0; row<N; ++row) {
-        for (int col=0; col<N; ++col) {
+    for (int col = 0; col < N; ++col) {
+        for (int row = 0; row < N; ++row) {
             floatType sum = 0;
-
-            for (int k=0; k<N; ++k) {
-                sum += A[row * N + k] * B[k * N + col];
+    
+            for (int k = 0; k < N; ++k) {
+                sum += A[row + k * N] * B[k + col * N];
             }
-
-            C[row * N + col] = sum;
+    
+            C[row + col * N] = sum;
         }
     }
     
