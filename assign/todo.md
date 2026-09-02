@@ -18,18 +18,18 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - paired `B` broadcast reuse
+### Latest CPU benchmark - `B` values bound by reference (rejected)
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 9037.169 | 10706.459 | 0.844 | 3.205e-08 | 6.830 |
-| 256 | 1477.455 | 1741.792 | 0.848 | 2.697e-08 | 6.823 |
-| 512 | 201.464 | 252.380 | 0.798 | 2.528e-08 | 6.911 |
-| 1024 | 20.145 | 30.929 | 0.651 | 2.354e-08 | 7.204 |
-| 2048 | 2.006 | 2.556 | 0.785 | 2.262e-08 | 6.934 |
-| 4096 | 0.406 | 0.417 | 0.973 | 2.217e-08 | 6.624 |
+| 128 | 9562.203 | 10385.591 | 0.921 | 3.205e-08 | 6.704 |
+| 256 | 1363.390 | 1389.606 | 0.981 | 2.697e-08 | 6.613 |
+| 512 | 191.274 | 227.939 | 0.839 | 2.528e-08 | 6.838 |
+| 1024 | 17.892 | 29.164 | 0.613 | 2.354e-08 | 7.291 |
+| 2048 | 2.158 | 2.628 | 0.821 | 2.262e-08 | 6.870 |
+| 4096 | 0.409 | 0.427 | 0.960 | 2.217e-08 | 6.644 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Paired `B` broadcast reuse reached `0.785x` at the final Judgement Day size, `N=2048`, meeting the `0.80x` CPU target. Keep this kernel and continue CPU-only tuning for more margin; retain the 16-column cache tile. Next, bind the four hot-loop `B` values by reference to avoid materialising local complex copies.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Binding the four hot-loop `B` values by reference regressed `N=2048` from `0.785x` to `0.821x`, losing the CPU target, so reject it. Restore value semantics while testing a raw `float` view of `B` with direct AVX broadcasts; keep it only if `N=2048` beats `0.785x`.
 
 ### 1. AVX first
 
@@ -86,7 +86,8 @@
 - [x] Keep the explicit eight-way unroll pragma; do not repeat the known no-pragma regression.
 - [x] Broadcast each `B` real/imaginary pair once and reuse it for both packed row vectors; keep its `0.785x` result at `N=2048`.
 - [x] Retain the 16-column cache tile; skip the eight-column retest.
-- [ ] Bind the four hot-loop `B` values by `const` reference; keep it only if `N=2048` improves beyond `0.785x`.
+- [x] Bind the four hot-loop `B` values by `const` reference; reject its `0.821x` result at `N=2048`.
+- [ ] Read `B` through its interleaved `float` representation and broadcast real/imaginary values directly; keep it only if `N=2048` beats `0.785x`.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -103,7 +104,7 @@
 
 ### CPU target
 
-- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; achieved `0.785x`.
+- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; the retained paired-broadcast baseline achieved `0.785x` and the `0.821x` reference trial was rejected.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
