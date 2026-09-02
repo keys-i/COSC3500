@@ -18,17 +18,17 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - FMA packed `8x8` AVX plus four-core OpenMP
+### Latest CPU benchmark - aligned FMA packed `8x8` AVX plus four-core OpenMP
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 8811.274 | 8564.459 | 1.029 | 2.241e-08 | 6.544 |
-| 256 | 1466.861 | 1330.400 | 1.103 | 1.667e-08 | 6.444 |
-| 512 | 199.546 | 197.269 | 1.012 | 1.477e-08 | 6.568 |
-| 1024 | 26.635 | 26.785 | 0.994 | 1.289e-08 | 6.594 |
-| 2048 | 3.317 | 2.047 | 1.621 | 1.186e-08 | 5.888 |
+| 128 | 8124.789 | 6548.577 | 1.241 | 2.241e-08 | 6.273 |
+| 256 | 1482.569 | 1263.163 | 1.174 | 1.667e-08 | 6.354 |
+| 512 | 195.022 | 178.121 | 1.095 | 1.477e-08 | 6.454 |
+| 1024 | 25.186 | 26.565 | 0.948 | 1.289e-08 | 6.662 |
+| 2048 | 2.372 | 1.978 | 1.199 | 1.186e-08 | 6.323 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Keep FMA: it improved `N=2048` from `1.686x` to `1.621x`. Reaching `0.80x` still needs `1.24x` at `N=1024` and `2.03x` at `N=2048`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. This run is inconclusive: at `N=2048`, our throughput fell `3.4%` while MKL fell `28.5%`, producing the better `1.199x` ratio. Repeat the unchanged build before attributing that gain to alignment.
 
 ### 1. AVX first
 
@@ -46,8 +46,9 @@
 - [x] Group four `8x2` microkernels into an `8x8` cache tile; keep its small improvement at every tested size.
 - [x] Stop increasing the tile width: `8x8` improved `N=2048` by only `1.1%`.
 - [x] Replace one multiply/add-sub pair with FMA; keep its `3.9%` improvement at `N=2048`.
-- [ ] Align the packed `A` buffer to 64 bytes to prevent split AVX loads; benchmark every size.
-- [ ] Unroll `k` only if compiler reports still show a dependency stall.
+- [x] Align the packed `A` buffer to 64 bytes; the first benchmark was too noisy to accept or reject it.
+- [ ] Repeat the aligned build and compare throughput before changing the kernel again.
+- [ ] Ask GCC to unroll the hot `k` loop twice; keep it only if repeated large-size results improve.
 - [x] Record the single-core result: `9.158x` MKL at `N=1024`; the planned `4.0x` milestone was not reached.
 
 ### 2. OpenMP second
@@ -86,7 +87,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `1.621x`.
+- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; latest ratio: `1.199x` (unconfirmed).
 
 ## GPU - `matrixMultiplyGPU.cu`
 
