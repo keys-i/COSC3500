@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <matrixMultiply.h>
 #define STUDENTID 49088276 //DO NOT REMOVE
 /**
@@ -13,11 +14,24 @@
 *  	 	   			     	 		 			 	      
 * */
 int matrixMultiply(int N, const floatType* A, const floatType* B, floatType* C, int* args, int argCount){  	 	   			     	 		 			 	      
-if (N<=0) { return STUDENTID;}//Your code must be able to deal with N=0 scenario without crashing.  	 	   			     	 		 			 	      
+    //Your code must be able to deal with N=0 scenario without crashing.
+    if (N<=0) {
+        return STUDENTID;
+    }  	 	   			     	 		 			 	      
 
-//WRITE YOUR CODE HERE
+    // WRITE YOUR CODE HERE
+    for (int row=0; row<N; ++row) {
+        for (int col=0; col<N; ++col) {
+            floatType sum = 0;
 
-return STUDENTID;  	 	   			     	 		 			 	      
+            for (int k=0; k<N; ++k) {
+                sum += A[row * N + k] * B[k * N + col];
+            }
+
+            C[row * N + col] = sum;
+        }
+    }
+    
+    return STUDENTID;  	 	   			     	 		 			 	      
 
 }
-  	 	   			     	 		 			 	      
