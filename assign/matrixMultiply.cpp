@@ -55,8 +55,8 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
         }
 
 #pragma omp for schedule(static)
-        for (int col = 0; col < cols; col += 20) {
-            const int width = cols - col < 20 ? cols - col : 20;
+        for (int col = 0; col < cols; col += 24) {
+            const int width = cols - col < 24 ? cols - col : 24;
             for (int row = 0; row < rows; row += 8) {
                 const float *p = packed + 2ULL * row * N;
 
