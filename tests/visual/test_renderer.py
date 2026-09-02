@@ -1017,6 +1017,7 @@ RenderOptions = visualise.RenderOptions
 active_cues = visualise.active_cues
 auto_camera = visualise.auto_camera
 camera_for = visualise.camera_for
+canvas_size = visualise.canvas_size
 caption_lines = visualise.caption_lines
 cellular_visual = visualise.cellular_visual
 chess_material = visualise.chess_material
@@ -1069,6 +1070,10 @@ def core_self_check():
     assert visualise.export_progress(4, 4) == (
         "render [############################] 100%"
     )
+    neutral = Frame(0, 1.0, 1.0, "plane", [], {"theme": "neutral"})
+    chronus = replace(neutral, presentation={"theme": "chronus"})
+    assert canvas_size(neutral) == WINDOW
+    assert canvas_size(chronus) == EXPORT_SIZE
     assert cue_error("effect", "") == "effect needs text"
     assert cue_error("scene", "missing") == "invalid scene theme"
     _, chess_cues = load_visual_plan(

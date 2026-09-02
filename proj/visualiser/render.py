@@ -24,6 +24,7 @@ from .core import (
     WINDOW,
     RenderOptions,
     apply_visual_plan,
+    canvas_size,
     draw_poster,
     load_frames,
     load_pygame,
@@ -123,6 +124,7 @@ def export_video(
     surface, fonts, cache, options = render_context(
         pygame, frames, cues, reduced_motion
     )
+    source_size = surface.get_size()
     if not 0.0 <= poster_seconds < duration:
         raise ValueError(
             "poster duration must be non-negative and shorter than video"
@@ -172,7 +174,7 @@ def export_video(
             "-pixel_format",
             "rgb24",
             "-video_size",
-            f"{WINDOW[0]}x{WINDOW[1]}",
+            f"{source_size[0]}x{source_size[1]}",
             "-framerate",
             str(fps),
             "-i",
@@ -480,7 +482,7 @@ def play_stream(scenario, binary, fps, reduced_motion):
     pygame.init()
     screen = pygame.display.set_mode(WINDOW, pygame.RESIZABLE)
     canvas, clock, fonts, cache, options = (
-        pygame.Surface(WINDOW),
+        None,
         pygame.time.Clock(),
         {},
         {},
@@ -511,6 +513,8 @@ def play_stream(scenario, binary, fps, reduced_motion):
                 ):
                     paused = not paused
             if current is not None:
+                if canvas is None:
+                    canvas = pygame.Surface(canvas_size(current))
                 render(
                     pygame,
                     canvas,
