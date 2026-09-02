@@ -18,7 +18,7 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - restored shared-buffer baseline
+### Full CPU benchmark - restored 16-column baseline
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -37,7 +37,17 @@
 | 2 | 3.349 | 3.293 | 1.017 | 2.262e-08 | 6.561 |
 | 3 | 3.302 | 3.308 | 0.998 | 2.262e-08 | 6.588 |
 
-The shared-buffer kernel is correct, but its three-run median is `0.998x`; the earlier `0.785x` result was not reproducible. Reaching `0.80x` requires about `24.8%` more throughput. Next, expand only the outer cache tile from 16 to 20 columns while retaining the measured 8x4 microkernel; keep it only if the `N=2048` median improves.
+The shared-buffer kernel is correct, but its three-run median is `0.998x`; the earlier `0.785x` result was not reproducible.
+
+#### Repeated `N=2048` with a 20-column cache tile
+
+| Run | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3.282 | 3.441 | 0.954 | 2.262e-08 | 6.653 |
+| 2 | 3.372 | 3.460 | 0.974 | 2.262e-08 | 6.623 |
+| 3 | 3.348 | 3.424 | 0.978 | 2.262e-08 | 6.617 |
+
+The 20-column tile is correct and improves the median from `0.998x` to `0.974x`, about `2.4%`, so keep it. Next, increase the maximum tile to 24 columns without changing the 8x4 microkernel; keep it only if the three-run median improves beyond `0.974x`.
 
 ### 1. AVX first
 
@@ -102,7 +112,8 @@ The shared-buffer kernel is correct, but its three-run median is `0.998x`; the e
 - [x] Give each spread-bound thread a private packed-`A` copy; reject it because every tested size failed correctness.
 - [x] Restore the shared packed-`A` buffer and default OpenMP placement; correctness is restored at every tested size.
 - [x] Run three unchanged `N=2048` samples; the median ratio is `0.998x`.
-- [ ] Expand the outer cache tile from 16 to 20 columns; keep it only if the three-run `N=2048` median improves beyond `0.998x`.
+- [x] Expand the outer cache tile from 16 to 20 columns; keep its improved `0.974x` median at `N=2048`.
+- [ ] Increase the maximum outer cache tile from 20 to 24 columns; keep it only if the three-run `N=2048` median improves beyond `0.974x`.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -120,7 +131,7 @@ The shared-buffer kernel is correct, but its three-run median is `0.998x`; the e
 ### CPU target
 
 - [x] Record an observed `<= 0.80x` MKL result at `N=2048`; `0.785x` was not reproducible.
-- [ ] Reach a three-run median of `<= 0.80x` at `N=2048` using four cores; current median is `0.998x`.
+- [ ] Reach a three-run median of `<= 0.80x` at `N=2048` using four cores; current median is `0.974x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
