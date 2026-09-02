@@ -63,7 +63,7 @@ __attribute__((target("avx,fma"))) int matrixMultiply(int N, const floatType *A,
                     __m256 sum20 = sum00, sum21 = sum00;
                     __m256 sum30 = sum00, sum31 = sum00;
 
-#pragma GCC unroll 4
+#pragma GCC unroll 8
                     for (int k = 0; k < N; ++k) {
                         const __m256 av0 = _mm256_loadu_ps(p + 16ULL * k);
                         const __m256 av1 = _mm256_loadu_ps(p + 16ULL * k + 8);
