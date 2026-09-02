@@ -49,6 +49,16 @@ The shared-buffer kernel is correct, but its three-run median is `0.998x`; the e
 
 The 20-column tile is correct and improves the median from `0.998x` to `0.974x`, about `2.4%`, so keep it. Next, increase the maximum tile to 24 columns without changing the 8x4 microkernel; keep it only if the three-run median improves beyond `0.974x`.
 
+#### Repeated `N=2048` with a 24-column cache tile
+
+| Run | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3.380 | 3.585 | 0.943 | 2.262e-08 | 6.670 |
+| 2 | 3.349 | 3.470 | 0.965 | 2.262e-08 | 6.636 |
+| 3 | 3.358 | 3.542 | 0.948 | 2.262e-08 | 6.662 |
+
+The 24-column tile is correct and improves the median from `0.974x` to `0.948x`, about `2.7%`, so keep it. Next, increase the maximum tile to 28 columns; keep it only if the three-run median improves beyond `0.948x`.
+
 ### 1. AVX first
 
 - [x] Temporarily remove both OpenMP pragmas so AVX is measured on one core.
@@ -113,7 +123,8 @@ The 20-column tile is correct and improves the median from `0.998x` to `0.974x`,
 - [x] Restore the shared packed-`A` buffer and default OpenMP placement; correctness is restored at every tested size.
 - [x] Run three unchanged `N=2048` samples; the median ratio is `0.998x`.
 - [x] Expand the outer cache tile from 16 to 20 columns; keep its improved `0.974x` median at `N=2048`.
-- [ ] Increase the maximum outer cache tile from 20 to 24 columns; keep it only if the three-run `N=2048` median improves beyond `0.974x`.
+- [x] Increase the maximum outer cache tile from 20 to 24 columns; keep its improved `0.948x` median at `N=2048`.
+- [ ] Increase the maximum outer cache tile from 24 to 28 columns; keep it only if the three-run `N=2048` median improves beyond `0.948x`.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -131,7 +142,7 @@ The 20-column tile is correct and improves the median from `0.998x` to `0.974x`,
 ### CPU target
 
 - [x] Record an observed `<= 0.80x` MKL result at `N=2048`; `0.785x` was not reproducible.
-- [ ] Reach a three-run median of `<= 0.80x` at `N=2048` using four cores; current median is `0.974x`.
+- [ ] Reach a three-run median of `<= 0.80x` at `N=2048` using four cores; current median is `0.948x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
