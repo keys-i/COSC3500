@@ -25,32 +25,38 @@ int matrixMultiply(int N, const floatType* A, const floatType* B, floatType* C, 
     
     memset(C, 0, sizeof(floatType) * N * N);
 
-    #pragma omp parallel for schedule(static)
-    for (int colBlk = 0; colBlk < N; colBlk += blkSize) {
-        const int colEnd =
-            (colBlk + blkSize < N) ? colBlk + blkSize : N;
-
-        #pragma omp parallel for schedule(static)
-        for (int kBlk = 0; kBlk < N; kBlk += blkSize) {
-            const int kEnd =
-                (kBlk + blkSize < N) ? kBlk + blkSize : N;
+    const float* aRaw = reinterpret_cast<const float*>(A);
+    float* cRaw = reinterpret_cast<float*>(C);
+       
+    for (int col = 0; col < N; ++col) {
+            for (int k = 0; k < N; ++k) {
+                const floatType b = B[k + col * N];
+                const __m256 br = _mm256_set1_ps(b.real());
+                const __m256 bi = _mm256_set1_ps(b.imag());
     
-            for (int rowBlk = 0; rowBlk < N; rowBlk += blkSize) {
-                const int rowEnd =
-                    (rowBlk + blkSize < N) ? rowBlk + blkSize : N;
+                int row = 0;
     
-                for (int col = colBlk; col < colEnd; ++col) {
-                    for (int k = kBlk; k < kEnd; ++k) {
-                        const floatType b = B[k + col * N];
+                for (; row + 3 < N; row += 4) {
+                    const int aIndex = 2 * (row + k * N);
+                    const int cIndex = 2 * (row + col * N);
     
-                        for (int row = rowBlk; row < rowEnd; ++row) {
-                            C[row + col * N] += A[row + k * N] * b;
-                        }
-                    }
+                    const __m256 av = _mm256_loadu_ps(aRaw + aIndex);
+                    const __m256 cv = _mm256_loadu_ps(cRaw + cIndex);
+                    const __m256 swapped = _mm256_permute_ps(av, 0xB1);
+    
+                    const __m256 product = _mm256_addsub_ps(
+                        _mm256_mul_ps(av, br),
+                        _mm256_mul_ps(swapped, bi));
+    
+                    _mm256_storeu_ps(cRaw + cIndex,
+                                     _mm256_add_ps(cv, product));
+                }
+    
+                for (; row < N; ++row) {
+                    C[row + col * N] += A[row + k * N] * b;
                 }
             }
         }
-    }
     
     return STUDENTID;  	 	   			     	 		 			 	      
 }
