@@ -15,7 +15,7 @@
 - [x] Implement a plain triple-loop matrix multiply as the correctness baseline.
 - [x] Run the CPU debug job at `N=128`; confirm the result is correct.
 - [x] Record the baseline runtime ratio before changing anything.
-- [ ] Improve loop order and cache locality; benchmark again.
+- [x] Improve loop order and cache locality; benchmark again.
 - [ ] Add cache blocking; benchmark again.
 - [ ] Add AVX SIMD; benchmark again.
 - [ ] Add OpenMP across independent output rows using four cores.

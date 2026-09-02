@@ -20,6 +20,19 @@ draw_text: Any = None
 entity_sprite: Any = None
 font_for: Any = None
 image_surface: Any = None
+CANVAS_SIZE = (2560, 1440)
+_RENDER_SCALE = CANVAS_SIZE[0] / 1920
+
+
+def _px(value):
+    """Convert a fixed 1080p design measurement to the native canvas."""
+    return round(value * _RENDER_SCALE)
+
+
+def _rect(pygame, left, top, width, height):
+    return pygame.Rect(_px(left), _px(top), _px(width), _px(height))
+
+
 SEIR_LAST_MONTH = 87
 SEIR_DISASTERS = (
     (2.0, -62.0, -6.0, "WILDFIRE"),
@@ -58,6 +71,7 @@ SEIR_OPERATIONS = (
 )
 
 EXPORTS = [
+    "CANVAS_SIZE",
     "CHRONUS_BORDERS",
     "CHRONUS_REGIONS",
     "CHRONUS_INDIA_CLAIMS",
@@ -137,6 +151,19 @@ def bind(api, assets):
     """Bind helpers and load Chronus map, route, and display paths"""
     # The visualiser supplies helpers while this module holds map data
     globals().update(api)
+    raw_draw_text = api["draw_text"]
+    raw_font_for = api["font_for"]
+
+    def scaled_draw_text(pygame, screen, fonts, text, position, size, *args):
+        return raw_draw_text(
+            pygame, screen, fonts, text, position, _px(size), *args
+        )
+
+    def scaled_font_for(pygame, fonts, size, bold):
+        return raw_font_for(pygame, fonts, _px(size), bold)
+
+    globals()["draw_text"] = scaled_draw_text
+    globals()["font_for"] = scaled_font_for
     global CHRONUS_BORDERS, CHRONUS_REGIONS, CHRONUS_INDIA_CLAIMS
     global CHRONUS_FLAGS, CHRONUS_CHICKEN
     global SEIR_COLOURS, SEIR_LABELS, SEIR_FLIGHT_OUTLINES, SEIR_AIRLINES
@@ -663,7 +690,7 @@ def seir_path_pose(path, progress, rectangle, deviation=0.0):
     if length:
         distance = (
             deviation
-            * max(2.0, rectangle.height / 180.0)
+            * max(_px(2.0), rectangle.height / 180.0)
             * math.sin(math.pi * progress)
         )
         centre = (
@@ -733,36 +760,43 @@ def draw_seir_plane(pygame, screen, centre, direction, colour, outline, accent):
         )
 
     shape = (
-        point(11, 0),
-        point(5, -2),
-        point(1, -2),
-        point(-2, -10),
-        point(-4, -10),
-        point(-2, -2),
-        point(-7, -1),
-        point(-9, -4),
-        point(-10, -4),
-        point(-9, 0),
-        point(-10, 4),
-        point(-9, 4),
-        point(-7, 1),
-        point(-2, 2),
-        point(-4, 10),
-        point(-2, 10),
-        point(1, 2),
-        point(5, 2),
+        point(_px(11), 0),
+        point(_px(5), _px(-2)),
+        point(_px(1), _px(-2)),
+        point(_px(-2), _px(-10)),
+        point(_px(-4), _px(-10)),
+        point(_px(-2), _px(-2)),
+        point(_px(-7), _px(-1)),
+        point(_px(-9), _px(-4)),
+        point(_px(-10), _px(-4)),
+        point(_px(-9), 0),
+        point(_px(-10), _px(4)),
+        point(_px(-9), _px(4)),
+        point(_px(-7), _px(1)),
+        point(_px(-2), _px(2)),
+        point(_px(-4), _px(10)),
+        point(_px(-2), _px(10)),
+        point(_px(1), _px(2)),
+        point(_px(5), _px(2)),
     )
     pygame.draw.polygon(
-        screen, (2, 8, 14), tuple((x + 2, y + 2) for x, y in shape)
+        screen,
+        (2, 8, 14),
+        tuple((x + _px(2), y + _px(2)) for x, y in shape),
     )
     pygame.draw.polygon(screen, colour, shape)
     pygame.draw.polygon(
         screen,
         accent,
-        (point(-7, -1), point(-9, -4), point(-10, -4), point(-9, 0)),
+        (
+            point(_px(-7), _px(-1)),
+            point(_px(-9), _px(-4)),
+            point(_px(-10), _px(-4)),
+            point(_px(-9), 0),
+        ),
     )
-    pygame.draw.lines(screen, outline, True, shape, 2)
-    pygame.draw.circle(screen, (26, 40, 52), point(7, 0), 1)
+    pygame.draw.lines(screen, outline, True, shape, _px(2))
+    pygame.draw.circle(screen, (26, 40, 52), point(_px(7), 0), _px(1))
 
 
 def draw_seir_flights(
@@ -784,11 +818,11 @@ def draw_seir_flights(
         operator = SEIR_AIRLINES_BY_CODE.get(SEIR_ROUTE_OPERATORS[index])
         centre, direction = seir_route_pose(start, end, progress, rectangle)
         centre = seir_weather_offset(
-            centre, weather, rectangle.width, position, index, 5.0
+            centre, weather, rectangle.width, position, index, _px(5.0)
         )
         cell = (
-            int((centre[0] - rectangle.left) // 24),
-            int((centre[1] - rectangle.top) // 18),
+            int((centre[0] - rectangle.left) // _px(24)),
+            int((centre[1] - rectangle.top) // _px(18)),
         )
         if cell in occupied:
             continue
@@ -808,7 +842,7 @@ def draw_seir_flights(
                 screen,
                 fonts,
                 operator[0],
-                (centre[0] + 12, centre[1] + 8),
+                (centre[0] + _px(12), centre[1] + _px(8)),
                 9,
                 operator[4],
                 1.0,
@@ -834,18 +868,20 @@ def draw_seir_ship(pygame, screen, centre, direction, kind):
 
     outline, _, profile = SEIR_SHIP_STYLES[kind]
     hull = (
-        point(10, 0),
-        point(5, -4),
-        point(-8, -3),
-        point(-10, 0),
-        point(-8, 3),
-        point(5, 4),
+        point(_px(10), 0),
+        point(_px(5), _px(-4)),
+        point(_px(-8), _px(-3)),
+        point(_px(-10), 0),
+        point(_px(-8), _px(3)),
+        point(_px(5), _px(4)),
     )
     pygame.draw.polygon(
-        screen, (2, 8, 14), tuple((x + 2, y + 2) for x, y in hull)
+        screen,
+        (2, 8, 14),
+        tuple((x + _px(2), y + _px(2)) for x, y in hull),
     )
     pygame.draw.polygon(screen, (226, 232, 240), hull)
-    pygame.draw.lines(screen, outline, True, hull, 2)
+    pygame.draw.lines(screen, outline, True, hull, _px(2))
     if profile == "container":
         for forward, colour in (
             (-4, (236, 72, 153)),
@@ -856,25 +892,36 @@ def draw_seir_ship(pygame, screen, centre, direction, kind):
                 screen,
                 colour,
                 (
-                    point(forward - 1.5, -2.5),
-                    point(forward + 1.5, -2.5),
-                    point(forward + 1.5, 2.5),
-                    point(forward - 1.5, 2.5),
+                    point(_px(forward - 1.5), _px(-2.5)),
+                    point(_px(forward + 1.5), _px(-2.5)),
+                    point(_px(forward + 1.5), _px(2.5)),
+                    point(_px(forward - 1.5), _px(2.5)),
                 ),
             )
     elif profile == "tanker":
         for forward in (-4, 0, 4):
-            pygame.draw.circle(screen, (120, 128, 140), point(forward, 0), 2)
+            pygame.draw.circle(
+                screen, (120, 128, 140), point(_px(forward), 0), _px(2)
+            )
     elif profile == "bulk":
         for forward in (-4, 0, 4):
             pygame.draw.line(
-                screen, (76, 89, 99), point(forward, -2), point(forward, 2), 2
+                screen,
+                (76, 89, 99),
+                point(_px(forward), _px(-2)),
+                point(_px(forward), _px(2)),
+                _px(2),
             )
     else:
         pygame.draw.polygon(
             screen,
             (81, 158, 185),
-            (point(-3, -2.5), point(3, -2), point(3, 2), point(-3, 2.5)),
+            (
+                point(_px(-3), _px(-2.5)),
+                point(_px(3), _px(-2)),
+                point(_px(3), _px(2)),
+                point(_px(-3), _px(2.5)),
+            ),
         )
 
 
@@ -890,7 +937,7 @@ def draw_seir_ships(pygame, screen, rectangle, position, ship_states, cache):
         path = seir_ship_path(source, destination, position)
         centre, direction = seir_path_pose(path, progress, rectangle, deviation)
         centre = seir_weather_offset(
-            centre, weather, rectangle.width, position, index, 3.0
+            centre, weather, rectangle.width, position, index, _px(3.0)
         )
         draw_seir_ship(pygame, screen, centre, direction, kind)
     screen.set_clip(None)
@@ -918,11 +965,13 @@ def draw_seir_transport_nodes(pygame, screen, fonts, rectangle):
             screen,
             (151, 216, 237),
             seir_project(longitude, latitude, rectangle),
-            2,
+            _px(2),
         )
     for longitude, latitude in SEIR_PORTS.values():
         x, y = seir_project(longitude, latitude, rectangle)
-        pygame.draw.rect(screen, (245, 188, 74), (x - 2, y - 2, 4, 4))
+        pygame.draw.rect(
+            screen, (245, 188, 74), (x - _px(2), y - _px(2), _px(4), _px(4))
+        )
     draw_text(
         pygame,
         screen,
@@ -930,7 +979,7 @@ def draw_seir_transport_nodes(pygame, screen, fonts, rectangle):
         f"{len(SEIR_AIRPORTS)} AIRPORTS · {len(SEIR_PORTS)} PORTS · "
         f"{len(SEIR_ROUTES) + len(SEIR_SHIP_ROUTES)} SOURCED CORRIDORS · "
         "SIMULATED MOTION",
-        (rectangle.left + 10, rectangle.bottom - 9),
+        (rectangle.left + _px(10), rectangle.bottom - _px(9)),
         11,
         (185, 215, 227),
         1.0,
@@ -992,16 +1041,22 @@ def draw_seir_transport_routes(pygame, screen, rectangle, position, cache):
             }
             for segment in seir_path_segments(path, local, cache):
                 if len(segment) > 1:
-                    pygame.draw.lines(layer, (*colour, 48), False, segment, 1)
+                    pygame.draw.lines(
+                        layer, (*colour, 48), False, segment, _px(1)
+                    )
                     if "UKR" in countries or (
                         "RUS" in countries and len(countries) > 1
                     ):
                         pygame.draw.lines(
-                            war, (239, 68, 68, 150), False, segment, 2
+                            war, (239, 68, 68, 150), False, segment, _px(2)
                         )
                     if countries & gulf_countries:
                         pygame.draw.lines(
-                            gulf, (245, 158, 11, 150), False, segment, 2
+                            gulf,
+                            (245, 158, 11, 150),
+                            False,
+                            segment,
+                            _px(2),
                         )
         for source, destination, _begins, kind, density in SEIR_SHIP_ROUTES:
             colour = seir_mix(
@@ -1152,14 +1207,16 @@ def draw_seir_map(
     The function decodes snapshots, then paints geography, overlays, and motion
     It raises when entities no longer match static map or route tables
     """
-    pygame.draw.rect(screen, (7, 23, 41), rectangle, border_radius=14)
-    pygame.draw.rect(screen, (58, 124, 164), rectangle, 2, border_radius=14)
-    atlas_width = rectangle.width - 8
-    atlas_height = min(rectangle.height - 8, atlas_width // 2)
+    pygame.draw.rect(screen, (7, 23, 41), rectangle, border_radius=_px(14))
+    pygame.draw.rect(
+        screen, (58, 124, 164), rectangle, _px(2), border_radius=_px(14)
+    )
+    atlas_width = rectangle.width - _px(8)
+    atlas_height = min(rectangle.height - _px(8), atlas_width // 2)
     atlas_width = min(atlas_width, atlas_height * 2)
     atlas = pygame.Rect(0, 0, atlas_width, atlas_height)
     atlas.center = rectangle.center
-    pygame.draw.rect(screen, (4, 20, 38), atlas, border_radius=9)
+    pygame.draw.rect(screen, (4, 20, 38), atlas, border_radius=_px(9))
     draw_seir_ocean(pygame, screen, atlas, cache)
     local_atlas = pygame.Rect(0, 0, atlas.width, atlas.height)
     # Cache projected GeoJSON and the static base layer by map size
@@ -1277,7 +1334,7 @@ def draw_seir_map(
             if region[0] == "ATA":
                 continue
             for ring in rings:
-                pygame.draw.lines(outlines, (50, 102, 122), True, ring, 1)
+                pygame.draw.lines(outlines, (50, 102, 122), True, ring, _px(1))
         for code, rings in cache[country_key]:
             if code in {"CHN", "IND", "PAK"}:
                 continue
@@ -1287,22 +1344,22 @@ def draw_seir_map(
                     (42, 82, 99) if code == "ATA" else (104, 167, 187),
                     True,
                     ring,
-                    1,
+                    _px(1),
                 )
         for _name, rings in cache[claim_key]:
             for ring in rings:
-                pygame.draw.lines(outlines, (104, 167, 187), True, ring, 1)
+                pygame.draw.lines(outlines, (104, 167, 187), True, ring, _px(1))
         cache[outline_key] = outlines
     screen.blit(cache[outline_key], atlas.topleft)
     # Motion and transport labels sit above map fills and political outlines
     draw_seir_transport_nodes(pygame, screen, fonts, atlas)
-    legend_x = atlas.right - 530
+    legend_x = atlas.right - _px(530)
     draw_text(
         pygame,
         screen,
         fonts,
         "AIR OUTLINE",
-        (legend_x, atlas.top + 10),
+        (legend_x, atlas.top + _px(10)),
         11,
         (183, 213, 226),
         1.0,
@@ -1319,15 +1376,20 @@ def draw_seir_map(
         pygame.draw.rect(
             screen,
             colour,
-            (legend_x + offset, atlas.top + 11, 9, 9),
-            border_radius=2,
+            (
+                legend_x + _px(offset),
+                atlas.top + _px(11),
+                _px(9),
+                _px(9),
+            ),
+            border_radius=_px(2),
         )
         draw_text(
             pygame,
             screen,
             fonts,
             label,
-            (legend_x + offset + 13, atlas.top + 9),
+            (legend_x + _px(offset + 13), atlas.top + _px(9)),
             10,
             colour,
             1.0,
@@ -1343,15 +1405,20 @@ def draw_seir_map(
         pygame.draw.rect(
             screen,
             colour,
-            (legend_x + offset, atlas.top + 30, 9, 9),
-            border_radius=2,
+            (
+                legend_x + _px(offset),
+                atlas.top + _px(30),
+                _px(9),
+                _px(9),
+            ),
+            border_radius=_px(2),
         )
         draw_text(
             pygame,
             screen,
             fonts,
             label,
-            (legend_x + offset + 13, atlas.top + 28),
+            (legend_x + _px(offset + 13), atlas.top + _px(28)),
             10,
             colour,
             1.0,
@@ -1364,15 +1431,15 @@ def draw_seir_map(
     )
     draw_seir_disasters(pygame, screen, fonts, atlas, position)
     origin = seir_project(114.208, 30.7838, atlas)
-    pulse = 8 + round(5 * (0.5 + 0.5 * math.sin(position * math.pi)))
-    pygame.draw.circle(screen, (255, 197, 92), origin, pulse, 2)
-    pygame.draw.circle(screen, (255, 238, 188), origin, 3)
+    pulse = _px(8 + round(5 * (0.5 + 0.5 * math.sin(position * math.pi))))
+    pygame.draw.circle(screen, (255, 197, 92), origin, pulse, _px(2))
+    pygame.draw.circle(screen, (255, 238, 188), origin, _px(3))
     draw_text(
         pygame,
         screen,
         fonts,
         "Wuhan",
-        (origin[0] + 10, origin[1] - 9),
+        (origin[0] + _px(10), origin[1] - _px(9)),
         13,
         (255, 231, 174),
         1.0,
@@ -1389,36 +1456,43 @@ def draw_seir_flag(pygame, screen, code, rectangle, cache):
         )
         cache[key] = pygame.transform.smoothscale(source, rectangle.size)
     screen.blit(cache[key], rectangle)
-    pygame.draw.rect(screen, (214, 229, 238), rectangle, 1)
+    pygame.draw.rect(screen, (214, 229, 238), rectangle, _px(1))
 
 
 def draw_seir_chicken(pygame, screen, centre, scale=1.0, code="", cache=None):
     x, y = centre
     cache = {} if cache is None else cache
-    sprite = entity_sprite(pygame, CHRONUS_CHICKEN, round(54 * scale), cache)
+    sprite = entity_sprite(
+        pygame, CHRONUS_CHICKEN, _px(round(54 * scale)), cache
+    )
     screen.blit(sprite, sprite.get_rect(center=(round(x), round(y))))
     if code and (CHRONUS_FLAGS / f"{code.lower()}.svg").is_file():
         flag = pygame.Rect(
-            0, 0, max(12, round(18 * scale)), max(7, round(10 * scale))
+            0,
+            0,
+            max(_px(12), _px(round(18 * scale))),
+            max(_px(7), _px(round(10 * scale))),
         )
         flag.center = (
             round(x),
-            round(y + 15 * scale),
+            round(y + _px(15 * scale)),
         )
         draw_seir_flag(pygame, screen, code, flag, cache)
 
 
 def draw_seir_event_icon(pygame, screen, centre, colour=(103, 211, 235)):
-    pygame.draw.circle(screen, (20, 67, 91), centre, 14)
-    pygame.draw.circle(screen, colour, centre, 14, 2)
+    pygame.draw.circle(screen, (20, 67, 91), centre, _px(14))
+    pygame.draw.circle(screen, colour, centre, _px(14), _px(2))
     pygame.draw.line(
         screen,
         (218, 247, 255),
-        (centre[0], centre[1] - 7),
-        (centre[0], centre[1] + 3),
-        3,
+        (centre[0], centre[1] - _px(7)),
+        (centre[0], centre[1] + _px(3)),
+        _px(3),
     )
-    pygame.draw.circle(screen, (218, 247, 255), (centre[0], centre[1] + 8), 2)
+    pygame.draw.circle(
+        screen, (218, 247, 255), (centre[0], centre[1] + _px(8)), _px(2)
+    )
 
 
 def draw_seir_disasters(pygame, screen, fonts, rectangle, position):
@@ -1428,15 +1502,15 @@ def draw_seir_disasters(pygame, screen, fonts, rectangle, position):
         if not month <= position < month + 2:
             continue
         centre = seir_project(longitude, latitude, rectangle)
-        pulse = 18 + round(4 * math.sin((position - month) * math.pi * 3))
-        pygame.draw.circle(screen, (248, 113, 113), centre, pulse, 2)
+        pulse = _px(18 + round(4 * math.sin((position - month) * math.pi * 3)))
+        pygame.draw.circle(screen, (248, 113, 113), centre, pulse, _px(2))
         draw_seir_event_icon(pygame, screen, centre, (248, 113, 113))
         draw_text(
             pygame,
             screen,
             fonts,
             label,
-            (centre[0] + 19, centre[1] - 7),
+            (centre[0] + _px(19), centre[1] - _px(7)),
             10,
             (254, 202, 202),
             1.0,
@@ -1449,9 +1523,9 @@ def draw_seir_disasters(pygame, screen, fonts, rectangle, position):
         centre = seir_project(longitude, latitude, rectangle)
         reach = round(radius * rectangle.height / 180.0)
         pulse = round(reach * (0.82 + 0.08 * math.sin(position * 18.0)))
-        pygame.draw.circle(screen, (56, 189, 248), centre, pulse, 2)
+        pygame.draw.circle(screen, (56, 189, 248), centre, pulse, _px(2))
         pygame.draw.circle(
-            screen, (125, 211, 252), centre, max(8, pulse // 2), 1
+            screen, (125, 211, 252), centre, max(_px(8), pulse // 2), _px(1)
         )
         draw_seir_event_icon(pygame, screen, centre, (56, 189, 248))
         draw_text(
@@ -1459,7 +1533,7 @@ def draw_seir_disasters(pygame, screen, fonts, rectangle, position):
             screen,
             fonts,
             f"{label} · TURBULENCE + SEA STORM",
-            (centre[0] + 19, centre[1] - 7),
+            (centre[0] + _px(19), centre[1] - _px(7)),
             10,
             (186, 230, 253),
             1.0,
@@ -1481,14 +1555,14 @@ def draw_seir_disasters(pygame, screen, fonts, rectangle, position):
             centre = seir_project(longitude, latitude, rectangle)
             draw_seir_event_icon(pygame, screen, centre, colour)
         banner = pygame.Rect(
-            rectangle.left + 10,
-            rectangle.top + 50 + banner_row * 27,
-            280,
-            22,
+            rectangle.left + _px(10),
+            rectangle.top + _px(50 + banner_row * 27),
+            _px(280),
+            _px(22),
         )
         banner_row += 1
-        pygame.draw.rect(screen, (7, 23, 41), banner, border_radius=5)
-        pygame.draw.rect(screen, colour, banner, 2, border_radius=5)
+        pygame.draw.rect(screen, (7, 23, 41), banner, border_radius=_px(5))
+        pygame.draw.rect(screen, colour, banner, _px(2), border_radius=_px(5))
         draw_text(
             pygame,
             screen,
@@ -1572,12 +1646,14 @@ def seir_feed_events(position, slots=8):
 def draw_seir_feed(pygame, screen, fonts, rectangle, position, cache):
     """Draw the scrolling feed from events selected for the current month"""
     # Draw panel chrome before selecting the current visible event window
-    pygame.draw.rect(screen, (8, 25, 43), rectangle, border_radius=14)
-    pygame.draw.rect(screen, (58, 124, 164), rectangle, 2, border_radius=14)
+    pygame.draw.rect(screen, (8, 25, 43), rectangle, border_radius=_px(14))
+    pygame.draw.rect(
+        screen, (58, 124, 164), rectangle, _px(2), border_radius=_px(14)
+    )
     draw_seir_chicken(
         pygame,
         screen,
-        (rectangle.left + 24, rectangle.top + 28),
+        (rectangle.left + _px(24), rectangle.top + _px(28)),
         0.75,
         cache=cache,
     )
@@ -1586,7 +1662,7 @@ def draw_seir_feed(pygame, screen, fonts, rectangle, position, cache):
         screen,
         fonts,
         "WORLD FEED",
-        (rectangle.left + 49, rectangle.top + 18),
+        (rectangle.left + _px(49), rectangle.top + _px(18)),
         20,
         (222, 239, 247),
         1.0,
@@ -1618,17 +1694,27 @@ def draw_seir_feed(pygame, screen, fonts, rectangle, position, cache):
     }
     kind_icons = {"SPORTS": "SP", "TECH": "{}", "BUSINESS": "$", "FUNNY": ":)"}
     for row, (month, kind, code, label, summary) in enumerate(events):
-        top = rectangle.top + 58 + row * 90
-        card = pygame.Rect(rectangle.left + 12, top, rectangle.width - 24, 84)
-        pygame.draw.rect(screen, (12, 37, 59), card, border_radius=9)
+        top = rectangle.top + _px(58 + row * 90)
+        card = pygame.Rect(
+            rectangle.left + _px(12),
+            top,
+            rectangle.width - _px(24),
+            _px(84),
+        )
+        pygame.draw.rect(screen, (12, 37, 59), card, border_radius=_px(9))
         pygame.draw.rect(
             screen,
             (92, 166, 194) if row == len(events) - 1 else (40, 81, 108),
             card,
-            1,
-            border_radius=9,
+            _px(1),
+            border_radius=_px(9),
         )
-        icon = pygame.Rect(card.left + 11, card.top + 11, 36, 27)
+        icon = pygame.Rect(
+            card.left + _px(11),
+            card.top + _px(11),
+            _px(36),
+            _px(27),
+        )
         if kind == "NEWS":
             draw_seir_chicken(pygame, screen, icon.center, 0.82, code, cache)
         elif kind == "DISASTER":
@@ -1636,9 +1722,9 @@ def draw_seir_feed(pygame, screen, fonts, rectangle, position, cache):
                 pygame, screen, icon.center, kind_colours[kind]
             )
         elif kind in kind_icons:
-            pygame.draw.rect(screen, (20, 67, 91), icon, border_radius=7)
+            pygame.draw.rect(screen, (20, 67, 91), icon, border_radius=_px(7))
             pygame.draw.rect(
-                screen, kind_colours[kind], icon, 2, border_radius=7
+                screen, kind_colours[kind], icon, _px(2), border_radius=_px(7)
             )
             draw_text(
                 pygame,
@@ -1660,7 +1746,7 @@ def draw_seir_feed(pygame, screen, fonts, rectangle, position, cache):
             screen,
             fonts,
             label,
-            (card.left + 55, card.top + 10),
+            (card.left + _px(55), card.top + _px(10)),
             14,
             (235, 244, 248),
             1.0,
@@ -1672,7 +1758,7 @@ def draw_seir_feed(pygame, screen, fonts, rectangle, position, cache):
             screen,
             fonts,
             seir_date(month).strftime("%b %Y").upper(),
-            (card.right - 10, card.top + 11),
+            (card.right - _px(10), card.top + _px(11)),
             11,
             (132, 179, 201),
             1.0,
@@ -1684,7 +1770,7 @@ def draw_seir_feed(pygame, screen, fonts, rectangle, position, cache):
             screen,
             fonts,
             kind,
-            (card.left + 55, card.top + 27),
+            (card.left + _px(55), card.top + _px(27)),
             11,
             kind_colours.get(kind, (103, 211, 235)),
             1.0,
@@ -1693,14 +1779,14 @@ def draw_seir_feed(pygame, screen, fonts, rectangle, position, cache):
         )
         font = font_for(pygame, fonts, 13, False)
         for line, text_line in enumerate(
-            caption_lines(font, summary, card.width - 22)[:2]
+            caption_lines(font, summary, card.width - _px(22))[:2]
         ):
             draw_text(
                 pygame,
                 screen,
                 fonts,
                 text_line,
-                (card.left + 11, card.top + 45 + line * 17),
+                (card.left + _px(11), card.top + _px(45 + line * 17)),
                 13,
                 (218, 232, 240),
                 1.0,
@@ -1756,11 +1842,15 @@ def draw_seir_flip_card(
             shade = pygame.Surface((rectangle.width, height), pygame.SRCALPHA)
             shade.fill((0, 0, 0, round(70 * (1.0 - progress) * 2.0)))
             card.blit(shade, (0, half))
-    pygame.draw.line(card, (65, 73, 84), (0, half), (rectangle.width, half), 2)
-    pygame.draw.rect(card, (79, 92, 108), card.get_rect(), 2, border_radius=10)
-    for x in (6, rectangle.width - 6):
-        pygame.draw.circle(card, (96, 108, 122), (x, half), 5)
-        pygame.draw.circle(card, (25, 31, 40), (x, half), 2)
+    pygame.draw.line(
+        card, (65, 73, 84), (0, half), (rectangle.width, half), _px(2)
+    )
+    pygame.draw.rect(
+        card, (79, 92, 108), card.get_rect(), _px(2), border_radius=_px(10)
+    )
+    for x in (_px(6), rectangle.width - _px(6)):
+        pygame.draw.circle(card, (96, 108, 122), (x, half), _px(5))
+        pygame.draw.circle(card, (25, 31, 40), (x, half), _px(2))
     screen.blit(card, rectangle)
 
 
@@ -1785,7 +1875,7 @@ def draw_seir_calendar(pygame, screen, fonts, rectangle, position):
         pygame,
         screen,
         fonts,
-        pygame.Rect(rectangle.left, rectangle.top, 218, rectangle.height),
+        pygame.Rect(rectangle.left, rectangle.top, _px(218), rectangle.height),
         current.strftime("%B").upper(),
         following.strftime("%B").upper(),
         progress,
@@ -1794,7 +1884,12 @@ def draw_seir_calendar(pygame, screen, fonts, rectangle, position):
         pygame,
         screen,
         fonts,
-        pygame.Rect(rectangle.left + 230, rectangle.top, 132, rectangle.height),
+        pygame.Rect(
+            rectangle.left + _px(230),
+            rectangle.top,
+            _px(132),
+            rectangle.height,
+        ),
         str(current.year),
         str(next_year),
         year_progress,
@@ -1814,8 +1909,10 @@ def seir_count_text(value):
 
 def draw_seir_health(pygame, screen, fonts, rectangle, features, states):
     """Draw global health totals and the selected regional population shares"""
-    pygame.draw.rect(screen, (8, 25, 43), rectangle, border_radius=14)
-    pygame.draw.rect(screen, (58, 124, 164), rectangle, 2, border_radius=14)
+    pygame.draw.rect(screen, (8, 25, 43), rectangle, border_radius=_px(14))
+    pygame.draw.rect(
+        screen, (58, 124, 164), rectangle, _px(2), border_radius=_px(14)
+    )
     population = sum(feature[1] for feature in features)
     totals = [
         sum(feature[1] * states[feature[0]][index] for feature in features)
@@ -1826,7 +1923,7 @@ def draw_seir_health(pygame, screen, fonts, rectangle, features, states):
         screen,
         fonts,
         "SIMULATED POPULATION STATES",
-        (rectangle.left + 20, rectangle.top + 14),
+        (rectangle.left + _px(20), rectangle.top + _px(14)),
         18,
         (222, 239, 247),
         1.0,
@@ -1834,9 +1931,12 @@ def draw_seir_health(pygame, screen, fonts, rectangle, features, states):
         "topleft",
     )
     bar = pygame.Rect(
-        rectangle.left + 20, rectangle.top + 43, rectangle.width - 40, 30
+        rectangle.left + _px(20),
+        rectangle.top + _px(43),
+        rectangle.width - _px(40),
+        _px(30),
     )
-    pygame.draw.rect(screen, (24, 48, 65), bar, border_radius=8)
+    pygame.draw.rect(screen, (24, 48, 65), bar, border_radius=_px(8))
     left = bar.left
     for total, colour in zip(totals, SEIR_COLOURS):
         width = round(bar.width * total / population)
@@ -1844,21 +1944,24 @@ def draw_seir_health(pygame, screen, fonts, rectangle, features, states):
             width = 1
         pygame.draw.rect(screen, colour, (left, bar.top, width, bar.height))
         left += width
-    pygame.draw.rect(screen, (177, 209, 223), bar, 1, border_radius=8)
+    pygame.draw.rect(screen, (177, 209, 223), bar, _px(1), border_radius=_px(8))
     column = rectangle.width / 5
     for index, (label, colour, total) in enumerate(
         zip(SEIR_LABELS, SEIR_COLOURS, totals)
     ):
-        x = round(rectangle.left + column * index + 20)
+        x = round(rectangle.left + column * index + _px(20))
         pygame.draw.rect(
-            screen, colour, (x, rectangle.top + 91, 10, 10), border_radius=2
+            screen,
+            colour,
+            (x, rectangle.top + _px(91), _px(10), _px(10)),
+            border_radius=_px(2),
         )
         draw_text(
             pygame,
             screen,
             fonts,
             label,
-            (x + 16, rectangle.top + 87),
+            (x + _px(16), rectangle.top + _px(87)),
             14,
             (188, 216, 229),
             1.0,
@@ -1870,7 +1973,7 @@ def draw_seir_health(pygame, screen, fonts, rectangle, features, states):
             screen,
             fonts,
             f"{seir_count_text(total)}  {100 * total / population:.2f}%",
-            (x, rectangle.top + 109),
+            (x, rectangle.top + _px(109)),
             18,
             (241, 247, 250),
             1.0,
@@ -1891,20 +1994,32 @@ def draw_seir_scene(
     screen.fill((3, 11, 24))
     glow = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
     for radius, alpha in ((420, 8), (270, 13), (140, 20)):
-        pygame.draw.circle(glow, (76, 192, 240, alpha), (960, -50), radius)
+        pygame.draw.circle(
+            glow,
+            (76, 192, 240, alpha),
+            (_px(960), _px(-50)),
+            _px(radius),
+        )
     screen.blit(glow, (0, 0))
     pygame.draw.rect(
-        screen, (10, 28, 47), (14, 14, 1892, 1052), border_radius=18
+        screen,
+        (10, 28, 47),
+        _rect(pygame, 14, 14, 1892, 1052),
+        border_radius=_px(18),
     )
     pygame.draw.rect(
-        screen, (72, 143, 176), (14, 14, 1892, 1052), 2, border_radius=18
+        screen,
+        (72, 143, 176),
+        _rect(pygame, 14, 14, 1892, 1052),
+        _px(2),
+        border_radius=_px(18),
     )
     draw_text(
         pygame,
         screen,
         fonts,
         "Chronus",
-        (38, 27),
+        (_px(38), _px(27)),
         48,
         (232, 246, 252),
         1.0,
@@ -1924,7 +2039,7 @@ def draw_seir_scene(
         pygame,
         screen,
         fonts,
-        pygame.Rect(36, 88, 1518, 798),
+        _rect(pygame, 36, 88, 1518, 798),
         position,
         features,
         regions,
@@ -1938,18 +2053,18 @@ def draw_seir_scene(
         pygame,
         screen,
         fonts,
-        pygame.Rect(1570, 88, 314, 798),
+        _rect(pygame, 1570, 88, 314, 798),
         position,
         cache,
     )
     draw_seir_calendar(
-        pygame, screen, fonts, pygame.Rect(36, 906, 362, 142), position
+        pygame, screen, fonts, _rect(pygame, 36, 906, 362, 142), position
     )
     draw_seir_health(
         pygame,
         screen,
         fonts,
-        pygame.Rect(420, 906, 1464, 142),
+        _rect(pygame, 420, 906, 1464, 142),
         features,
         states,
     )

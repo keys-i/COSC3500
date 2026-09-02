@@ -21,13 +21,31 @@ int matrixMultiply(int N, const floatType* A, const floatType* B, floatType* C, 
     }  	 	   			     	 		 			 	      
 
     // WRITE YOUR CODE HERE
+    const int blkSize = 32;
+    
     memset(C, 0, sizeof(floatType) * N * N);
-
-    for (int col = 0; col < N; ++col) {
-        for (int k = 0; k < N; ++k) {
-            const floatType b = B[k + col * N];
-            for (int row = 0; row < N; ++row) {
-                C[row + col * N] += A[row + k * N] * b;
+    
+    for (int colBlk = 0; colBlk < N; colBlk += blkSize) {
+        const int colEnd =
+            (colBlk + blkSize < N) ? colBlk + blkSize : N;
+    
+        for (int kBlk = 0; kBlk < N; kBlk += blkSize) {
+            const int kEnd =
+                (kBlk + blkSize < N) ? kBlk + blkSize : N;
+    
+            for (int rowBlk = 0; rowBlk < N; rowBlk += blkSize) {
+                const int rowEnd =
+                    (rowBlk + blkSize < N) ? rowBlk + blkSize : N;
+    
+                for (int col = colBlk; col < colEnd; ++col) {
+                    for (int k = kBlk; k < kEnd; ++k) {
+                        const floatType b = B[k + col * N];
+    
+                        for (int row = rowBlk; row < rowEnd; ++row) {
+                            C[row + col * N] += A[row + k * N] * b;
+                        }
+                    }
+                }
             }
         }
     }
