@@ -25,7 +25,6 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
     // WRITE YOUR CODE HERE
     const int rows = N & ~7, cols = N & ~15, stride = 2 * N;
     const float *a = reinterpret_cast<const float *>(A);
-    const float *b = reinterpret_cast<const float *>(B);
     float *c = reinterpret_cast<float *>(C);
     float *packed =
         static_cast<float *>(_mm_malloc(2ULL * rows * N * sizeof(float), 64));
@@ -33,10 +32,10 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
     const __m256 imagSign = _mm256_castpd_ps(_mm256_set1_pd(-0.0));
     const auto accumulate =
         [](__m256 &sum0, __m256 &sum1, __m256 signed0, __m256 signed1,
-           __m256 swap0, __m256 swap1, const float *value)
+           __m256 swap0, __m256 swap1, const floatType &b)
             __attribute__((always_inline, target("avx2,fma"))) {
-                const __m256 real = _mm256_broadcast_ss(value);
-                const __m256 imag = _mm256_broadcast_ss(value + 1);
+                const __m256 real = _mm256_set1_ps(b.real());
+                const __m256 imag = _mm256_set1_ps(b.imag());
                 sum0 = _mm256_fnmadd_ps(swap0, imag,
                                         _mm256_fmadd_ps(signed0, real, sum0));
                 sum1 = _mm256_fnmadd_ps(swap1, imag,
@@ -50,8 +49,8 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
             float *out = packed + 2ULL * row * N;
             for (int k = 0; k < N; ++k) {
                 const float *in = a + 2ULL * (row + k * N);
-                _mm256_storeu_ps(out + 16ULL * k, _mm256_loadu_ps(in));
-                _mm256_storeu_ps(out + 16ULL * k + 8, _mm256_loadu_ps(in + 8));
+                _mm256_store_ps(out + 16ULL * k, _mm256_loadu_ps(in));
+                _mm256_store_ps(out + 16ULL * k + 8, _mm256_loadu_ps(in + 8));
             }
         }
 
@@ -69,22 +68,28 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
 
 #pragma GCC unroll 8
                     for (int k = 0; k < N; ++k) {
-                        const __m256 av0 = _mm256_loadu_ps(p + 16ULL * k);
-                        const __m256 av1 = _mm256_loadu_ps(p + 16ULL * k + 8);
+                        const __m256 av0 = _mm256_load_ps(p + 16ULL * k);
+                        const __m256 av1 = _mm256_load_ps(p + 16ULL * k + 8);
                         const __m256 swap0 = _mm256_permute_ps(av0, 0xB1);
                         const __m256 swap1 = _mm256_permute_ps(av1, 0xB1);
                         const __m256 signed0 = _mm256_xor_ps(av0, imagSign);
                         const __m256 signed1 = _mm256_xor_ps(av1, imagSign);
 
-                        const float *value = b + 2ULL * (k + first * N);
+                        const floatType b0 = B[k + first * N];
                         accumulate(sum00, sum01, signed0, signed1, swap0, swap1,
-                                   value);
+                                   b0);
+
+                        const floatType b1 = B[k + (first + 1) * N];
                         accumulate(sum10, sum11, signed0, signed1, swap0, swap1,
-                                   value + stride);
+                                   b1);
+
+                        const floatType b2 = B[k + (first + 2) * N];
                         accumulate(sum20, sum21, signed0, signed1, swap0, swap1,
-                                   value + 2 * stride);
+                                   b2);
+
+                        const floatType b3 = B[k + (first + 3) * N];
                         accumulate(sum30, sum31, signed0, signed1, swap0, swap1,
-                                   value + 3 * stride);
+                                   b3);
                     }
 
                     float *out = c + 2ULL * (row + first * N);

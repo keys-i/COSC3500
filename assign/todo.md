@@ -18,18 +18,18 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - `B` values bound by reference (rejected)
+### Latest CPU benchmark - raw `B` broadcasts (rejected)
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 9562.203 | 10385.591 | 0.921 | 3.205e-08 | 6.704 |
-| 256 | 1363.390 | 1389.606 | 0.981 | 2.697e-08 | 6.613 |
-| 512 | 191.274 | 227.939 | 0.839 | 2.528e-08 | 6.838 |
-| 1024 | 17.892 | 29.164 | 0.613 | 2.354e-08 | 7.291 |
-| 2048 | 2.158 | 2.628 | 0.821 | 2.262e-08 | 6.870 |
-| 4096 | 0.409 | 0.427 | 0.960 | 2.217e-08 | 6.644 |
+| 128 | 8941.754 | 10749.131 | 0.832 | 3.205e-08 | 6.850 |
+| 256 | 1471.583 | 1560.205 | 0.943 | 2.697e-08 | 6.670 |
+| 512 | 201.087 | 251.712 | 0.799 | 2.528e-08 | 6.909 |
+| 1024 | 25.778 | 33.300 | 0.774 | 2.354e-08 | 6.955 |
+| 2048 | 3.368 | 3.305 | 1.019 | 2.262e-08 | 6.558 |
+| 4096 | 0.410 | 0.423 | 0.968 | 2.217e-08 | 6.632 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Binding the four hot-loop `B` values by reference regressed `N=2048` from `0.785x` to `0.821x`, losing the CPU target, so reject it. Restore value semantics while testing a raw `float` view of `B` with direct AVX broadcasts; keep it only if `N=2048` beats `0.785x`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Reading `B` through a raw `float` view regressed `N=2048` from the retained `0.785x` baseline to `1.019x`, so reject it. Restore complex value loads and use aligned AVX loads/stores only for the provably aligned packed buffer; keep the change only if `N=2048` beats `0.785x`.
 
 ### 1. AVX first
 
@@ -87,7 +87,8 @@
 - [x] Broadcast each `B` real/imaginary pair once and reuse it for both packed row vectors; keep its `0.785x` result at `N=2048`.
 - [x] Retain the 16-column cache tile; skip the eight-column retest.
 - [x] Bind the four hot-loop `B` values by `const` reference; reject its `0.821x` result at `N=2048`.
-- [ ] Read `B` through its interleaved `float` representation and broadcast real/imaginary values directly; keep it only if `N=2048` beats `0.785x`.
+- [x] Read `B` through its interleaved `float` representation and broadcast directly; reject its `1.019x` result at `N=2048`.
+- [ ] Use aligned AVX loads/stores for the 64-byte-aligned packed `A` buffer; keep it only if `N=2048` beats `0.785x`.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -104,7 +105,7 @@
 
 ### CPU target
 
-- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; the retained paired-broadcast baseline achieved `0.785x` and the `0.821x` reference trial was rejected.
+- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; the retained paired-broadcast baseline achieved `0.785x`; the raw-`B` trial's `1.019x` result was rejected.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
