@@ -30,12 +30,13 @@ __attribute__((target("avx,fma"))) int matrixMultiply(int N, const floatType *A,
     float *packed =
         static_cast<float *>(_mm_malloc(2ULL * rows * N * sizeof(float), 64));
 
-    const auto multiply =
-        [](__m256 av, __m256 swap, const floatType &b)
+    const __m256 imagSign = _mm256_castpd_ps(_mm256_set1_pd(-0.0));
+    const auto accumulate =
+        [](__m256 sum, __m256 signedA, __m256 swap, const floatType &b)
             __attribute__((always_inline, target("avx,fma"))) {
-                return _mm256_fmaddsub_ps(
-                    av, _mm256_set1_ps(b.real()),
-                    _mm256_mul_ps(swap, _mm256_set1_ps(b.imag())));
+                return _mm256_fnmadd_ps(
+                    swap, _mm256_set1_ps(b.imag()),
+                    _mm256_fmadd_ps(signedA, _mm256_set1_ps(b.real()), sum));
             };
 
 #pragma omp parallel
@@ -68,33 +69,41 @@ __attribute__((target("avx,fma"))) int matrixMultiply(int N, const floatType *A,
                         const __m256 av1 = _mm256_loadu_ps(p + 16ULL * k + 8);
                         const __m256 swap0 = _mm256_permute_ps(av0, 0xB1);
                         const __m256 swap1 = _mm256_permute_ps(av1, 0xB1);
+                        const __m256 signed0 = _mm256_xor_ps(av0, imagSign);
+                        const __m256 signed1 = _mm256_xor_ps(av1, imagSign);
 
                         const floatType b0 = B[k + first * N];
-                        sum00 = _mm256_add_ps(sum00, multiply(av0, swap0, b0));
-                        sum01 = _mm256_add_ps(sum01, multiply(av1, swap1, b0));
+                        sum00 = accumulate(sum00, signed0, swap0, b0);
+                        sum01 = accumulate(sum01, signed1, swap1, b0);
 
                         const floatType b1 = B[k + (first + 1) * N];
-                        sum10 = _mm256_add_ps(sum10, multiply(av0, swap0, b1));
-                        sum11 = _mm256_add_ps(sum11, multiply(av1, swap1, b1));
+                        sum10 = accumulate(sum10, signed0, swap0, b1);
+                        sum11 = accumulate(sum11, signed1, swap1, b1);
 
                         const floatType b2 = B[k + (first + 2) * N];
-                        sum20 = _mm256_add_ps(sum20, multiply(av0, swap0, b2));
-                        sum21 = _mm256_add_ps(sum21, multiply(av1, swap1, b2));
+                        sum20 = accumulate(sum20, signed0, swap0, b2);
+                        sum21 = accumulate(sum21, signed1, swap1, b2);
 
                         const floatType b3 = B[k + (first + 3) * N];
-                        sum30 = _mm256_add_ps(sum30, multiply(av0, swap0, b3));
-                        sum31 = _mm256_add_ps(sum31, multiply(av1, swap1, b3));
+                        sum30 = accumulate(sum30, signed0, swap0, b3);
+                        sum31 = accumulate(sum31, signed1, swap1, b3);
                     }
 
                     float *out = c + 2ULL * (row + first * N);
-                    _mm256_storeu_ps(out, sum00);
-                    _mm256_storeu_ps(out + 8, sum01);
-                    _mm256_storeu_ps(out + stride, sum10);
-                    _mm256_storeu_ps(out + stride + 8, sum11);
-                    _mm256_storeu_ps(out + 2 * stride, sum20);
-                    _mm256_storeu_ps(out + 2 * stride + 8, sum21);
-                    _mm256_storeu_ps(out + 3 * stride, sum30);
-                    _mm256_storeu_ps(out + 3 * stride + 8, sum31);
+                    _mm256_storeu_ps(out, _mm256_xor_ps(sum00, imagSign));
+                    _mm256_storeu_ps(out + 8, _mm256_xor_ps(sum01, imagSign));
+                    _mm256_storeu_ps(out + stride,
+                                     _mm256_xor_ps(sum10, imagSign));
+                    _mm256_storeu_ps(out + stride + 8,
+                                     _mm256_xor_ps(sum11, imagSign));
+                    _mm256_storeu_ps(out + 2 * stride,
+                                     _mm256_xor_ps(sum20, imagSign));
+                    _mm256_storeu_ps(out + 2 * stride + 8,
+                                     _mm256_xor_ps(sum21, imagSign));
+                    _mm256_storeu_ps(out + 3 * stride,
+                                     _mm256_xor_ps(sum30, imagSign));
+                    _mm256_storeu_ps(out + 3 * stride + 8,
+                                     _mm256_xor_ps(sum31, imagSign));
                 }
             }
 
