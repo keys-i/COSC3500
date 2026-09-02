@@ -18,18 +18,18 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - raw `B` broadcasts (rejected)
+### Latest CPU benchmark - aligned packed-buffer access (rejected)
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 8941.754 | 10749.131 | 0.832 | 3.205e-08 | 6.850 |
-| 256 | 1471.583 | 1560.205 | 0.943 | 2.697e-08 | 6.670 |
-| 512 | 201.087 | 251.712 | 0.799 | 2.528e-08 | 6.909 |
-| 1024 | 25.778 | 33.300 | 0.774 | 2.354e-08 | 6.955 |
-| 2048 | 3.368 | 3.305 | 1.019 | 2.262e-08 | 6.558 |
-| 4096 | 0.410 | 0.423 | 0.968 | 2.217e-08 | 6.632 |
+| 128 | 9651.290 | 10965.465 | 0.880 | 3.205e-08 | 6.769 |
+| 256 | 1489.127 | 1746.065 | 0.853 | 2.697e-08 | 6.814 |
+| 512 | 194.361 | 224.955 | 0.864 | 2.528e-08 | 6.796 |
+| 1024 | 19.844 | 28.853 | 0.688 | 2.354e-08 | 7.124 |
+| 2048 | 3.321 | 3.052 | 1.088 | 2.262e-08 | 6.463 |
+| 4096 | 0.410 | 0.430 | 0.954 | 2.217e-08 | 6.653 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Reading `B` through a raw `float` view regressed `N=2048` from the retained `0.785x` baseline to `1.019x`, so reject it. Restore complex value loads and use aligned AVX loads/stores only for the provably aligned packed buffer; keep the change only if `N=2048` beats `0.785x`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Aligned accesses to the packed buffer regressed `N=2048` from the retained `0.785x` baseline to `1.088x`, so reject them. Restore unaligned packed-buffer accesses and test `proc_bind(close)` as the only new change; keep it only if `N=2048` beats `0.785x`.
 
 ### 1. AVX first
 
@@ -88,7 +88,8 @@
 - [x] Retain the 16-column cache tile; skip the eight-column retest.
 - [x] Bind the four hot-loop `B` values by `const` reference; reject its `0.821x` result at `N=2048`.
 - [x] Read `B` through its interleaved `float` representation and broadcast directly; reject its `1.019x` result at `N=2048`.
-- [ ] Use aligned AVX loads/stores for the 64-byte-aligned packed `A` buffer; keep it only if `N=2048` beats `0.785x`.
+- [x] Use aligned AVX loads/stores for the packed `A` buffer; reject its `1.088x` result at `N=2048`.
+- [ ] Bind the four OpenMP threads close together to test shared-cache locality; keep it only if `N=2048` beats `0.785x`.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -105,7 +106,7 @@
 
 ### CPU target
 
-- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; the retained paired-broadcast baseline achieved `0.785x`; the raw-`B` trial's `1.019x` result was rejected.
+- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; the retained paired-broadcast baseline achieved `0.785x`; the aligned-access trial's `1.088x` result was rejected.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
