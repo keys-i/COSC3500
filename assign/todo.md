@@ -29,7 +29,7 @@
 | 2048 | 2.484 | 3.024 | 0.821 | 2.295e-08 | 6.870 |
 | 4096 | 0.312 | 0.346 | 0.901 | 2.236e-08 | 6.735 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Adding source-level `unroll-loops` raised throughput from `2.737` to `3.024` matrices/s at `N=2048` (`10.5%`) and from `0.320` to `0.346` at `N=4096` (`8.1%`), so keep it. Only another `2.6%` is needed to reach the `0.80x` CPU target at `N=2048`. Test Zen 2 scheduling next; the Makefile remains unchanged.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Adding source-level `unroll-loops` raised throughput from `2.737` to `3.024` matrices/s at `N=2048` (`10.5%`) and from `0.320` to `0.346` at `N=4096` (`8.1%`), so keep it. The later `tune=znver2` trial produced no benchmark rows at any size and was reverted. Only another `2.6%` is needed to reach the `0.80x` CPU target; test generic AVX2 next without changing the Makefile.
 
 ### 1. AVX first
 
@@ -81,7 +81,8 @@
 - [x] Test source-level `optimize("O3")` with eight-way unrolling; keep its `5.1%` `N=2048` throughput gain.
 - [x] Replace source-level `O3` with `Ofast`; reject its `93.9%` `N=2048` throughput regression.
 - [x] Restore `O3` and add source-level `unroll-loops`; keep its `10.5%` `N=2048` throughput gain.
-- [ ] Add `tune=znver2` to both AVX target attributes; keep it only if `N=2048` exceeds `3.024` matrices/s.
+- [x] Add `tune=znver2` to both AVX target attributes; reject it because every job failed before producing a benchmark row.
+- [ ] Replace `avx` with `avx2` in both target attributes; keep it only if `N=2048` exceeds `3.024` matrices/s.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
