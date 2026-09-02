@@ -18,17 +18,17 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - restricted packed `8x8` AVX plus four-core OpenMP
+### Latest CPU benchmark - FMA packed `8x8` AVX plus four-core OpenMP
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 9089.133 | 8361.791 | 1.087 | 2.247e-08 | 6.465 |
-| 256 | 1482.225 | 1210.078 | 1.225 | 1.674e-08 | 6.292 |
-| 512 | 201.069 | 173.845 | 1.157 | 1.476e-08 | 6.375 |
-| 1024 | 25.968 | 22.810 | 1.138 | 1.291e-08 | 6.398 |
-| 2048 | 3.370 | 1.957 | 1.722 | 1.187e-08 | 5.801 |
+| 128 | 8811.274 | 8564.459 | 1.029 | 2.241e-08 | 6.544 |
+| 256 | 1466.861 | 1330.400 | 1.103 | 1.667e-08 | 6.444 |
+| 512 | 199.546 | 197.269 | 1.012 | 1.477e-08 | 6.568 |
+| 1024 | 26.635 | 26.785 | 0.994 | 1.289e-08 | 6.594 |
+| 2048 | 3.317 | 2.047 | 1.621 | 1.186e-08 | 5.888 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Restricted pointers regressed `N=2048` from `1.686x` to `1.722x`, so revert them. The accepted kernel still needs `1.41x` at `N=1024` and `2.11x` at `N=2048` to reach `0.80x`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Keep FMA: it improved `N=2048` from `1.686x` to `1.621x`. Reaching `0.80x` still needs `1.24x` at `N=1024` and `2.03x` at `N=2048`.
 
 ### 1. AVX first
 
@@ -45,7 +45,8 @@
 - [x] Group two `8x2` microkernels into an `8x4` cache tile; keep it for the large `N=2048` gain.
 - [x] Group four `8x2` microkernels into an `8x8` cache tile; keep its small improvement at every tested size.
 - [x] Stop increasing the tile width: `8x8` improved `N=2048` by only `1.1%`.
-- [ ] Replace one multiply/add-sub pair with FMA; verify the error and benchmark every size.
+- [x] Replace one multiply/add-sub pair with FMA; keep its `3.9%` improvement at `N=2048`.
+- [ ] Align the packed `A` buffer to 64 bytes to prevent split AVX loads; benchmark every size.
 - [ ] Unroll `k` only if compiler reports still show a dependency stall.
 - [x] Record the single-core result: `9.158x` MKL at `N=1024`; the planned `4.0x` milestone was not reached.
 
@@ -85,7 +86,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; best accepted ratio: `1.686x`.
+- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `1.621x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 

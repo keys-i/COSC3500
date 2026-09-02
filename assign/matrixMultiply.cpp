@@ -27,7 +27,8 @@ __attribute__((target("avx,fma"))) int matrixMultiply(int N, const floatType *A,
     const int rows = N & ~7, cols = N & ~7, stride = 2 * N;
     const float *a = reinterpret_cast<const float *>(A);
     float *c = reinterpret_cast<float *>(C);
-    float *packed = new float[2ULL * rows * N];
+    float *packed = static_cast<float *>(
+        _mm_malloc(2ULL * rows * N * sizeof(float), 64));
 
     const auto multiply =
         [](__m256 av, __m256 swap, const floatType &b)
@@ -101,6 +102,6 @@ __attribute__((target("avx,fma"))) int matrixMultiply(int N, const floatType *A,
             C[row + col * N] = sum;
         }
 
-    delete[] packed;
+    _mm_free(packed);
     return STUDENTID;
 }
