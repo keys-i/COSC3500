@@ -18,18 +18,18 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - aligned packed-buffer access (rejected)
+### Latest CPU benchmark - close OpenMP binding (rejected)
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 9651.290 | 10965.465 | 0.880 | 3.205e-08 | 6.769 |
-| 256 | 1489.127 | 1746.065 | 0.853 | 2.697e-08 | 6.814 |
-| 512 | 194.361 | 224.955 | 0.864 | 2.528e-08 | 6.796 |
-| 1024 | 19.844 | 28.853 | 0.688 | 2.354e-08 | 7.124 |
-| 2048 | 3.321 | 3.052 | 1.088 | 2.262e-08 | 6.463 |
-| 4096 | 0.410 | 0.430 | 0.954 | 2.217e-08 | 6.653 |
+| 128 | 9617.418 | 10707.523 | 0.898 | 3.205e-08 | 6.740 |
+| 256 | 1067.354 | 1605.722 | 0.665 | 3.222e-08 | 7.174 |
+| 512 | 142.174 | 206.056 | 0.690 | 2.701e-08 | 7.120 |
+| 1024 | 18.259 | 25.753 | 0.709 | 2.434e-08 | 7.081 |
+| 2048 | 2.305 | 2.839 | 0.812 | 2.295e-08 | 6.885 |
+| 4096 | 0.290 | 0.329 | 0.883 | 2.236e-08 | 6.764 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Aligned accesses to the packed buffer regressed `N=2048` from the retained `0.785x` baseline to `1.088x`, so reject them. Restore unaligned packed-buffer accesses and test `proc_bind(close)` as the only new change; keep it only if `N=2048` beats `0.785x`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Binding threads close together produced `0.812x` at `N=2048`, missing both the `0.80x` target and retained `0.785x` baseline, so reject it. Test `proc_bind(spread)` as the only new change; keep it only if `N=2048` beats `0.785x`.
 
 ### 1. AVX first
 
@@ -89,7 +89,8 @@
 - [x] Bind the four hot-loop `B` values by `const` reference; reject its `0.821x` result at `N=2048`.
 - [x] Read `B` through its interleaved `float` representation and broadcast directly; reject its `1.019x` result at `N=2048`.
 - [x] Use aligned AVX loads/stores for the packed `A` buffer; reject its `1.088x` result at `N=2048`.
-- [ ] Bind the four OpenMP threads close together to test shared-cache locality; keep it only if `N=2048` beats `0.785x`.
+- [x] Bind the four OpenMP threads close together; reject its `0.812x` result at `N=2048`.
+- [ ] Spread the four OpenMP threads to test memory-bandwidth placement; keep it only if `N=2048` beats `0.785x`.
 - [x] Skip build-flag and LTO experiments because the Makefile cannot be changed.
 - [ ] Test useful source-attribute combinations only after their individual effects are known.
 - [ ] Reject any fast-math or reordering change that exceeds the allowed error.
@@ -106,7 +107,7 @@
 
 ### CPU target
 
-- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; the retained paired-broadcast baseline achieved `0.785x`; the aligned-access trial's `1.088x` result was rejected.
+- [x] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; the retained paired-broadcast baseline achieved `0.785x`; close thread binding produced `0.812x` and was rejected.
 
 ## GPU - `matrixMultiplyGPU.cu`
 

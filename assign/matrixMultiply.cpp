@@ -42,7 +42,7 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                                         _mm256_fmadd_ps(signed1, real, sum1));
             };
 
-#pragma omp parallel proc_bind(close)
+#pragma omp parallel proc_bind(spread)
     {
 #pragma omp for schedule(static)
         for (int row = 0; row < rows; row += 8) {
