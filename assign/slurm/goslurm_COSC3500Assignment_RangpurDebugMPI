@@ -1,0 +1,27 @@
+#!/bin/bash -l
+#
+#SBATCH --job-name=COSC3500_DMPI
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=4
+#SBATCH --partition=cosc3500
+#SBATCH --account=cosc3500
+#SBATCH --time=0-00:5:00
+#You could add these to your bashrc if you wanted
+module load compiler-rt/latest
+module add mkl/latest
+module add mpi/openmpi-x86_64
+module load cuda/11.1
+
+#I would have expected the module loads to add these, but apparently not
+export PATH=/opt/local/stow/cuda-11.1/bin:$PATH
+export PATH=/usr/lib64/openmpi/bin:$PATH
+
+make clean
+make all
+
+#"bind-to none" (for whatever reason, by default mpiexec will lock to a single core (i.e. single-threaded), bind-to none means the mpi process is free to use whatever cores it wants)
+#"-x OMPI_MCA_mtl=^ofi,psm,psm2,psm3 -x OMPI_MCA_btl=^uct,ofi" are used to suppress a bunch of NIC-related warnings you'd otherwise get.
+mpiexec -n 2 -bind-to none -x OMPI_MCA_mtl=^ofi,psm,psm2,psm3 -x OMPI_MCA_btl=^uct,ofi ./Assignment1_GradeBot 128 4 0 0 1
+
