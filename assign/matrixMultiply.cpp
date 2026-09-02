@@ -42,15 +42,15 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                                         _mm256_fmadd_ps(signed1, real, sum1));
             };
 
-#pragma omp parallel
+#pragma omp parallel proc_bind(close)
     {
 #pragma omp for schedule(static)
         for (int row = 0; row < rows; row += 8) {
             float *out = packed + 2ULL * row * N;
             for (int k = 0; k < N; ++k) {
                 const float *in = a + 2ULL * (row + k * N);
-                _mm256_store_ps(out + 16ULL * k, _mm256_loadu_ps(in));
-                _mm256_store_ps(out + 16ULL * k + 8, _mm256_loadu_ps(in + 8));
+                _mm256_storeu_ps(out + 16ULL * k, _mm256_loadu_ps(in));
+                _mm256_storeu_ps(out + 16ULL * k + 8, _mm256_loadu_ps(in + 8));
             }
         }
 
@@ -68,8 +68,8 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
 
 #pragma GCC unroll 8
                     for (int k = 0; k < N; ++k) {
-                        const __m256 av0 = _mm256_load_ps(p + 16ULL * k);
-                        const __m256 av1 = _mm256_load_ps(p + 16ULL * k + 8);
+                        const __m256 av0 = _mm256_loadu_ps(p + 16ULL * k);
+                        const __m256 av1 = _mm256_loadu_ps(p + 16ULL * k + 8);
                         const __m256 swap0 = _mm256_permute_ps(av0, 0xB1);
                         const __m256 swap1 = _mm256_permute_ps(av1, 0xB1);
                         const __m256 signed0 = _mm256_xor_ps(av0, imagSign);
