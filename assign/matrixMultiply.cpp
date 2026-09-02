@@ -31,11 +31,15 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
 
     const __m256 imagSign = _mm256_castpd_ps(_mm256_set1_pd(-0.0));
     const auto accumulate =
-        [](__m256 sum, __m256 signedA, __m256 swap, const floatType &b)
+        [](__m256 &sum0, __m256 &sum1, __m256 signed0, __m256 signed1,
+           __m256 swap0, __m256 swap1, const floatType &b)
             __attribute__((always_inline, target("avx2,fma"))) {
-                return _mm256_fnmadd_ps(
-                    swap, _mm256_set1_ps(b.imag()),
-                    _mm256_fmadd_ps(signedA, _mm256_set1_ps(b.real()), sum));
+                const __m256 real = _mm256_set1_ps(b.real());
+                const __m256 imag = _mm256_set1_ps(b.imag());
+                sum0 = _mm256_fnmadd_ps(swap0, imag,
+                                        _mm256_fmadd_ps(signed0, real, sum0));
+                sum1 = _mm256_fnmadd_ps(swap1, imag,
+                                        _mm256_fmadd_ps(signed1, real, sum1));
             };
 
 #pragma omp parallel
@@ -72,20 +76,20 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                         const __m256 signed1 = _mm256_xor_ps(av1, imagSign);
 
                         const floatType b0 = B[k + first * N];
-                        sum00 = accumulate(sum00, signed0, swap0, b0);
-                        sum01 = accumulate(sum01, signed1, swap1, b0);
+                        accumulate(sum00, sum01, signed0, signed1, swap0, swap1,
+                                   b0);
 
                         const floatType b1 = B[k + (first + 1) * N];
-                        sum10 = accumulate(sum10, signed0, swap0, b1);
-                        sum11 = accumulate(sum11, signed1, swap1, b1);
+                        accumulate(sum10, sum11, signed0, signed1, swap0, swap1,
+                                   b1);
 
                         const floatType b2 = B[k + (first + 2) * N];
-                        sum20 = accumulate(sum20, signed0, swap0, b2);
-                        sum21 = accumulate(sum21, signed1, swap1, b2);
+                        accumulate(sum20, sum21, signed0, signed1, swap0, swap1,
+                                   b2);
 
                         const floatType b3 = B[k + (first + 3) * N];
-                        sum30 = accumulate(sum30, signed0, swap0, b3);
-                        sum31 = accumulate(sum31, signed1, swap1, b3);
+                        accumulate(sum30, sum31, signed0, signed1, swap0, swap1,
+                                   b3);
                     }
 
                     float *out = c + 2ULL * (row + first * N);
