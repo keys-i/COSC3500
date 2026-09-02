@@ -23,15 +23,14 @@ int matrixMultiply(int N, const floatType* A, const floatType* B, floatType* C, 
     for (int col = 0; col < N; ++col) {
         for (int row = 0; row < N; ++row) {
             floatType sum = 0;
-    
+
             for (int k = 0; k < N; ++k) {
                 sum += A[row + k * N] * B[k + col * N];
             }
-    
+
             C[row + col * N] = sum;
         }
     }
     
     return STUDENTID;  	 	   			     	 		 			 	      
-
 }
