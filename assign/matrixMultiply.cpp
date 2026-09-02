@@ -75,19 +75,19 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                         const __m256 signed0 = _mm256_xor_ps(av0, imagSign);
                         const __m256 signed1 = _mm256_xor_ps(av1, imagSign);
 
-                        const floatType b0 = B[k + first * N];
+                        const floatType &b0 = B[k + first * N];
                         accumulate(sum00, sum01, signed0, signed1, swap0, swap1,
                                    b0);
 
-                        const floatType b1 = B[k + (first + 1) * N];
+                        const floatType &b1 = B[k + (first + 1) * N];
                         accumulate(sum10, sum11, signed0, signed1, swap0, swap1,
                                    b1);
 
-                        const floatType b2 = B[k + (first + 2) * N];
+                        const floatType &b2 = B[k + (first + 2) * N];
                         accumulate(sum20, sum21, signed0, signed1, swap0, swap1,
                                    b2);
 
-                        const floatType b3 = B[k + (first + 3) * N];
+                        const floatType &b3 = B[k + (first + 3) * N];
                         accumulate(sum30, sum31, signed0, signed1, swap0, swap1,
                                    b3);
                     }
