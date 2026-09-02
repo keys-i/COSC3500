@@ -18,17 +18,17 @@
 - [x] Improve loop order and cache locality; benchmark again.
 - [x] Try cache blocking in the scalar kernel; benchmark again.
 
-### Latest CPU benchmark - two-FMA four-column packed microkernel
+### Latest CPU benchmark - two-FMA four-column packed microkernel with `4x` unrolling
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Error | Grade |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 8809.188 | 10141.495 | 0.869 | 3.205e-08 | 6.788 |
-| 256 | 1469.425 | 1696.328 | 0.866 | 2.697e-08 | 6.793 |
-| 512 | 199.923 | 248.679 | 0.804 | 2.528e-08 | 6.900 |
-| 1024 | 24.150 | 33.493 | 0.721 | 2.354e-08 | 7.057 |
-| 2048 | 3.358 | 2.518 | 1.334 | 2.262e-08 | 6.169 |
+| 128 | 8608.436 | 10182.560 | 0.845 | 3.205e-08 | 6.828 |
+| 256 | 1350.426 | 1421.992 | 0.950 | 2.697e-08 | 6.659 |
+| 512 | 195.988 | 225.216 | 0.870 | 2.528e-08 | 6.786 |
+| 1024 | 18.221 | 29.713 | 0.613 | 2.354e-08 | 7.291 |
+| 2048 | 3.360 | 2.597 | 1.294 | 2.262e-08 | 6.213 |
 
-`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. Keep two-FMA accumulation: it improved every size and raised `N=2048` throughput from `2.378` to `2.518` matrices/s (`5.9%`). `N=1024` now beats the `0.80x` target; `N=2048` still needs another `1.67x`.
+`grade = 3 + log2(12 / runtime_ratio)` agrees with GradeBot. With the new kernel, `4x` unrolling raises `N=2048` throughput from `2.518` to `2.597` matrices/s (`3.1%`) and improves the ratio from `1.334x` to `1.294x`. Keep it for the `N=2048` target despite regressions at some smaller sizes; another `1.62x` is still required.
 
 ### 1. AVX first
 
@@ -51,7 +51,9 @@
 - [x] Increase the compiler-directed `k` unroll from two to four; reject its `1.6%` `N=2048` throughput regression.
 - [x] Process four columns in one packed register microkernel; keep its `13.3%` `N=2048` throughput gain.
 - [x] Accumulate real and negated-imaginary lanes directly with two FMAs; keep its `5.9%` `N=2048` gain.
-- [ ] Remove the stale forced `2x` unroll and let GCC schedule the larger kernel; keep the deletion only if `N=2048` improves.
+- [x] Remove forced unrolling; reject its `1.1%` `N=2048` throughput regression.
+- [x] Retest `4x` unrolling with the two-FMA kernel; keep its `3.1%` `N=2048` gain.
+- [ ] Expand the column cache tile from 8 to 16 while retaining four-column register groups.
 - [x] Record the single-core result: `9.158x` MKL at `N=1024`; the planned `4.0x` milestone was not reached.
 
 ### 2. OpenMP second
@@ -90,7 +92,7 @@
 
 ### CPU target
 
-- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `1.334x`.
+- [ ] Reach `<= 0.80x` MKL at `N=2048` using four CPU cores; current ratio: `1.294x`.
 
 ## GPU - `matrixMultiplyGPU.cu`
 
