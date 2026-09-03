@@ -27,9 +27,10 @@ stay within the queue time limit. The benchmark commands write:
 `bench page` compares base and 2 MiB backing on the 10M-cell Conway case. It
 writes `results/bench/pages.csv`. If `/proc/self/smaps` cannot verify both
 policies, the summary marks the comparison `UNVERIFIED` and omits the page
-chart without blocking the collector. Benchmark and checksum failures remain
-fatal. The collector job records the complete sweep under
-`results/bench/run-<build-job-id>/`. The 1B case needs a high-memory allocation.
+chart without blocking the collector. Page benchmark, policy, and checksum
+failures remain visible in the page-job log but are omitted from the report
+without blocking the collector. The collector job records the complete sweep
+under `results/bench/run-<build-job-id>/`. The 1B case needs a high-memory allocation.
 `graph` redraws the SVGs and summary from the CSVs. Set `SAMPLES` and
 `MINIMUM_CASE_MS` for a longer run, for example:
 

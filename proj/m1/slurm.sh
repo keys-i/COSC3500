@@ -76,9 +76,9 @@ if [[ -z ${SLURM_JOB_ID:-} ]]; then
         --error="$output/slurm-%j.err" \
         "$script" page "$output")
     level_dependencies=$(IFS=:; printf '%s' "${level_jobs[*]}")
-    dependencies="$scaling_dependencies:$level_dependencies:$page_job"
+    dependencies="$scaling_dependencies:$level_dependencies"
     collector=$(submit \
-        --dependency="afterok:$dependencies" \
+        --dependency="afterok:$dependencies,afterany:$page_job" \
         --job-name=m1-collect \
         --output="$output/slurm-%j.out" \
         --error="$output/slurm-%j.err" \
@@ -127,11 +127,14 @@ case ${1:-} in
         ;;
     page)
         [[ $# == 2 ]] || exit 2
-        CMAKE_BUILD_PARALLEL_LEVEL="${SLURM_CPUS_PER_TASK:-1}" \
+        if ! CMAKE_BUILD_PARALLEL_LEVEL="${SLURM_CPUS_PER_TASK:-1}" \
             M1_BENCH_OUT="$2" \
             SAMPLES="${SAMPLES:-1}" \
             MINIMUM_CASE_MS="${MINIMUM_CASE_MS:-100}" \
-            tools/scripts/test.sh bench page
+            tools/scripts/test.sh bench page; then
+            rm -f -- "$2/pages.csv" "$2/pages.svg" || :
+            echo 'page experiment unavailable; collector will continue' >&2 || :
+        fi
         ;;
     collect)
         [[ $# == 2 ]] || exit 2
