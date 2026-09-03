@@ -1,2 +1,2 @@
 line-length = 80
-extend-exclude = ["build", "third_party"]
+extend-exclude = ["assign", "build", "third_party"]

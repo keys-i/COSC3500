@@ -3,7 +3,7 @@ Diagnostics:
 
 ---
 If:
-  PathMatch: third_party/.*
+  PathMatch: (assign|third_party)/.*
 Index:
   Background: Skip
 Diagnostics:

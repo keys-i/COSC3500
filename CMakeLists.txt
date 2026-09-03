@@ -243,7 +243,6 @@ endif()
 set(
   optional_entrypoints
   "m2|${PROJECT_SOURCE_DIR}/proj/m2/main.cpp|parallel"
-  "a1|${PROJECT_SOURCE_DIR}/assign/1/main.cpp|assignment"
 )
 foreach(entrypoint IN LISTS optional_entrypoints)
   string(REPLACE "|" ";" fields "${entrypoint}")
