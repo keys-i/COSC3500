@@ -11,6 +11,12 @@ Diagnostics:
 
 ---
 If:
+  PathMatch: assign/.*
+CompileFlags:
+  Add: [-nocudainc, -nocudalib]
+
+---
+If:
   PathMatch: proj/m1/simulation/grid\.hpp
 CompileFlags:
   Add:
