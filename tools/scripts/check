@@ -34,7 +34,7 @@ coverage_tool() {
 sources=() cpp_sources=() cmake_sources=() lua_sources=() python_sources=()
 # Include untracked source so new files cannot bypass local checks
 while IFS= read -r -d '' source; do
-    [[ $source == third_party/* || ! -f $root/$source ]] && continue
+    [[ $source == assign/* || $source == third_party/* || ! -f $root/$source ]] && continue
     case $source in
         CMakeLists.txt | */CMakeLists.txt | *.cmake)
             cmake_sources+=("$root/$source")
@@ -132,6 +132,6 @@ cov() {
         -object "$root/build/coverage/bin/m0" \
         -object "$root/build/coverage/bench/hpc_bench" \
         -instr-profile="$profiles/coverage.profdata" \
-        -ignore-filename-regex='(^|/)(third_party|build/coverage/generated)/'
+        -ignore-filename-regex='(^|/)(assign|third_party|build/coverage/generated)/'
 }
 case $action in fmt) fmt ;; lint) lint ;; cov) cov ;; esac

@@ -9,5 +9,5 @@
     "on_turn"
   ],
   "workspace.checkThirdParty": false,
-  "workspace.ignoreDir": ["build", "third_party"]
+  "workspace.ignoreDir": ["assign", "build", "third_party"]
 }

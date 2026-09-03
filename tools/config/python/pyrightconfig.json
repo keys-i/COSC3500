@@ -1,6 +1,6 @@
 {
   "include": ["proj", "tests", "tools/scripts"],
-  "exclude": ["build", "third_party"],
+  "exclude": ["assign", "build", "third_party"],
   "extraPaths": ["."],
   "pythonVersion": "3.12",
   "typeCheckingMode": "basic"
