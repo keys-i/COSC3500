@@ -97,7 +97,11 @@ fmt() {
     ((${#python_sources[@]})) && uv run --locked --offline ruff format \
         "${python_opts[@]}" --config "$root/tools/config/python/ruff.toml" \
         "${python_sources[@]}"
-    git -C "$root" diff --check
+    if ((assignment_cluster)); then
+        git -C "$root" diff --check
+    else
+        git -C "$root" diff --check -- . ':(exclude)assign/**'
+    fi
 }
 lint() {
     local preset=${PRESET:-dev}
