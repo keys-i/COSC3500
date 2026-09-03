@@ -1,0 +1,47 @@
+Diagnostics:
+  UnusedIncludes: None
+
+---
+If:
+  PathMatch: assign/.*
+CompileFlags:
+  CompilationDatabase: None
+  Add:
+    - -std=c++11
+    - -I/home/groups/cosc3500/shared/matmul/include
+
+---
+If:
+  PathMatch: assign/.*\.(cc|cpp|cxx)
+CompileFlags:
+  Add:
+    - -mavx
+    - -fopenmp
+    - -I/usr/include/openmpi-x86_64
+    - -I/opt/local/stow/cuda-11.1/include
+
+---
+If:
+  PathMatch: assign/.*\.cu(h)?
+CompileFlags:
+  Add:
+    - -xcuda
+    - --cuda-path=/opt/local/stow/cuda-11.1
+    - --cuda-gpu-arch=sm_35
+    - -I/opt/local/stow/cuda-11.1/include
+
+---
+If:
+  PathMatch: third_party/.*
+Index:
+  Background: Skip
+Diagnostics:
+  Suppress: '*'
+
+---
+If:
+  PathMatch: proj/m1/simulation/grid\.hpp
+CompileFlags:
+  Add:
+    - -Wno-unused-function
+    - -Wno-unneeded-internal-declaration

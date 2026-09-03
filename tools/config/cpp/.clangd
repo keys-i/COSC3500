@@ -11,7 +11,7 @@ Diagnostics:
 
 ---
 If:
-  PathMatch: assign/.*
+  PathMatch: assign/.*\.cu(h)?
 CompileFlags:
   Add: [-nocudainc, -nocudalib]
 
