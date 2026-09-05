@@ -70,7 +70,7 @@ multiply24x4(int count, const float *a, const float *b, float *out) {
     s00 = s01 = s02 = s10 = s11 = s12 = s20 = s21 = s22 = s30 = s31 = s32 =
         _mm256_setzero_ps();
     // Walk the packed depth and reuse each A vector across all four columns
-    // Request two-way unrolling explicitly instead of automatic loop unrolling
+    // Keep the depth loop rolled to limit register pressure
 #pragma GCC unroll 1
     for (int k = 0; k < count; ++k, a += 24, b += 4) {
         const __m256 a0 = _mm256_loadu_ps(a), a1 = _mm256_loadu_ps(a + 8);
@@ -132,7 +132,7 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
     // MC and NC split C into work tiles, while KC sets the packed depth
     // MC must be a multiple of 24 and NC a multiple of 4 to match the panels
     // The smaller MC gives small matrices more output tiles to share
-    const int MC = N <= 128 ? 72 : 120, NC = 64, KC = 256;
+    const int MC = N <= 128 ? 72 : 120, NC = 32, KC = 256;
     const int depth = N < KC ? N : KC;
     // Reserve three streams for each packed A and B panel in one shared slice
     float *packed =
@@ -154,8 +154,8 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
     // Reuse one OpenMP team, with the thread count supplied by the runtime
 #pragma omp parallel
     {
-        // Each worker owns P, Q and S tiles, totalling 1,152 bytes of scratch
-        alignas(32) float products[3][96];
+        // Keep P, Q and S for 24 rows across this column band, 9 KiB per worker
+        alignas(32) float products[3][24 * NC];
         // All workers advance through k together, with barriers protecting reuse
         for (int k = 0; k < N; k += KC) {
             // The final slice may have fewer than KC entries
@@ -215,26 +215,26 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                     const int width = cols - col < NC ? cols - col : NC;
                     const int height = rows - row < MC ? rows - row : MC;
                     // Walk 24-row microtiles within this work tile
-                    for (int i = row; i < row + height; i += 24)
-                        // Walk four-column microtiles using the same packed A panel
-                        for (int j = col; j < col + width; j += 4) {
-                            // Compute P, Q and S in turn with the same real kernel
-                            for (int term = 0; term < 3; ++term)
+                    for (int i = row; i < row + height; i += 24) {
+                        // Finish each real product across the band before switching A streams
+                        for (int term = 0; term < 3; ++term)
+                            // Reuse one packed A component across four-column microtiles
+                            for (int j = col; j < col + width; j += 4)
                                 multiply24x4(count,
                                     packed + (3ULL * i + 24 * term) * count,
                                     packedB + (3ULL * j + 4 * term) * count,
-                                    products[term]);
-                            // Combine the three products for each output column
-                            for (int colPart = 0; colPart < 4; ++colPart)
-                                // Store eight valid rows at a time and skip padded groups
-                                for (int half = 0; half < 24 && i + half < rows; half += 8) {
-                                    const int offset = 24 * colPart + half;
-                                    finishSums(c + 2ULL * (i + half + (j + colPart) * n), k == 0,
-                                        _mm256_loadu_ps(products[0] + offset),
-                                        _mm256_loadu_ps(products[1] + offset),
-                                        _mm256_loadu_ps(products[2] + offset));
-                                }
-                        }
+                                    products[term] + 24 * (j - col));
+                        // Combine only the columns filled in this band
+                        for (int j = col; j < col + width; ++j)
+                            // Store eight valid rows at a time and skip padded groups
+                            for (int half = 0; half < 24 && i + half < rows; half += 8) {
+                                const int offset = 24 * (j - col) + half;
+                                finishSums(c + 2ULL * (i + half + j * n), k == 0,
+                                    _mm256_loadu_ps(products[0] + offset),
+                                    _mm256_loadu_ps(products[1] + offset),
+                                    _mm256_loadu_ps(products[2] + offset));
+                            }
+                    }
                 }
         }
 
