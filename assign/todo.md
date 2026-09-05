@@ -18,7 +18,7 @@ The rubric still assigns $0$ for no submission, compilation failure or timeout, 
 
 ## Targets
 
-- [ ] CPU: `<= 0.50x` MKL on four cores; latest user-reported ratio is `0.851x`. New kernel awaits GradeBot results.
+- [ ] CPU: `<= 0.50x` MKL on four cores; latest five-run median at `N=2048` is `0.894x`.
 - [ ] CUDA: `<= 0.50x` CUBLAS on one NVIDIA GPU.
 - [ ] MPI: `<= 0.30x` MKL on two nodes with four CPU cores each.
 
@@ -49,8 +49,10 @@ The rubric still assigns $0$ for no submission, compilation failure or timeout, 
 - [x] Compile C++11/AVX2 with OpenMP using local Clang; pass 104 serial correctness cases plus `N=0,-1`, including 12 chained Fourier transforms (max relative error `6.46e-07`, not GradeBot's error metric).
 - [x] Pass AddressSanitizer and UndefinedBehaviorSanitizer on the same correctness check.
 - [x] Compare three paired local serial runs against the old kernel: `N=128` takes `0.817x` the old time; `N=2048` takes `0.811x` (`3.529s -> 2.860s`). These use Clang `-O2` on Mac/Rosetta, not MKL comparisons.
-- [ ] Check GradeBot error before accepting the speedup: three-product arithmetic changes rounding and uses about 50% more packing memory.
-- [ ] Verify four-core correctness and compare ten `N=2048` runs under matched conditions; target median `<= 0.50x`. Local serial timings do not establish the EPYC/MKL ratio.
+- [x] Record five cluster runs at `N=2048`: median `3.766` matrices/s, ratio `0.894x`, maximum reported error `2.462e-09`. The local speedup is not yet confirmed on EPYC.
+- [x] Add `compare.sh` with isolated source snapshots, the unchanged Makefile, alternating old/new runs in one four-core allocation, and paired runtime medians; mocked checks pass.
+- [ ] Run `./compare.sh 2048 5` from `assign`: compare the saved `8x4` kernel against the current `16x2` kernel. Submission returns immediately; logs and `runs.csv` go in the printed results directory. These comparison files are benchmark-only.
+- [ ] Inspect GradeBot marks and errors before accepting a speedup; compare the median paired new/old runtime (below `1` is faster). Three-product arithmetic changes rounding and uses about 50% more packing memory. The MKL target remains `<= 0.50x`.
 - [ ] Consider Strassen `O(N^2.807)` only after the AVX/OpenMP kernel is stable; keep it only if wall time improves and error stays acceptable.
 - [ ] Recheck `N=0`, awkward sizes, and the full benchmark range with the unmodified Makefile.
 

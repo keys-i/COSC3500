@@ -93,10 +93,12 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
             sum += A[row + k * n] * B[k + col * n];
         C[row + col * n] = sum;
     };
-    // Pack each k-slice together before any worker multiplies.
+    const int MC = N <= 128 ? 64 : 128, NC = 64, KC = 128;
+    const int depth = N < KC ? N : KC;
+    // Reuse one shared k-slice instead of packing both whole matrices.
     float *packed =
         rows ? static_cast<float *>(_mm_malloc(
-                   (3ULL * packedRows + 3ULL * cols) * n * sizeof(float), 64))
+                   (3ULL * packedRows + 3ULL * cols) * depth * sizeof(float), 64))
              : nullptr;
     if (!packed) {
         for (int col = 0; col < N; ++col)
@@ -104,16 +106,15 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                 scalar(row, col);
         return STUDENTID;
     }
-    float *packedB = packed + 3ULL * packedRows * n;
-    const int MC = 128, NC = 64, KC = 128;
+    float *packedB = packed + 3ULL * packedRows * depth;
 
 #pragma omp parallel
     {
-#pragma omp for collapse(2) schedule(static) nowait
-        for (int k = 0; k < N; k += KC)
+        for (int k = 0; k < N; k += KC) {
+            const int count = N - k < KC ? N - k : KC;
+#pragma omp for schedule(static) nowait
             for (int row = 0; row < rows; row += 16) {
-                const int count = N - k < KC ? N - k : KC;
-                float *out = packed + 3ULL * k * packedRows + 3ULL * row * count;
+                float *out = packed + 3ULL * row * count;
                 for (int p = 0; p < count; ++p)
                     for (int half = 0; half < 16; half += 8) {
                         __m256 ar = _mm256_setzero_ps(), ai = ar;
@@ -130,11 +131,9 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                     }
             }
 
-#pragma omp for collapse(2) schedule(static)
-        for (int k = 0; k < N; k += KC)
+#pragma omp for schedule(static)
             for (int col = 0; col < cols; col += 2) {
-                const int count = N - k < KC ? N - k : KC;
-                float *out = packedB + 3ULL * k * cols + 3ULL * col * count;
+                float *out = packedB + 3ULL * col * count;
                 for (int p = 0; p < count; ++p)
                     for (int j = 0; j < 2; ++j) {
                         const floatType value = B[k + p + (col + j) * n];
@@ -144,21 +143,20 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                     }
             }
 
-#pragma omp for collapse(2) schedule(static) nowait
-        for (int col = 0; col < cols; col += NC)
-            for (int row = 0; row < rows; row += MC) {
-                const int width = cols - col < NC ? cols - col : NC;
-                const int height = rows - row < MC ? rows - row : MC;
-                for (int k = 0; k < N; k += KC) {
-                    const int count = N - k < KC ? N - k : KC;
+            // Finish this slice before any worker overwrites the packed data.
+#pragma omp for collapse(2) schedule(static)
+            for (int col = 0; col < cols; col += NC)
+                for (int row = 0; row < rows; row += MC) {
+                    const int width = cols - col < NC ? cols - col : NC;
+                    const int height = rows - row < MC ? rows - row : MC;
                     for (int i = row; i < row + height; i += 16)
                         for (int j = col; j < col + width; j += 2)
                             multiply16x2(count,
-                                        packed + 3ULL * k * packedRows + 3ULL * i * count,
-                                        packedB + 3ULL * k * cols + 3ULL * j * count,
+                                        packed + 3ULL * i * count,
+                                        packedB + 3ULL * j * count,
                                         c + 2ULL * (i + j * n), 2 * n, k == 0, i + 8 < rows);
                 }
-            }
+        }
 
 #pragma omp for schedule(static)
         for (int col = 0; col < N; ++col)
