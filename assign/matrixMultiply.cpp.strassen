@@ -153,7 +153,7 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
     // MC and NC split C into work tiles, while KC sets the packed depth
     // MC must be a multiple of 24 and NC a multiple of 4 to match the panels
     // The smaller MC gives small matrices more output tiles to share
-    const int MC = N <= 128 ? 72 : 120, NC = 64, KC = 256;
+    const int MC = N <= 128 ? 72 : 120, NC = 32, KC = 256;
     const int depth = N < KC ? N : KC;
     // Reserve three streams for each packed A and B panel in one shared slice
     float *packed =
@@ -175,8 +175,8 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
     // Reuse one OpenMP team, with the thread count supplied by the runtime
 #pragma omp parallel
     {
-        // Each worker owns P, Q and S tiles, totalling 1,152 bytes of scratch
-        alignas(32) float products[3][96];
+        // Keep P, Q and S for 24 rows across this column band, 9 KiB per worker
+        alignas(32) float products[3][24 * NC];
         // All workers advance through k together, with barriers protecting reuse
         for (int k = 0; k < N; k += KC) {
             // The final slice may have fewer than KC entries
@@ -247,30 +247,30 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
                     const int width = cols - col < NC ? cols - col : NC;
                     const int height = rows - row < MC ? rows - row : MC;
                     // Walk 24-row microtiles within this work tile
-                    for (int i = row; i < row + height; i += 24)
-                        // Walk four-column microtiles using the same packed A panel
-                        for (int j = col; j < col + width; j += 4) {
-                            // Compute P, Q and S in turn with the same real kernel
-                            for (int term = 0; term < 3; ++term)
+                    for (int i = row; i < row + height; i += 24) {
+                        // Finish each real product across the band before switching A streams
+                        for (int term = 0; term < 3; ++term)
+                            // Reuse one packed A component across four-column microtiles
+                            for (int j = col; j < col + width; j += 4)
                                 multiply24x4(count,
                                     packed + (3ULL * i + 24 * term) * count,
                                     packedB + (3ULL * j + 4 * term) * count,
-                                    products[term]);
-                            // Combine the three products for each output column
-                            for (int colPart = 0; colPart < 4; ++colPart)
-                                // Store eight valid rows at a time and skip padded groups
-                                for (int half = 0; half < 24 && i + half < rows; half += 8) {
-                                    const int offset = 24 * colPart + half;
-                                    const size_t index = 2ULL * (i + half + (j + colPart) * n);
-                                    const __m256 p = _mm256_loadu_ps(products[0] + offset);
-                                    const __m256 q = _mm256_loadu_ps(products[1] + offset);
-                                    const __m256 s = _mm256_loadu_ps(products[2] + offset);
-                                    finishSums(c + index, C.first && k == 0, C.sign, p, q, s);
-                                    // The same worker owns both destinations for this tile
-                                    if (d)
-                                        finishSums(d + index, D.first && k == 0, D.sign, p, q, s);
-                                }
-                        }
+                                    products[term] + 24 * (j - col));
+                        // Combine only the columns filled in this band
+                        for (int j = col; j < col + width; ++j)
+                            // Store eight valid rows at a time and skip padded groups
+                            for (int half = 0; half < 24 && i + half < rows; half += 8) {
+                                const int offset = 24 * (j - col) + half;
+                                const size_t index = 2ULL * (i + half + j * n);
+                                const __m256 p = _mm256_loadu_ps(products[0] + offset);
+                                const __m256 q = _mm256_loadu_ps(products[1] + offset);
+                                const __m256 s = _mm256_loadu_ps(products[2] + offset);
+                                finishSums(c + index, C.first && k == 0, C.sign, p, q, s);
+                                // The same worker owns both destinations for this tile
+                                if (d)
+                                    finishSums(d + index, D.first && k == 0, D.sign, p, q, s);
+                            }
+                    }
                 }
         }
 
