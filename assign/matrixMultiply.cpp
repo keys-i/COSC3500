@@ -102,7 +102,7 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
             sum += A[row + k * n] * B[k + col * n];
         C[row + col * n] = sum;
     };
-    const int MC = N <= 128 ? 72 : 120, NC = 64, KC = 128;
+    const int MC = N <= 128 ? 72 : 120, NC = 64, KC = 256;
     const int depth = N < KC ? N : KC;
     // Reuse one shared k-slice instead of packing both whole matrices.
     float *packed =
