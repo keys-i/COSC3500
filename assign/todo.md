@@ -4,30 +4,21 @@
 
 ## Grade formulas
 
-Let $r>0$ be the runtime ratio. These estimates use logarithmic interpolation between the listed thresholds, capped at 7. The table does not define fractional grades or the interval between the grade-3 threshold and twice that threshold; for this estimate, set $t_2=2t_3$.
+Let $x>0$ be our runtime divided by the reference runtime and $y$ the estimated grade. Write each fit in parabola form: $(x-h)^2=4p(y-k)$.
 
-For ratio thresholds $\mathbf{t}=(t_2,t_3,t_4,t_5,t_6,t_7)$:
-
-$$
-F(r;\mathbf{t})=
-\begin{cases}
-7, & r\le t_7, \\
-g+\dfrac{\ln(t_g/r)}{\ln(t_g/t_{g+1})}, & t_{g+1}<r\le t_g,\quad g\in\{2,3,4,5,6\}, \\
-2, & r>t_2.
-\end{cases}
-$$
-
-| Implementation | Estimated grade for a correct, completed run |
+| Supplied label | Parabola form (rounded to six decimals) |
 | --- | --- |
-| CPU: 4 cores, relative to MKL | $\widehat{G}_{\mathrm{CPU}}(r)=F(r;(24,12,6,3,1.5,1))$ |
-| GPU: 1 NVIDIA GPU, relative to CUBLAS | $\widehat{G}_{\mathrm{GPU}}(r)=F(r;(10,5,4,3,2,1.5))$ |
-| MPI: 2 nodes, 4 cores each, relative to MKL | $\widehat{G}_{\mathrm{MPI}}(r)=F(r;(12,6,3,1.5,1,0.6))$ |
+| CPU | $(x-10.582030)^2\approx24.883731(y-2.952146)$ |
+| GPU (MPI) | $(x-9.522723)^2\approx11.463630(y-1.258479)$ |
+| GPU (CUDA) | $(x-5.160040)^2\approx5.430592(y-2.905674)$ |
 
-Return $0$ for no submission, compilation failure or timeout; return $1$ for a completed run with an incorrect answer. Use the formulas only for correct results. GradeBot remains authoritative; `test.sh` has not been changed to use these estimates.
+Labels follow the latest supplied polynomials. These are approximate, uncapped fits, not GradeBot rules: they miss some thresholds and rise again beyond their vertices. `tmp.py` fits five input points and prints this form.
+
+The rubric still assigns $0$ for no submission, compilation failure or timeout, and $1$ for a completed run with an incorrect answer. GradeBot remains authoritative. For valid completed rows and the median-ratio summary, `test.sh` estimates `grade` using $y=0.0401869x^2-0.850518x+7.45225$; failed runs have no estimate. This is not GradeBot's mark or a correctness check.
 
 ## Targets
 
-- [ ] CPU: `<= 0.70x` MKL on four cores; latest reported ratio is `1.174x`. New kernel awaits GradeBot results.
+- [ ] CPU: `<= 0.50x` MKL on four cores; latest user-reported ratio is `0.851x`. New kernel awaits GradeBot results.
 - [ ] CUDA: `<= 0.50x` CUBLAS on one NVIDIA GPU.
 - [ ] MPI: `<= 0.30x` MKL on two nodes with four CPU cores each.
 
@@ -52,11 +43,14 @@ Return $0$ for no submission, compilation failure or timeout; return $1$ for a c
 
 ## CPU - current candidate
 
-- [x] Block accumulation at `KC=128` inside `128x64` output tiles; reuse packed data across each tile.
-- [x] Separate eight real/imaginary `A` values during packing and pack four `B` columns together; remove lane shuffles from the multiply loop.
-- [x] Keep shared buffers, a packing barrier, independent output tiles, and a scalar fallback for small sizes/allocation failure.
-- [x] Compile C++11/AVX2 with OpenMP using local Clang; pass 92 serial AVX correctness cases plus `N=0,-1` (max relative error `4.96e-07`, not GradeBot's error metric).
-- [ ] Verify four-core correctness with GradeBot, then compare three `N=2048` runs against the baseline under matched conditions; target median `<= 0.70x`.
+- [x] Use a three-product complex `16x2` AVX2/FMA kernel: 12 vector FMAs per `k` instead of 16 for the same 32 outputs.
+- [x] Pack real, imaginary and real-plus-imaginary values in contiguous `KC=128` slices; keep `128x64` output tiles and a shared packing barrier.
+- [x] Pad the final eight-row half-tile; retain scalar tails, safe `N<=0` handling and allocation-failure fallback.
+- [x] Compile C++11/AVX2 with OpenMP using local Clang; pass 104 serial correctness cases plus `N=0,-1`, including 12 chained Fourier transforms (max relative error `6.46e-07`, not GradeBot's error metric).
+- [x] Pass AddressSanitizer and UndefinedBehaviorSanitizer on the same correctness check.
+- [x] Compare three paired local serial runs against the old kernel: `N=128` takes `0.817x` the old time; `N=2048` takes `0.811x` (`3.529s -> 2.860s`). These use Clang `-O2` on Mac/Rosetta, not MKL comparisons.
+- [ ] Check GradeBot error before accepting the speedup: three-product arithmetic changes rounding and uses about 50% more packing memory.
+- [ ] Verify four-core correctness and compare ten `N=2048` runs under matched conditions; target median `<= 0.50x`. Local serial timings do not establish the EPYC/MKL ratio.
 - [ ] Consider Strassen `O(N^2.807)` only after the AVX/OpenMP kernel is stable; keep it only if wall time improves and error stays acceptable.
 - [ ] Recheck `N=0`, awkward sizes, and the full benchmark range with the unmodified Makefile.
 
