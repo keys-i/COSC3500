@@ -4,10 +4,32 @@
 #define STUDENTID 49088276 // DO NOT REMOVE
 
 // Column-major complex multiplication: element (row, col) is at row + col * N
-// Each depth slice packs A and B, computes output tiles, then adds them into C
+// Large even matrices use one Strassen level, with seven half-sized products
+// Input sums are formed during packing and products go straight into C quadrants
 // Three real products replace four: P = Ar*Br, Q = Ai*Bi, S = (Ar+Ai)*(Br+Bi)
 // Recover the complex result with Cr = P-Q and Ci = S-P-Q
 // Workers share packed inputs but write separate output tiles
+
+// A Strassen operand is one block, optionally plus or minus a second block
+// Both blocks retain the leading dimension of the original matrix
+struct InputBlock {
+    const floatType *data, *other;
+    int sign;
+
+    // Read one combined entry for B packing and scalar edges
+    floatType at(size_t index) const {
+        return other ? data[index] + (sign > 0 ? other[index] : -other[index])
+                     : data[index];
+    }
+};
+
+// A product contributes to one or two C blocks, each with its own sign
+// first marks the first product touching this block, so old C is never read
+struct OutputBlock {
+    floatType *data;
+    int sign;
+    bool first;
+};
 
 // Extract eight real (Imag=0) or imaginary (Imag=1) components
 // lo and hi each hold four complex values as interleaved real/imaginary pairs
@@ -44,11 +66,16 @@ accumulate(__m256 a0, __m256 a1, __m256 a2, const float *b,
 }
 
 // Combine eight entries from P, Q and S for the current depth slice
-// The first slice overwrites C, so the caller does not need to initialise it
+// Apply the Strassen sign before adding to the destination block
+// Its first product and first depth slice overwrite C without reading it
 __attribute__((always_inline, target("avx2,fma"))) static inline void
-finishSums(float *c, bool first, __m256 p, __m256 q, __m256 s) {
+finishSums(float *c, bool first, int sign, __m256 p, __m256 q, __m256 s) {
     __m256 real = _mm256_sub_ps(p, q);
     __m256 imag = _mm256_sub_ps(_mm256_sub_ps(s, p), q);
+    if (sign < 0) {
+        real = _mm256_xor_ps(real, _mm256_set1_ps(-0.0f));
+        imag = _mm256_xor_ps(imag, _mm256_set1_ps(-0.0f));
+    }
     // Later slices add to the result already stored by earlier slices
     if (!first) {
         const __m256 lo = _mm256_loadu_ps(c), hi = _mm256_loadu_ps(c + 8);
@@ -70,7 +97,7 @@ multiply24x4(int count, const float *a, const float *b, float *out) {
     s00 = s01 = s02 = s10 = s11 = s12 = s20 = s21 = s22 = s30 = s31 = s32 =
         _mm256_setzero_ps();
     // Walk the packed depth and reuse each A vector across all four columns
-    // Request two-way unrolling explicitly instead of automatic loop unrolling
+    // Keep the depth loop rolled to limit register pressure
 #pragma GCC unroll 1
     for (int k = 0; k < count; ++k, a += 24, b += 4) {
         const __m256 a0 = _mm256_loadu_ps(a), a1 = _mm256_loadu_ps(a + 8);
@@ -95,39 +122,33 @@ multiply24x4(int count, const float *a, const float *b, float *out) {
     _mm256_storeu_ps(out + 88, s32);
 }
 
-/**
- * @brief Compute column-major complex C=A*B using packed AVX2/FMA tiles
- *
- * @param[in] N : dimension of square matrix (NxN)
- * @param[in] A : pointer to input NxN matrix
- * @param[in] B : pointer to input NxN matrix
- * @param[out] C : pointer to output NxN matrix
- * @param[in] args : optional tuning arguments, unused here
- * @param[in] argCount : number of tuning arguments, unused here
- * @return : your student ID
- */
-__attribute__((target("avx2,fma"), optimize("O3", "unroll-loops"))) int
-matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
-               int *args, int argCount) {
-    // Return before touching any pointer when the matrix is empty
-    if (N <= 0)
-        return STUDENTID;
-
+// Multiply N-by-N block views using the original matrix stride n
+// Only packed slices are allocated, with no full-size sums or product buffers
+__attribute__((target("avx2,fma"), optimize("O3", "unroll-loops"))) static void
+multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
+              OutputBlock C, OutputBlock D) {
     // Vector work covers whole eight-row groups and whole four-column groups
     const int rows = N & ~7, cols = N & ~3;
-    const size_t n = static_cast<size_t>(N);
     // Pad A to whole 24-row panels so the last kernel can still load 24 rows
     const size_t packedRows = (rows + 23ULL) / 24 * 24;
     // The complex arrays expose interleaved real and imaginary floats
-    const float *a = reinterpret_cast<const float *>(A);
-    float *c = reinterpret_cast<float *>(C);
+    const float *a = reinterpret_cast<const float *>(A.data);
+    const float *otherA = reinterpret_cast<const float *>(A.other);
+    float *c = reinterpret_cast<float *>(C.data);
+    float *d = reinterpret_cast<float *>(D.data);
     // Compute one entry for scalar edges or when scratch allocation fails
     const auto scalar = [&](int row, int col) {
         floatType sum = 0;
         // Dot the selected row of A with the selected column of B
         for (int k = 0; k < N; ++k)
-            sum += A[row + k * n] * B[k + col * n];
-        C[row + col * n] = sum;
+            sum += A.at(row + k * n) * B.at(k + col * n);
+        const size_t index = row + col * n;
+        const floatType value = C.sign > 0 ? sum : -sum;
+        C.data[index] = C.first ? value : C.data[index] + value;
+        if (D.data) {
+            const floatType other = D.sign > 0 ? sum : -sum;
+            D.data[index] = D.first ? other : D.data[index] + other;
+        }
     };
     // MC and NC split C into work tiles, while KC sets the packed depth
     // MC must be a multiple of 24 and NC a multiple of 4 to match the panels
@@ -146,7 +167,7 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
             // Fill every row in this column without using packed storage
             for (int row = 0; row < N; ++row)
                 scalar(row, col);
-        return STUDENTID;
+        return;
     }
     // B starts after the reserved A space, even when the final slice is shorter
     float *packedB = packed + 3ULL * packedRows * depth;
@@ -179,6 +200,16 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                             const __m256 hi = _mm256_loadu_ps(in + 8);
                             ar = components<0>(lo, hi);
                             ai = components<1>(lo, hi);
+                            // Fuse the optional Strassen sum into A packing
+                            if (otherA) {
+                                const float *next = otherA + 2ULL * (row + half + (k + p) * n);
+                                const __m256 x = _mm256_loadu_ps(next);
+                                const __m256 y = _mm256_loadu_ps(next + 8);
+                                const __m256 br = components<0>(x, y);
+                                const __m256 bi = components<1>(x, y);
+                                ar = A.sign > 0 ? _mm256_add_ps(ar, br) : _mm256_sub_ps(ar, br);
+                                ai = A.sign > 0 ? _mm256_add_ps(ai, bi) : _mm256_sub_ps(ai, bi);
+                            }
                         }
                         // Keep the three streams contiguous for separate kernel calls
                         _mm256_storeu_ps(out + 24ULL * p + half, ar);
@@ -198,7 +229,8 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                 for (int p = 0; p < count; ++p)
                     // Store four adjacent columns for the kernel's scalar broadcasts
                     for (int j = 0; j < 4; ++j) {
-                        const floatType value = B[k + p + (col + j) * n];
+                        // Form B's optional sum without a separate matrix pass
+                        const floatType value = B.at(k + p + (col + j) * n);
                         out[4ULL * p + j] = value.real();
                         out[4ULL * (count + p) + j] = value.imag();
                         out[4ULL * (2 * count + p) + j] = value.real() + value.imag();
@@ -229,10 +261,14 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                                 // Store eight valid rows at a time and skip padded groups
                                 for (int half = 0; half < 24 && i + half < rows; half += 8) {
                                     const int offset = 24 * colPart + half;
-                                    finishSums(c + 2ULL * (i + half + (j + colPart) * n), k == 0,
-                                        _mm256_loadu_ps(products[0] + offset),
-                                        _mm256_loadu_ps(products[1] + offset),
-                                        _mm256_loadu_ps(products[2] + offset));
+                                    const size_t index = 2ULL * (i + half + (j + colPart) * n);
+                                    const __m256 p = _mm256_loadu_ps(products[0] + offset);
+                                    const __m256 q = _mm256_loadu_ps(products[1] + offset);
+                                    const __m256 s = _mm256_loadu_ps(products[2] + offset);
+                                    finishSums(c + index, C.first && k == 0, C.sign, p, q, s);
+                                    // The same worker owns both destinations for this tile
+                                    if (d)
+                                        finishSums(d + index, D.first && k == 0, D.sign, p, q, s);
                                 }
                         }
                 }
@@ -249,5 +285,49 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
 
     // The parallel region has ended, so no worker can still read this buffer
     _mm_free(packed);
+}
+
+// Use one Strassen level at N>=2048 when the matrix splits evenly
+// ponytail: one level stays O(N^3), only recurse deeper if measurements justify it
+int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
+                   int *args, int argCount) {
+    if (N <= 0)
+        return STUDENTID;
+    const size_t n = static_cast<size_t>(N);
+    if (N < 2048 || N % 2) {
+        multiplyBlock(N, n, {A, nullptr, 1}, {B, nullptr, 1},
+                      {C, 1, true}, {nullptr, 1, false});
+        return STUDENTID;
+    }
+
+    // Quadrant pointers keep the full matrix stride, not the half-size stride
+    const int h = N / 2;
+    const floatType *a00 = A, *a01 = A + h * n, *a10 = A + h, *a11 = a01 + h;
+    const floatType *b00 = B, *b01 = B + h * n, *b10 = B + h, *b11 = b01 + h;
+    floatType *c00 = C, *c01 = C + h * n, *c10 = C + h, *c11 = c01 + h;
+
+    // Products run in order, each using the runtime's OpenMP team
+    // A product finishes before the next starts, so C contributions cannot race
+    // M0 = (A00+A11)(B00+B11), initialise C00 and C11
+    multiplyBlock(h, n, {a00, a11, 1}, {b00, b11, 1},
+                  {c00, 1, true}, {c11, 1, true});
+    // M1 = (A10+A11)B00, initialise C10 and subtract from C11
+    multiplyBlock(h, n, {a10, a11, 1}, {b00, nullptr, 1},
+                  {c10, 1, true}, {c11, -1, false});
+    // M2 = A00(B01-B11), initialise C01 and add to C11
+    multiplyBlock(h, n, {a00, nullptr, 1}, {b01, b11, -1},
+                  {c01, 1, true}, {c11, 1, false});
+    // M3 = A11(B10-B00), add to C00 and C10
+    multiplyBlock(h, n, {a11, nullptr, 1}, {b10, b00, -1},
+                  {c00, 1, false}, {c10, 1, false});
+    // M4 = (A00+A01)B11, subtract from C00 and add to C01
+    multiplyBlock(h, n, {a00, a01, 1}, {b11, nullptr, 1},
+                  {c00, -1, false}, {c01, 1, false});
+    // M5 = (A10-A00)(B00+B01), add to C11 only
+    multiplyBlock(h, n, {a10, a00, -1}, {b00, b01, 1},
+                  {c11, 1, false}, {nullptr, 1, false});
+    // M6 = (A01-A11)(B10+B11), add to C00 only
+    multiplyBlock(h, n, {a01, a11, -1}, {b10, b11, 1},
+                  {c00, 1, false}, {nullptr, 1, false});
     return STUDENTID;
 }
