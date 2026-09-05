@@ -2,6 +2,29 @@
 
 `ratio = our runtime / reference runtime`; lower is better.
 
+## Grade formulas
+
+Let $r>0$ be the runtime ratio. These estimates use logarithmic interpolation between the listed thresholds, capped at 7. The table does not define fractional grades or the interval between the grade-3 threshold and twice that threshold; for this estimate, set $t_2=2t_3$.
+
+For ratio thresholds $\mathbf{t}=(t_2,t_3,t_4,t_5,t_6,t_7)$:
+
+$$
+F(r;\mathbf{t})=
+\begin{cases}
+7, & r\le t_7, \\
+g+\dfrac{\ln(t_g/r)}{\ln(t_g/t_{g+1})}, & t_{g+1}<r\le t_g,\quad g\in\{2,3,4,5,6\}, \\
+2, & r>t_2.
+\end{cases}
+$$
+
+| Implementation | Estimated grade for a correct, completed run |
+| --- | --- |
+| CPU: 4 cores, relative to MKL | $\widehat{G}_{\mathrm{CPU}}(r)=F(r;(24,12,6,3,1.5,1))$ |
+| GPU: 1 NVIDIA GPU, relative to CUBLAS | $\widehat{G}_{\mathrm{GPU}}(r)=F(r;(10,5,4,3,2,1.5))$ |
+| MPI: 2 nodes, 4 cores each, relative to MKL | $\widehat{G}_{\mathrm{MPI}}(r)=F(r;(12,6,3,1.5,1,0.6))$ |
+
+Return $0$ for no submission, compilation failure or timeout; return $1$ for a completed run with an incorrect answer. Use the formulas only for correct results. GradeBot remains authoritative; `test.sh` has not been changed to use these estimates.
+
 ## Targets
 
 - [ ] CPU: `<= 0.70x` MKL on four cores; latest reported ratio is `1.174x`. New kernel awaits GradeBot results.
