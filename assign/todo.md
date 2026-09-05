@@ -6,19 +6,23 @@
 
 Let $x>0$ be our runtime divided by the reference runtime and $y$ the estimated grade. Write each fit in parabola form: $(x-h)^2=4p(y-k)$.
 
-| Supplied label | Parabola form (rounded to six decimals) |
+| Supplied label | Parabola form |
 | --- | --- |
-| CPU | $(x-10.582030)^2\approx24.883731(y-2.952146)$ |
-| GPU (MPI) | $(x-9.522723)^2\approx11.463630(y-1.258479)$ |
-| GPU (CUDA) | $(x-5.160040)^2\approx5.430592(y-2.905674)$ |
+| CPU | $(x-10.582021)^2=24.883719(y-2.952148)$ |
+| GPU (CUDA) | $(x-9.522727)^2=11.463636(y-1.258480)$ |
+| GPU (MPI) | $(x-5.160034)^2=5.430584(y-2.905679)$ |
 
-Labels follow the latest supplied polynomials. These are approximate, uncapped fits, not GradeBot rules: they miss some thresholds and rise again beyond their vertices. `tmp.py` fits five input points and prints this form.
+Labels and coefficients follow the latest supplied formulas. These are approximate, uncapped fits, not GradeBot rules: they miss some thresholds and rise again beyond their vertices. `tmp.py` fits five input points and prints this form.
 
-The rubric still assigns $0$ for no submission, compilation failure or timeout, and $1$ for a completed run with an incorrect answer. GradeBot remains authoritative. For valid completed rows and the median-ratio summary, `test.sh` estimates `grade` using $y=0.0401869x^2-0.850518x+7.45225$; failed runs have no estimate. This is not GradeBot's mark or a correctness check.
+For valid completed rows and the median-ratio summary, `test.sh` estimates the CPU grade using
+
+$$y=2.952148+\frac{(x-10.582021)^2}{24.883719}.$$
+
+Failed runs have no estimate. The rubric still assigns $0$ for no submission, compilation failure or timeout, and $1$ for a completed run with an incorrect answer. GradeBot remains authoritative; the fitted grade is not its mark or a correctness check.
 
 ## Targets
 
-- [ ] CPU: `<= 0.50x` MKL on four cores; latest five-run median at `N=2048` is `0.894x`.
+- [ ] CPU: `<= 0.50x` MKL on four cores; latest single run at `N=2048` is `0.610x`.
 - [ ] CUDA: `<= 0.50x` CUBLAS on one NVIDIA GPU.
 - [ ] MPI: `<= 0.30x` MKL on two nodes with four CPU cores each.
 
@@ -32,6 +36,8 @@ The rubric still assigns $0$ for no submission, compilation failure or timeout, 
 - [x] Keep one shared packed-`A` buffer and default OpenMP placement.
 - [x] Compare changes using three `N=2048` runs: 16 columns `0.998x`, 20 columns `0.974x`, 24 columns `0.948x`.
 - [x] Retain the 24-column result as historical evidence: median `0.948x`, error `2.262e-08` at `N=2048`.
+- [x] Establish the three-product `16x2` baseline: five-run median `3.766` matrices/s and `0.894x` at `N=2048`; error `2.462e-09`.
+- [x] Reuse one shared `KC=128` slice instead of packing both whole matrices: scratch drops from 96 MiB to 6 MiB at `N=2048`. The subsequent single run gave `3.655` matrices/s and `0.905x`.
 
 ## CPU - rejected
 
@@ -43,16 +49,38 @@ The rubric still assigns $0$ for no submission, compilation failure or timeout, 
 
 ## CPU - current candidate
 
-- [x] Use a three-product complex `16x2` AVX2/FMA kernel: 12 vector FMAs per `k` instead of 16 for the same 32 outputs.
-- [x] Pack real, imaginary and real-plus-imaginary values in contiguous `KC=128` slices; keep `128x64` output tiles and a shared packing barrier.
-- [x] Pad the final eight-row half-tile; retain scalar tails, safe `N<=0` handling and allocation-failure fallback.
-- [x] Compile C++11/AVX2 with OpenMP using local Clang; pass 104 serial correctness cases plus `N=0,-1`, including 12 chained Fourier transforms (max relative error `6.46e-07`, not GradeBot's error metric).
-- [x] Pass AddressSanitizer and UndefinedBehaviorSanitizer on the same correctness check.
-- [x] Compare three paired local serial runs against the old kernel: `N=128` takes `0.817x` the old time; `N=2048` takes `0.811x` (`3.529s -> 2.860s`). These use Clang `-O2` on Mac/Rosetta, not MKL comparisons.
-- [x] Record five cluster runs at `N=2048`: median `3.766` matrices/s, ratio `0.894x`, maximum reported error `2.462e-09`. The local speedup is not yet confirmed on EPYC.
-- [x] Add `compare.sh` with isolated source snapshots, the unchanged Makefile, alternating old/new runs in one four-core allocation, and paired runtime medians; mocked checks pass.
-- [ ] Run `./compare.sh 2048 5` from `assign`: compare the saved `8x4` kernel against the current `16x2` kernel. Submission returns immediately; logs and `runs.csv` go in the printed results directory. These comparison files are benchmark-only.
-- [ ] Inspect GradeBot marks and errors before accepting a speedup; compare the median paired new/old runtime (below `1` is faster). Three-product arithmetic changes rounding and uses about 50% more packing memory. The MKL target remains `<= 0.50x`.
+- [x] Replace the fused `16x2` kernel with three `24x4` real AVX2/FMA products: $P=A_rB_r$, $Q=A_iB_i$, $S=(A_r+A_i)(B_r+B_i)$; combine as $C_r=P-Q$, $C_i=S-P-Q$.
+- [x] Pack three contiguous product streams in 24-row `A` panels and four-column `B` panels; reuse a 1,152-byte result tile per worker, not full product matrices.
+- [x] Keep `KC=128`, `NC=64`, and `MC=72` for `N<=128`, otherwise `MC=120`; retain four-core OpenMP, shared packing barriers and the unchanged C++11 Makefile.
+- [x] Disable hot-loop unrolling and add a compiler-only scheduling barrier; local Clang assembly has three A loads, four broadcasts, 12 FMAs and no stack spills per real-product iteration.
+- [x] Zero-pad partial 24-row panels; retain scalar tails, safe `N<=0` handling and allocation-failure fallback.
+- [x] Pass 139 local serial correctness cases plus `N=0,-1`, including `N=2048`, with ASan/UBSan; max relative error `2.96e-07` (not GradeBot's metric). OpenMP compilation also passes; local checks did not exercise four threads.
+
+Inner-loop counts per 96 complex outputs, per `k`:
+
+| Operation | Fused `16x2` | Separate `24x4` |
+| --- | ---: | ---: |
+| A vector loads | 18 | 9 |
+| B broadcasts | 18 | 12 |
+| Vector FMAs | 36 | 36 |
+
+These are operation counts, not speedup predictions; temporary-tile stores, loads and recombination add overhead. The register-blocking approach follows [BLIS's GEMM design](https://www.cs.utexas.edu/~flame/pubs/blis3_ipdps14.pdf).
+
+## CPU - latest cluster results
+
+One run per size with the `24x4` kernel:
+
+| N | MKL matrices/s | Our matrices/s | Runtime ratio | Reported error |
+| ---: | ---: | ---: | ---: | ---: |
+| 128 | 9083.809 | 8276.560 | 1.098 | 3.361e-08 |
+| 256 | 1491.117 | 2029.308 | 0.735 | 1.671e-08 |
+| 512 | 199.342 | 307.779 | 0.648 | 9.433e-09 |
+| 1024 | 25.996 | 45.470 | 0.572 | 4.857e-09 |
+| 2048 | 3.360 | 5.512 | 0.610 | 2.462e-09 |
+
+- [x] Record the `N=2048` increase from `3.655` to `5.512` matrices/s (`+50.8%`), with ratio `0.905x -> 0.610x`. Reported errors are unchanged across all five sizes.
+- [ ] Confirm the gain with repeated `N=2048` runs and inspect GradeBot marks and errors; single runs do not establish a repeatable speedup.
+- [ ] Reach `0.50x`: at the latest MKL rate, this needs `6.720` matrices/s, another `21.9%` throughput improvement. The earlier `1.81x` requirement applied to the old `3.655` matrices/s result.
 - [ ] Consider Strassen `O(N^2.807)` only after the AVX/OpenMP kernel is stable; keep it only if wall time improves and error stays acceptable.
 - [ ] Recheck `N=0`, awkward sizes, and the full benchmark range with the unmodified Makefile.
 
