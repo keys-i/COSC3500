@@ -41,7 +41,7 @@ for ((n = start; n <= end; n *= 2)); do
                 if (status == "completed" && (size != n || !numeric(m) || !numeric(y) ||
                     !numeric(r) || !numeric(e) || m+0 <= 0 || y+0 <= 0 || r+0 <= 0 || e+0 < 0))
                     status="invalid"
-                grade=status == "completed" ? sprintf("%.3f",3+log(12/r)/log(2)) : ""
+                grade=status == "completed" ? sprintf("%.3f",0.0401869*r*r-0.850518*r+7.45225) : ""
                 printf "%s,%d,%s,%s,%s,%s,%s,%s\n",n,run,m,y,r,e,grade,status
             }
         ' "$output" >> "$raw" || exit 1
@@ -81,7 +81,7 @@ awk -F, '
             if (size) {
                 r=median(ratio,n,size)
                 printf "%s,%.3f,%.3f,%.3f,%s,%.3f,%d,%d,%s\n",n,
-                    median(mkl,n,size),median(you,n,size),r,e,3+log(12/r)/log(2),
+                    median(mkl,n,size),median(you,n,size),r,e,0.0401869*r*r-0.850518*r+7.45225,
                     size,total[n],(size == total[n] ? "completed" : "partial")
             } else printf "%s,,,,%s,,0,%d,%s\n",n,e,total[n],failure[n]
         }
