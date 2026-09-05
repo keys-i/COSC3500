@@ -24,7 +24,7 @@ GradeBot decides the actual mark: `0` for no submission, compilation failure or 
 
 ## Targets
 
-- [ ] CPU: `<= 0.50x` MKL on four cores — latest single run at `N=2048` is `0.543x`
+- [ ] CPU: `<= 0.40x` MKL on four cores — latest two-run median at `N=2048` is `0.593x`
 - [ ] CUDA: `<= 0.50x` CUBLAS on one NVIDIA GPU
 - [ ] MPI: `<= 0.30x` MKL on two nodes, four CPU cores each
 
@@ -51,11 +51,11 @@ GradeBot decides the actual mark: `0` for no submission, compilation failure or 
 - [x] `KC=256`, `NC=64`, `MC=72` for `N<=128`, otherwise `MC=120` — MC stays divisible by 24 and NC by 4
 - [x] One shared packed slice, about 12 MiB at `N=2048`, plus 1,152 bytes of product scratch per worker
 - [x] OpenMP `schedule(static)` over output tiles, serial depth accumulation and barriers before reusing packed data — run with four cores and default placement
-- [x] Compiler-only barrier limits live broadcasts — current source requests `#pragma GCC unroll 2`
+- [x] Compiler-only barrier limits live broadcasts — current source requests `#pragma GCC unroll 1`
 - [x] Zero-padded panels, scalar edges, safe `N<=0` handling and scalar fallback if allocation fails
 - [x] `KC=256`, unroll 1 passed 139 serial cases plus `N=0,-1`, including `N=2048`, with ASan/UBSan — max relative error `4.09e-07`, not GradeBot's metric
 - [x] C++11/OpenMP compilation checked locally; local runtime checks were serial
-- [x] Short comments for all helpers and 20 loops — comments-only edit preserved the preprocessed code, including unroll 2
+- [x] Comments explain helpers, packing, loop ownership and barriers
 
 Inner-loop counts per 96 complex outputs, per `k`
 
@@ -69,9 +69,9 @@ Counts exclude packing, scratch access and recombination — they are not speedu
 
 Design reference: [BLIS register-blocked GEMM](https://www.cs.utexas.edu/~flame/pubs/blis3_ipdps14.pdf)
 
-## CPU - latest cluster results
+## CPU - earlier cluster results
 
-`24x4`, `KC=256`, one run per size — two-way unrolling still needs validation
+`24x4`, `KC=256`, one run per size — not repeat-confirmed
 
 | N | MKL matrices/s | Our matrices/s | Runtime ratio | Reported error |
 | ---: | ---: | ---: | ---: | ---: |
@@ -83,11 +83,41 @@ Design reference: [BLIS register-blocked GEMM](https://www.cs.utexas.edu/~flame/
 
 - [x] At `N=2048`, the `24x4` change raised throughput `3.655 -> 5.512` (`+50.8%`) and lowered the ratio `0.905 -> 0.610`
 - [x] `KC=256` raised throughput `5.512 -> 6.038` (`+9.5%`) and lowered the ratio `0.610 -> 0.543` — error rose `2.462e-09 -> 3.732e-09`
-- [ ] Check unroll 2 for correctness and register spills — unroll 1 was spill-free in local Clang assembly
-- [ ] Repeat `N=2048` runs and check GradeBot marks and errors before accepting a speedup
-- [ ] Reach `0.50x` — at MKL's latest `3.281` matrices/s, we need `6.562`, another `8.7%` throughput
-- [ ] Check `N=0`, awkward sizes and the full range on four cores with the unchanged Makefile
-- [ ] Consider Strassen only if tuning stalls — keep it only if runtime improves and error stays acceptable
+
+## CPU - latest N=2048 runs
+
+| Run | MKL matrices/s | Our matrices/s | Runtime ratio | Reported error |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 3.353 | 5.426 | 0.618 | 3.732e-09 |
+| 2 | 3.323 | 5.849 | 0.568 | 3.732e-09 |
+| Median | 3.338 | 5.638 | 0.593 | 3.732e-09 |
+
+These runs are slower than the earlier single `6.038` matrices/s result, but do not isolate a cause
+
+At MKL's median `3.338` matrices/s, `0.40x` needs `8.345` matrices/s — roughly `48%` more throughput
+
+## CPU - Strassen candidate
+
+- [x] Keep `matrixMultiply.cpp` as the optimised cubic baseline — no separate `.naive` copy
+- [x] Add standalone `matrixMultiply.cpp.strassen` without changing the active source or Makefile
+- [x] One Strassen level for even `N>=2048`, with the packed classical path for small or odd sizes
+- [x] Reuse the `24x4` three-product AVX2/FMA kernel, `KC=256` and unroll 1
+- [x] Fuse input additions into packing and accumulate products directly into C quadrants — no full-matrix temporaries
+- [x] Keep the original matrix stride for quadrant views, scalar tails and allocation-failure fallback
+- [x] Run seven products in order, each sharing output tiles across the OpenMP team — no concurrent products updating the same C block
+- [x] Passed 139 serial reference cases plus `N=0,-1` with ASan/UBSan — max relative error `4.09e-07`
+- [x] Passed eight dense-input checks at `N=2046,2048,2049,2050` with ASan/UBSan — two calls per size, NaN-filled C, input preservation and buffer guards
+- [x] Dense checks used three double-precision matrix-vector projections and 25 direct output samples per call — max relative projection/sample error `1.10e-06`, not GradeBot's metric
+- [x] Strassen compiled locally as C++11 with OpenMP enabled
+- [ ] Check four-core correctness and GradeBot errors on the cluster — local OpenMP runtime is unavailable
+- [ ] Compare both versions at `N=2048` with `./test.sh 2048 5` and keep their CSVs separate
+- [ ] Select each version as `matrixMultiply.cpp` for its run — the unchanged Makefile does not build `.strassen` directly, so preserve the baseline before swapping
+- [ ] Keep Strassen only if repeated runtime improves and error stays acceptable
+- [ ] Check `N=0`, awkward sizes and the full range on four cores before adopting it
+
+One level removes `12.5%` of the multiplication work but adds sums and output updates — it is still $O(N^3)$ and does not guarantee `0.40x`
+
+Reference: [Strassen with fused packing and output updates](https://jianyuhuang.com/papers/sc16.pdf)
 
 ## GPU
 
