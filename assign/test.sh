@@ -2,29 +2,92 @@
 set -uo pipefail
 cd -- "$(dirname -- "$0")" || exit 1
 
-usage() { printf 'Usage: %s <n|a..b> [repeats=1]\n' "$0" >&2; exit 2; }
-[[ $# -ge 1 && $# -le 2 && $1 =~ ^[1-9][0-9]*(\.\.[1-9][0-9]*)?$ ]] || usage
-start=${1%%..*}; end=${1##*..}; repeats=${2-1}
+usage() { printf 'Usage: %s <n|a..b> [repeats=1] [naive|strassen=naive]\n' "$0" >&2; exit 2; }
+[[ $# -ge 1 && $# -le 3 && $1 =~ ^[1-9][0-9]*(\.\.[1-9][0-9]*)?$ ]] || usage
+start=${1%%..*}; end=${1##*..}; repeats=${2-1}; variant=${3-naive}
+[[ $variant == naive || $variant == strassen ]] || usage
 for value in "$start" "$end" "$repeats"; do
     [[ $value =~ ^[1-9][0-9]{0,9}$ ]] && ((value <= 2147483647)) || usage
 done
 for ((x = start; x < end; x *= 2)); do :; done
 ((x == end)) || usage
 
+# Only one run can own the source filenames and build outputs
+mkdir .test.lock 2>/dev/null || { printf 'Another test is running, or .test.lock needs recovery\n' >&2; exit 1; }
+interrupted=0
+
+# Refuse collisions, including dangling symlinks, instead of overwriting a source
+move_source() {
+    [[ -f $1 && ! -L $1 && ! -e $2 && ! -L $2 ]] &&
+        mv -n -- "$1" "$2" && [[ ! -e $1 && ! -L $1 ]]
+}
+
+# Also handles an exit between the two renames
+cleanup() {
+    local status=$?
+    trap - EXIT
+    trap '' HUP INT TERM
+    ((interrupted == 0)) || status=$interrupted
+    if [[ $variant == strassen && $swapping == 1 && -e matrixMultiply.cpp.naive ]]; then
+        if [[ -e matrixMultiply.cpp || -L matrixMultiply.cpp ]]; then
+            move_source matrixMultiply.cpp matrixMultiply.cpp.strassen || {
+                printf 'Could not restore Strassen source; files and .test.lock kept for recovery\n' >&2
+                exit 1
+            }
+        fi
+        move_source matrixMultiply.cpp.naive matrixMultiply.cpp || {
+            printf 'Could not restore naive source; files and .test.lock kept for recovery\n' >&2
+            exit 1
+        }
+        # Make must rebuild the normal kernel after a Strassen run
+        touch matrixMultiply.cpp || status=1
+    fi
+    rmdir .test.lock || status=1
+    exit "$status"
+}
+swapping=0
+trap cleanup EXIT
+# Finish the current job before restoring its source, then submit no more jobs
+trap 'interrupted=129' HUP
+trap 'interrupted=130' INT
+trap 'interrupted=143' TERM
+
+[[ -f matrixMultiply.cpp && ! -L matrixMultiply.cpp ]] || { printf 'Missing regular matrixMultiply.cpp\n' >&2; exit 1; }
+[[ ! -e matrixMultiply.cpp.naive && ! -L matrixMultiply.cpp.naive ]] || {
+    printf 'matrixMultiply.cpp.naive already exists; restore the normal filenames first\n' >&2; exit 1;
+}
+if [[ $variant == strassen ]]; then
+    [[ -f matrixMultiply.cpp.strassen && ! -L matrixMultiply.cpp.strassen ]] || {
+        printf 'Missing regular matrixMultiply.cpp.strassen\n' >&2; exit 1;
+    }
+fi
+command -v sbatch >/dev/null || { printf 'sbatch is not available\n' >&2; exit 1; }
+[[ -r slurm/goslurm_COSC3500Assignment_RangpurDebugCPU ]] || { printf 'Missing CPU Slurm template\n' >&2; exit 1; }
 mkdir -p results || exit 1
-csv=results/cpu.csv
-raw=results/cpu-runs.csv
+csv="results/cpu-$variant.csv"
+raw="results/cpu-$variant-runs.csv"
 printf 'N,run,mkl_per_second,you_per_second,runtime_ratio,error,grade,status\n' > "$raw" || exit 1
+
+if [[ $variant == strassen ]]; then
+    swapping=1
+    move_source matrixMultiply.cpp matrixMultiply.cpp.naive || exit 1
+    move_source matrixMultiply.cpp.strassen matrixMultiply.cpp || exit 1
+fi
 
 for ((n = start; n <= end; n *= 2)); do
     for ((run = 1; run <= repeats; ++run)); do
-        printf 'Running N=%s (%s/%s)...\n' "$n" "$run" "$repeats"
-        job_id=$(sed "s/Assignment1_GradeBot 128 4 1 0 0/Assignment1_GradeBot $n 4 1 0 0/" \
-            slurm/goslurm_COSC3500Assignment_RangpurDebugCPU | \
-            sbatch --wait --parsable --output="results/cpu-$n-%j.out")
+        ((interrupted == 0)) || exit "$interrupted"
+        printf 'Running %s N=%s (%s/%s)...\n' "$variant" "$n" "$run" "$repeats"
+        job_id=$(
+            trap '' HUP INT TERM
+            sed "s/Assignment1_GradeBot 128 4 1 0 0/Assignment1_GradeBot $n 4 1 0 0/" \
+                slurm/goslurm_COSC3500Assignment_RangpurDebugCPU | \
+                sbatch --wait --parsable --output="results/cpu-$variant-$n-%j.out"
+        )
         job_status=$?
+        ((interrupted == 0)) || exit "$interrupted"
         job_id=${job_id%%;*}
-        output="results/cpu-$n-$job_id.out"
+        output="results/cpu-$variant-$n-$job_id.out"
         if [[ ! $job_id =~ ^[0-9]+$ || ! -f $output ]]; then
             printf '%s,%s,,,,,,submission-failed\n' "$n" "$run" >> "$raw" || exit 1
             continue
@@ -91,4 +154,5 @@ awk -F, '
 summary_status=$?
 printf 'Median rates/ratio, maximum error. Individual runs: %s\n' "$raw"
 cat "$csv"
+printf 'Saved summary to %s\n' "$csv"
 exit "$summary_status"
