@@ -17,5 +17,5 @@ package = false
 dev = [
     "basedpyright==1.39.10",
     "gersemi==0.28.1",
-    "ruff==0.16.4",
+    "ruff==0.16.5",
 ]
