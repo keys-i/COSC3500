@@ -19,6 +19,35 @@ components(__m256 lo, __m256 hi) {
         _mm256_castps_pd(_mm256_shuffle_ps(lo, hi, Imag ? 0xDD : 0x88)), 0xD8));
 }
 
+// Transpose one component of four B columns into four consecutive packed rows
+// lo holds rows 0 and 1, hi holds rows 2 and 3, with four columns per row
+template <int Imag>
+__attribute__((always_inline, target("avx2,fma"))) static inline void
+transposeB(__m256 b0, __m256 b1, __m256 b2, __m256 b3,
+           __m256 &lo, __m256 &hi) {
+    const __m256 x = _mm256_shuffle_ps(b0, b1, Imag ? 0xDD : 0x88);
+    const __m256 y = _mm256_shuffle_ps(b2, b3, Imag ? 0xDD : 0x88);
+    const __m256 even = _mm256_shuffle_ps(x, y, 0x88);
+    const __m256 odd = _mm256_shuffle_ps(x, y, 0xDD);
+    lo = _mm256_permute2f128_ps(even, odd, 0x20);
+    hi = _mm256_permute2f128_ps(even, odd, 0x31);
+}
+
+// Pack a 4x4 complex B tile into real, imaginary and sum streams
+// count is the full depth slice, so each stream starts 4*count floats apart
+__attribute__((always_inline, target("avx2,fma"))) static inline void
+packB4(float *out, int count, __m256 b0, __m256 b1, __m256 b2, __m256 b3) {
+    __m256 r0, r1, i0, i1;
+    transposeB<0>(b0, b1, b2, b3, r0, r1);
+    transposeB<1>(b0, b1, b2, b3, i0, i1);
+    _mm256_storeu_ps(out, r0);
+    _mm256_storeu_ps(out + 8, r1);
+    _mm256_storeu_ps(out + 4 * count, i0);
+    _mm256_storeu_ps(out + 4 * count + 8, i1);
+    _mm256_storeu_ps(out + 8 * count, _mm256_add_ps(r0, i0));
+    _mm256_storeu_ps(out + 8 * count + 8, _mm256_add_ps(r1, i1));
+}
+
 // Interleave eight real/imaginary pairs and write them back into C
 // Unaligned stores allow C to start at any valid complex-element address
 __attribute__((always_inline, target("avx2,fma"))) static inline void
@@ -120,6 +149,7 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
     const size_t packedRows = (rows + 23ULL) / 24 * 24;
     // The complex arrays expose interleaved real and imaginary floats
     const float *a = reinterpret_cast<const float *>(A);
+    const float *b = reinterpret_cast<const float *>(B);
     float *c = reinterpret_cast<float *>(C);
     // Compute one entry for scalar edges or when scratch allocation fails
     const auto scalar = [&](int row, int col) {
@@ -194,8 +224,20 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
             for (int col = 0; col < cols; col += 4) {
                 // Each B stream has 4*count floats
                 float *out = packedB + 3ULL * col * count;
-                // Visit the rows of B covered by this depth slice
-                for (int p = 0; p < count; ++p)
+                // Load four contiguous complex rows from each column
+                const int vectorCount = count & ~3;
+                for (int p = 0; p < vectorCount; p += 4) {
+                    __m256 columns[4];
+                    // Gather the four columns before transposing their components
+                    for (int j = 0; j < 4; ++j) {
+                        const size_t offset = 2ULL * (k + p + (col + j) * n);
+                        columns[j] = _mm256_loadu_ps(b + offset);
+                    }
+                    packB4(out + 4ULL * p, count,
+                           columns[0], columns[1], columns[2], columns[3]);
+                }
+                // Pack the last zero to three rows without reading past the slice
+                for (int p = vectorCount; p < count; ++p)
                     // Store four adjacent columns for the kernel's scalar broadcasts
                     for (int j = 0; j < 4; ++j) {
                         const floatType value = B[k + p + (col + j) * n];
