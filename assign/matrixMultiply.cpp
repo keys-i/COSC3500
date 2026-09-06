@@ -247,12 +247,12 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                     }
             }
 
-            // Share NC-column bands split into MC-row tiles, with no overlapping writes
+            // Share MC-row tiles split into NC-column bands, with no overlapping writes
             // The end barrier keeps packed data alive until every reader is finished
 #pragma omp for collapse(2) schedule(static)
-            for (int col = 0; col < cols; col += NC)
-                // Split each column band into row tiles for the workers
-                for (int row = 0; row < rows; row += MC) {
+            for (int row = 0; row < rows; row += MC)
+                // Reuse this packed A row tile across column bands before moving on
+                for (int col = 0; col < cols; col += NC) {
                     // Trim the last work tile to the vector-covered part of C
                     const int width = cols - col < NC ? cols - col : NC;
                     const int height = rows - row < MC ? rows - row : MC;

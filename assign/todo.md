@@ -2,157 +2,113 @@
 
 `ratio = our runtime / reference runtime` — lower is better
 
-## Grade formulas
+## Targets
 
-$x>0$ is the runtime ratio and $y$ is the estimated grade
+- [ ] CPU: `<= 0.40x` MKL on four cores
+- [ ] CUDA: `<= 0.50x` CUBLAS on one NVIDIA GPU
+- [ ] MPI: `<= 0.30x` MKL on two nodes, four cores each
 
-| Supplied label | Parabola form |
+## CPU code
+
+- [x] Keep both files: `matrixMultiply.cpp` for optimised cubic multiplication, `matrixMultiply.cpp.strassen` for Strassen
+- [x] C++11, column-major complex floats, AVX2/FMA and source-level `O3` — Makefile unchanged
+- [x] Three real products per complex tile: $P=A_rB_r$, $Q=A_iB_i$, $S=(A_r+A_i)(B_r+B_i)$, then $C_r=P-Q$, $C_i=S-P-Q$
+- [x] `24x4` real microkernel, 12 vector accumulators, unroll 1 and a compiler barrier to limit live broadcasts
+- [x] Shared 64-byte-aligned packed A/B slices, separate real/imaginary/sum streams
+- [x] AVX `4x4` B packing, scalar packing for the last zero to three depth rows
+- [x] `KC=256`, `NC=32`, `MC=72` for block sizes up to 128, otherwise `MC=120`
+- [x] About 12 MiB packed storage at `N=2048` for the normal kernel, plus 9 KiB scratch per worker
+- [x] Compute P, Q and S across each `24x32` band before combining, reusing A across eight microtiles
+- [x] Row-first output tiles in both versions — reuse each packed A row tile across column bands
+- [x] Static OpenMP output ownership, ordered depth accumulation and barriers before buffer reuse
+- [x] Zero padding, scalar edges, `N<=0` handling and allocation-failure fallback
+
+## Strassen
+
+- [x] One level for even `N>=2048`, classical multiplication for smaller or odd sizes
+- [x] Form input sums during packing and write products directly into C quadrants
+- [x] Preserve the original matrix stride in every quadrant
+- [x] Reuse one packed allocation and one OpenMP team across all seven products
+- [x] Finish each product before starting the next, including scalar edges
+
+One level removes 12.5% of the multiplication work but adds sums and output writes — still $O(N^3)$
+
+## Latest CPU results
+
+`N=2048`, five completed runs per version, MKL median `2.306` matrices/s — before row-first tiling
+
+| Version | Median matrices/s | Median ratio | Maximum error |
+| --- | ---: | ---: | ---: |
+| Normal (`naive`) | 4.359 | 0.529 | 3.788e-09 |
+| Strassen | 4.557 | 0.506 | 1.266e-08 |
+
+Previous medians: `4.346 / 4.524` matrices/s and `0.531 / 0.509` ratios for normal/Strassen
+
+Throughput rose `0.3% / 0.7%`, errors unchanged — too small to call conclusive without the per-run spread
+
+At this MKL rate, `0.40x` needs `5.765` matrices/s: another `32.3%` for normal or `26.5%` for Strassen
+
+## Earlier work
+
+- [x] Baseline → `8x4` AVX2 → three-product `16x2` → separate `24x4` products
+- [x] 16/20/24-column tile trials gave three-run ratios `0.998 / 0.974 / 0.948`
+- [x] Shared `KC=128` slices cut packed storage from 96 MiB to 6 MiB
+- [x] `24x4` raised throughput `3.655 → 5.512` matrices/s, then `KC=256` reached `6.038` — single-run results at `N=2048`
+- [x] `NC=32` and product-first column bands replaced `NC=64`
+- [x] Added AVX B packing and shared Strassen workspace/team reuse
+
+## Rejected
+
+- [x] Slower strided kernels and tile/unroll variants
+- [x] Restricted parameters, `Ofast`, unsupported `tune=znver2`, const-reference/raw-float B variants and aligned-access variants
+- [x] Close/spread binding at `N=2048` — spread helped only at `N=4096`
+- [x] Thread-private packed A — wrong answers
+- [x] Unroll 2 — reported no benefit, restored unroll 1
+
+## Checks and next run
+
+- [x] Both row-first versions compile as C++11 with OpenMP enabled using Clang
+- [x] Each passed 139 serial reference cases plus `N=0,-1` with ASan/UBSan — maximum relative error `4.09e-07`
+- [x] Each passed eight dense checks at `N=2046,2048,2049,2050` — repeated calls, NaN-filled C, unchanged inputs and intact guards
+- [x] Dense checks used three double-precision projections and 25 direct samples — maximum error `8.86e-07` normal, `1.10e-06` Strassen, not GradeBot's metric
+- [x] Earlier forced-allocation-failure checks passed for both, including signed Strassen outputs
+- [x] `test.sh` supports `naive`, `strassen` and `naive..strassen`, with source restoration and separate CSVs
+- [ ] Check row-first tiling with GCC and four cores — local OpenMP execution is unavailable
+- [ ] Run `./test.sh 2048 5 naive..strassen` with the same resources and placement
+- [ ] Compare rates, ratios, run-to-run spread and errors against the latest results
+- [ ] Keep row-first tiling only if it helps, without removing either implementation
+- [ ] Check empty and awkward sizes, then the full range on four cores
+
+Row-first tiling has no cluster timings yet
+
+## Grade estimates
+
+$x>0$ is the runtime ratio, $y$ is the fitted grade
+
+| Label | Parabola form |
 | --- | --- |
 | CPU | $(x-10.582021)^2=24.883719(y-2.952148)$ |
 | GPU (CUDA) | $(x-9.522727)^2=11.463636(y-1.258480)$ |
 | GPU (MPI) | $(x-5.160034)^2=5.430584(y-2.905679)$ |
 
-These are uncapped estimates, not exact rubric thresholds — each curve rises again past its vertex
-
-`test.sh` uses the CPU fit for individual runs and the median ratio
+`test.sh` applies the CPU fit to individual runs and the median ratio
 
 $$y=2.952148+\frac{(x-10.582021)^2}{24.883719}$$
 
-Failed runs have no estimate — a fitted grade does not check correctness
+Uncapped estimates, not rubric thresholds — the curves rise again past their vertices and do not check correctness
 
-GradeBot decides the actual mark: `0` for no submission, compilation failure or timeout, `1` for a completed run with a wrong answer
+Failed runs have no estimate — GradeBot gives 0 for no submission, build failure or timeout, and 1 for a wrong answer
 
-## Targets
-
-- [ ] CPU: `<= 0.40x` MKL on four cores — latest five-run medians at `N=2048`: normal `0.531x`, Strassen `0.509x`
-- [ ] CUDA: `<= 0.50x` CUBLAS on one NVIDIA GPU
-- [ ] MPI: `<= 0.30x` MKL on two nodes, four CPU cores each
-
-## CPU - earlier work
-
-- [x] Correct column-major baseline, then an `8x4` AVX2/FMA kernel with shared, 64-byte-aligned packed A
-- [x] Source-level `O3` and eight-way unrolling without Makefile changes
-- [x] Three-run `N=2048` medians for 16/20/24-column tiles: `0.998 / 0.974 / 0.948` — the 24-column version had error `2.262e-08`
-- [x] Three-product `16x2` kernel: five-run median `3.766` matrices/s, ratio `0.894`, error `2.462e-09` at `N=2048`
-- [x] Shared `KC=128` slice cut packed storage from 96 MiB to 6 MiB — one `N=2048` run gave `3.655` matrices/s and ratio `0.905`
-
-## CPU - rejected
-
-- [x] Dropped strided kernels and tile/unroll variants that ran slower
-- [x] Dropped restricted parameters, `Ofast` and unsupported `tune=znver2`
-- [x] Dropped the `const`-reference/raw-`float` input-B variants and aligned-access variants
-- [x] Rejected close/spread binding at `N=2048` — spread helped only `N=4096`
-- [x] Removed thread-private packed-A buffers after wrong answers
-
-## CPU - current code
-
-- [x] Three `24x4` real AVX2/FMA products per complex tile: $P=A_rB_r$, $Q=A_iB_i$, $S=(A_r+A_i)(B_r+B_i)$, then $C_r=P-Q$ and $C_i=S-P-Q$
-- [x] Packed 24-row A panels and four-column B panels, with separate real, imaginary and sum streams
-- [x] Both versions pack B in `4x4` batches with AVX loads, transposes and stores — scalar packing handles the last zero to three depth rows
-- [x] Both versions use `KC=256`, `NC=32`, `MC=72` for block sizes `<=128`, otherwise `MC=120` — MC stays divisible by 24 and NC by 4
-- [x] One shared packed slice, about 12 MiB for the normal kernel at `N=2048`, plus 9 KiB of product scratch per worker
-- [x] Compute P across each `24x32` band, then Q, then S, before combining — reuse each packed A component across up to eight microtiles
-- [x] Trim the final column band and skip padded rows when writing C — scratch stays private to each worker
-- [x] OpenMP `schedule(static)` over output tiles, serial depth accumulation and barriers before reusing packed data — run with four cores and default placement
-- [x] Compiler-only barrier limits live broadcasts — current source requests `#pragma GCC unroll 1`
-- [x] Zero-padded panels, scalar edges, safe `N<=0` handling and scalar fallback if allocation fails
-- [x] Both updated versions compile locally as C++11 with OpenMP enabled using Clang — GCC and four-core execution still need cluster checks
-- [x] Each updated version passed 139 serial reference cases plus `N=0,-1` with ASan/UBSan — max relative error `4.09e-07`
-- [x] Each also passed eight dense-input checks at `N=2046,2048,2049,2050` — repeated calls, NaN-filled C, unchanged inputs and intact buffer guards
-- [x] Dense checks used three double-precision projections and 25 direct output samples per call — max relative error `8.86e-07` normal, `1.10e-06` Strassen, not GradeBot's metric
-- [x] Forced allocation failure passed for both versions at `N=1,8,9,24,33`, with repeated calls — Strassen's scalar block helper also passed signed two-output checks
-- [x] Comments explain helpers, packing, loop ownership and barriers
-
-Inner-loop counts per 96 complex outputs, per `k`
-
-| Operation | Fused `16x2` | Separate `24x4` |
-| --- | ---: | ---: |
-| A vector loads | 18 | 9 |
-| B broadcasts | 18 | 12 |
-| Vector FMAs | 36 | 36 |
-
-Counts exclude packing, scratch access and recombination — they are not speedup predictions
-
-Design reference: [BLIS register-blocked GEMM](https://www.cs.utexas.edu/~flame/pubs/blis3_ipdps14.pdf)
-
-## CPU - earlier cluster results
-
-`24x4`, `KC=256`, one run per size — not repeat-confirmed
-
-| N | MKL matrices/s | Our matrices/s | Runtime ratio | Reported error |
-| ---: | ---: | ---: | ---: | ---: |
-| 128 | 8874.804 | 7998.343 | 1.110 | 3.361e-08 |
-| 256 | 1476.802 | 2072.997 | 0.712 | 2.735e-08 |
-| 512 | 199.571 | 324.250 | 0.615 | 1.471e-08 |
-| 1024 | 25.750 | 47.583 | 0.541 | 7.425e-09 |
-| 2048 | 3.281 | 6.038 | 0.543 | 3.732e-09 |
-
-- [x] At `N=2048`, the `24x4` change raised throughput `3.655 -> 5.512` (`+50.8%`) and lowered the ratio `0.905 -> 0.610`
-- [x] `KC=256` raised throughput `5.512 -> 6.038` (`+9.5%`) and lowered the ratio `0.610 -> 0.543` — error rose `2.462e-09 -> 3.732e-09`
-
-## CPU - earlier normal vs Strassen runs
-
-Before the loop-order change, with `NC=64` and one run per size — the Strassen file uses classical multiplication below `N=2048`
-
-| N | Normal matrices/s | Strassen matrices/s | Normal ratio | Strassen ratio | Normal error | Strassen error |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 128 | 8660.737 | 7832.438 | 1.106 | 1.129 | 3.361e-08 | 3.361e-08 |
-| 256 | 2062.530 | 2052.151 | 0.716 | 0.725 | 2.735e-08 | 2.735e-08 |
-| 512 | 326.341 | 325.409 | 0.617 | 0.618 | 1.471e-08 | 1.471e-08 |
-| 1024 | 46.572 | 47.350 | 0.513 | 0.543 | 7.425e-09 | 7.425e-09 |
-| 2048 | 5.885 | 5.813 | 0.571 | 0.576 | 3.732e-09 | 1.231e-08 |
-
-At `N=2048`, Strassen had `1.2%` lower throughput and `3.3x` the reported error — no demonstrated win from this single pair
-
-## CPU - latest five-run baseline
-
-`N=2048`, `NC=32`, before AVX B packing and Strassen workspace/team reuse — median rates and ratio, maximum reported error
-
-| Version | MKL matrices/s | Our matrices/s | Runtime ratio | Reported error | Completed runs |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Normal (`naive`) | 2.305 | 4.346 | 0.531 | 3.788e-09 | 5/5 |
-| Strassen | 2.305 | 4.524 | 0.509 | 1.266e-08 | 5/5 |
-
-Strassen's median throughput is `4.1%` higher, with about `3.3x` the reported error — keep both versions
-
-At this MKL rate, `0.40x` needs `5.763` matrices/s — another `32.6%` throughput for normal or `27.4%` for Strassen
-
-The new changes have no cluster timings yet — these medians remain the comparison baseline
-
-## CPU - Strassen
-
-- [x] Keep `matrixMultiply.cpp` as the optimised cubic version and `matrixMultiply.cpp.strassen` as the standalone Strassen version
-- [x] Leave the Makefile unchanged
-- [x] One Strassen level for even `N>=2048`, with the packed classical path for small or odd sizes
-- [x] Reuse the `24x4` three-product AVX2/FMA kernel, `KC=256` and unroll 1
-- [x] Fuse input additions into packing and accumulate products directly into C quadrants — no full-matrix temporaries
-- [x] Keep the original matrix stride for quadrant views, scalar tails and allocation-failure fallback
-- [x] Run seven products in order, each sharing output tiles across the OpenMP team — no concurrent products updating the same C block
-- [x] Reuse one leaf-sized packed allocation and one OpenMP team across all seven products — each worker keeps its own product scratch
-- [x] Each block call ends with a barrier before the next product repacks inputs or updates shared C quadrants
-- [x] `test.sh` selects `naive` or `strassen`, restores the source names and saves separate summaries and individual-run CSVs
-- [ ] Check the updated versions with GCC, four cores and GradeBot on the cluster — local OpenMP runtime is unavailable
-- [ ] Run `./test.sh 2048 5 naive` and `./test.sh 2048 5 strassen` sequentially, with the same resources and placement
-- [ ] Compare against the five-run baseline, including throughput and maximum error — the fitted grade alone does not establish correctness
-- [ ] Check `N=0`, awkward sizes and the full range on four cores before adopting it
-
-One level removes `12.5%` of the multiplication work but adds sums and output updates — it is still $O(N^3)$ and does not guarantee `0.40x`
-
-Reference: [Strassen with fused packing and output updates](https://jianyuhuang.com/papers/sc16.pdf)
-
-## GPU
+## GPU and MPI
 
 - [ ] Correct naive CUDA kernel
-- [ ] Shared-memory tiles, coalesced access and block-size tuning
-- [ ] Reach `<= 0.50x` CUBLAS at `N=2048`
-
-## MPI
-
-- [ ] Split output rows across two nodes and use the fastest four-core CPU kernel per rank
+- [ ] CUDA shared-memory tiles, coalesced access and block-size tuning
+- [ ] Split MPI output rows across two nodes using four CPU cores per rank
 - [ ] Gather the full result and handle uneven row counts
-- [ ] Reach `<= 0.30x` MKL at `N=2048`
 
-## Final
+## Submission
 
 - [ ] Check CPU, GPU and MPI correctness separately
-- [ ] Save final Slurm outputs and submit the required files in `49088276.zip`
+- [ ] Save Slurm outputs and submit the required files in `49088276.zip`
+
+References: [BLIS GEMM](https://www.cs.utexas.edu/~flame/pubs/blis3_ipdps14.pdf), [Strassen with fused packing](https://jianyuhuang.com/papers/sc16.pdf)
