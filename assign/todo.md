@@ -19,7 +19,7 @@
 - [x] `KC=256`, `NC=32`, `MC=72` for block sizes up to 128, otherwise `MC=120`
 - [x] About 12 MiB packed storage at `N=2048` for the normal kernel, plus 9 KiB scratch per worker
 - [x] Compute P, Q and S across each `24x32` band before combining, reusing A across eight microtiles
-- [x] Row-first output tiles in both versions — reuse each packed A row tile across column bands
+- [x] Column-first output tiles restored in both versions after the row-first regression
 - [x] Static OpenMP output ownership, ordered depth accumulation and barriers before buffer reuse
 - [x] Zero padding, scalar edges, `N<=0` handling and allocation-failure fallback
 
@@ -33,20 +33,20 @@
 
 One level removes 12.5% of the multiplication work but adds sums and output writes — still $O(N^3)$
 
-## Latest CPU results
+## CPU benchmarks
 
-`N=2048`, five completed runs per version, MKL median `2.306` matrices/s — before row-first tiling
+`N=2048`, five completed runs per version and order — median rates and ratios, maximum errors
 
-| Version | Median matrices/s | Median ratio | Maximum error |
-| --- | ---: | ---: | ---: |
-| Normal (`naive`) | 4.359 | 0.529 | 3.788e-09 |
-| Strassen | 4.557 | 0.506 | 1.266e-08 |
+| Version | Order | MKL matrices/s | Our matrices/s | Ratio | Error |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Normal (`naive`) | Column-first, restored | 2.306 | 4.359 | 0.529 | 3.788e-09 |
+| Strassen | Column-first, restored | 2.306 | 4.557 | 0.506 | 1.266e-08 |
+| Normal (`naive`) | Row-first, rejected | 2.306 | 4.143 | 0.556 | 3.788e-09 |
+| Strassen | Row-first, rejected | 2.305 | 4.358 | 0.529 | 1.266e-08 |
 
-Previous medians: `4.346 / 4.524` matrices/s and `0.531 / 0.509` ratios for normal/Strassen
+Row-first reduced throughput by `5.0%` for normal and `4.4%` for Strassen, with unchanged errors
 
-Throughput rose `0.3% / 0.7%`, errors unchanged — too small to call conclusive without the per-run spread
-
-At this MKL rate, `0.40x` needs `5.765` matrices/s: another `32.3%` for normal or `26.5%` for Strassen
+At the restored baseline's MKL rate, `0.40x` needs `5.765` matrices/s: another `32.3%` for normal or `26.5%` for Strassen
 
 ## Earlier work
 
@@ -64,22 +64,21 @@ At this MKL rate, `0.40x` needs `5.765` matrices/s: another `32.3%` for normal o
 - [x] Close/spread binding at `N=2048` — spread helped only at `N=4096`
 - [x] Thread-private packed A — wrong answers
 - [x] Unroll 2 — reported no benefit, restored unroll 1
+- [x] Row-first output tiling — slower in both five-run comparisons, restored column-first
 
 ## Checks and next run
 
-- [x] Both row-first versions compile as C++11 with OpenMP enabled using Clang
-- [x] Each passed 139 serial reference cases plus `N=0,-1` with ASan/UBSan — maximum relative error `4.09e-07`
-- [x] Each passed eight dense checks at `N=2046,2048,2049,2050` — repeated calls, NaN-filled C, unchanged inputs and intact guards
+- [x] Both restored files match the previously checked column-first sources byte-for-byte
+- [x] Both compile as C++11 with OpenMP enabled using Clang
+- [x] Each previously passed 139 serial reference cases plus `N=0,-1` with ASan/UBSan — maximum relative error `4.09e-07`
+- [x] Each previously passed eight dense checks at `N=2046,2048,2049,2050` — repeated calls, NaN-filled C, unchanged inputs and intact guards
 - [x] Dense checks used three double-precision projections and 25 direct samples — maximum error `8.86e-07` normal, `1.10e-06` Strassen, not GradeBot's metric
 - [x] Earlier forced-allocation-failure checks passed for both, including signed Strassen outputs
 - [x] `test.sh` supports `naive`, `strassen` and `naive..strassen`, with source restoration and separate CSVs
-- [ ] Check row-first tiling with GCC and four cores — local OpenMP execution is unavailable
+- [ ] Confirm the restored baseline with GCC and four cores — local OpenMP execution is unavailable
 - [ ] Run `./test.sh 2048 5 naive..strassen` with the same resources and placement
-- [ ] Compare rates, ratios, run-to-run spread and errors against the latest results
-- [ ] Keep row-first tiling only if it helps, without removing either implementation
+- [ ] Compare rates, ratios, run-to-run spread and errors against the column-first baseline
 - [ ] Check empty and awkward sizes, then the full range on four cores
-
-Row-first tiling has no cluster timings yet
 
 ## Grade estimates
 
