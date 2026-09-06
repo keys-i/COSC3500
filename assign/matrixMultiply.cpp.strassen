@@ -3,6 +3,9 @@
 #include <matrixMultiply.h>
 #define STUDENTID 49088276 // DO NOT REMOVE
 
+// Shared by workspace allocation and the packed block helper
+static constexpr int NC = 32, KC = 256;
+
 // Column-major complex multiplication: element (row, col) is at row + col * N
 // Large even matrices use one Strassen level, with seven half-sized products
 // Input sums are formed during packing and products go straight into C quadrants
@@ -16,7 +19,7 @@ struct InputBlock {
     const floatType *data, *other;
     int sign;
 
-    // Read one combined entry for B packing and scalar edges
+    // Read one combined entry for scalar packing and output edges
     floatType at(size_t index) const {
         return other ? data[index] + (sign > 0 ? other[index] : -other[index])
                      : data[index];
@@ -39,6 +42,35 @@ components(__m256 lo, __m256 hi) {
     // Select the components within each 128-bit lane, then restore row order
     return _mm256_castpd_ps(_mm256_permute4x64_pd(
         _mm256_castps_pd(_mm256_shuffle_ps(lo, hi, Imag ? 0xDD : 0x88)), 0xD8));
+}
+
+// Transpose one component of four B columns into four consecutive packed rows
+// lo holds rows 0 and 1, hi holds rows 2 and 3, with four columns per row
+template <int Imag>
+__attribute__((always_inline, target("avx2,fma"))) static inline void
+transposeB(__m256 b0, __m256 b1, __m256 b2, __m256 b3,
+           __m256 &lo, __m256 &hi) {
+    const __m256 x = _mm256_shuffle_ps(b0, b1, Imag ? 0xDD : 0x88);
+    const __m256 y = _mm256_shuffle_ps(b2, b3, Imag ? 0xDD : 0x88);
+    const __m256 even = _mm256_shuffle_ps(x, y, 0x88);
+    const __m256 odd = _mm256_shuffle_ps(x, y, 0xDD);
+    lo = _mm256_permute2f128_ps(even, odd, 0x20);
+    hi = _mm256_permute2f128_ps(even, odd, 0x31);
+}
+
+// Pack a 4x4 complex B tile into real, imaginary and sum streams
+// count is the full depth slice, so each stream starts 4*count floats apart
+__attribute__((always_inline, target("avx2,fma"))) static inline void
+packB4(float *out, int count, __m256 b0, __m256 b1, __m256 b2, __m256 b3) {
+    __m256 r0, r1, i0, i1;
+    transposeB<0>(b0, b1, b2, b3, r0, r1);
+    transposeB<1>(b0, b1, b2, b3, i0, i1);
+    _mm256_storeu_ps(out, r0);
+    _mm256_storeu_ps(out + 8, r1);
+    _mm256_storeu_ps(out + 4 * count, i0);
+    _mm256_storeu_ps(out + 4 * count + 8, i1);
+    _mm256_storeu_ps(out + 8 * count, _mm256_add_ps(r0, i0));
+    _mm256_storeu_ps(out + 8 * count + 8, _mm256_add_ps(r1, i1));
 }
 
 // Interleave eight real/imaginary pairs and write them back into C
@@ -123,17 +155,19 @@ multiply24x4(int count, const float *a, const float *b, float *out) {
 }
 
 // Multiply N-by-N block views using the original matrix stride n
-// Only packed slices are allocated, with no full-size sums or product buffers
+// Every worker calls this helper in the same order within one OpenMP team
+// Packed inputs are shared, product scratch belongs to the calling worker
 __attribute__((target("avx2,fma"), optimize("O3", "unroll-loops"))) static void
 multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
-              OutputBlock C, OutputBlock D) {
+              OutputBlock C, OutputBlock D, float *packed, float *packedB,
+              float products[3][24 * NC]) {
     // Vector work covers whole eight-row groups and whole four-column groups
     const int rows = N & ~7, cols = N & ~3;
-    // Pad A to whole 24-row panels so the last kernel can still load 24 rows
-    const size_t packedRows = (rows + 23ULL) / 24 * 24;
     // The complex arrays expose interleaved real and imaginary floats
     const float *a = reinterpret_cast<const float *>(A.data);
     const float *otherA = reinterpret_cast<const float *>(A.other);
+    const float *b = reinterpret_cast<const float *>(B.data);
+    const float *otherB = reinterpret_cast<const float *>(B.other);
     float *c = reinterpret_cast<float *>(C.data);
     float *d = reinterpret_cast<float *>(D.data);
     // Compute one entry for scalar edges or when scratch allocation fails
@@ -153,138 +187,140 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
     // MC and NC split C into work tiles, while KC sets the packed depth
     // MC must be a multiple of 24 and NC a multiple of 4 to match the panels
     // The smaller MC gives small matrices more output tiles to share
-    const int MC = N <= 128 ? 72 : 120, NC = 32, KC = 256;
-    const int depth = N < KC ? N : KC;
-    // Reserve three streams for each packed A and B panel in one shared slice
-    float *packed =
-        rows ? static_cast<float *>(_mm_malloc(
-                   (3ULL * packedRows + 3ULL * cols) * depth * sizeof(float), 64))
-             : nullptr;
+    const int MC = N <= 128 ? 72 : 120;
     // Matrices below eight rows and failed allocations use the scalar path
     if (!packed) {
-        // Visit output columns in column-major order
+        // Share columns and finish all writes before the next product starts
+#pragma omp for schedule(static)
         for (int col = 0; col < N; ++col)
             // Fill every row in this column without using packed storage
             for (int row = 0; row < N; ++row)
                 scalar(row, col);
         return;
     }
-    // B starts after the reserved A space, even when the final slice is shorter
-    float *packedB = packed + 3ULL * packedRows * depth;
+    // All workers advance through k together, with barriers protecting reuse
+    for (int k = 0; k < N; k += KC) {
+        // The final slice may have fewer than KC entries
+        const int count = N - k < KC ? N - k : KC;
 
-    // Reuse one OpenMP team, with the thread count supplied by the runtime
-#pragma omp parallel
-    {
-        // Keep P, Q and S for 24 rows across this column band, 9 KiB per worker
-        alignas(32) float products[3][24 * NC];
-        // All workers advance through k together, with barriers protecting reuse
-        for (int k = 0; k < N; k += KC) {
-            // The final slice may have fewer than KC entries
-            const int count = N - k < KC ? N - k : KC;
-
-            // Share whole 24-row A panels between workers
-            // nowait lets workers start packing B as soon as their A work is done
+        // Share whole 24-row A panels between workers
+        // nowait lets workers start packing B as soon as their A work is done
 #pragma omp for schedule(static) nowait
-            for (int row = 0; row < rows; row += 24) {
-                // Each panel has real, imaginary and sum blocks of 24*count floats
-                float *out = packed + 3ULL * row * count;
-                // Visit the columns of A covered by this depth slice
-                for (int p = 0; p < count; ++p)
-                    // Pack three eight-row groups and leave padded groups as zero
-                    for (int half = 0; half < 24; half += 8) {
-                        __m256 ar = _mm256_setzero_ps(), ai = ar;
-                        // Only read complete groups inside the vector-covered rows
-                        if (row + half < rows) {
-                            const float *in = a + 2ULL * (row + half + (k + p) * n);
-                            const __m256 lo = _mm256_loadu_ps(in);
-                            const __m256 hi = _mm256_loadu_ps(in + 8);
-                            ar = components<0>(lo, hi);
-                            ai = components<1>(lo, hi);
-                            // Fuse the optional Strassen sum into A packing
-                            if (otherA) {
-                                const float *next = otherA + 2ULL * (row + half + (k + p) * n);
-                                const __m256 x = _mm256_loadu_ps(next);
-                                const __m256 y = _mm256_loadu_ps(next + 8);
-                                const __m256 br = components<0>(x, y);
-                                const __m256 bi = components<1>(x, y);
-                                ar = A.sign > 0 ? _mm256_add_ps(ar, br) : _mm256_sub_ps(ar, br);
-                                ai = A.sign > 0 ? _mm256_add_ps(ai, bi) : _mm256_sub_ps(ai, bi);
-                            }
+        for (int row = 0; row < rows; row += 24) {
+            // Each panel has real, imaginary and sum blocks of 24*count floats
+            float *out = packed + 3ULL * row * count;
+            // Visit the columns of A covered by this depth slice
+            for (int p = 0; p < count; ++p)
+                // Pack three eight-row groups and leave padded groups as zero
+                for (int half = 0; half < 24; half += 8) {
+                    __m256 ar = _mm256_setzero_ps(), ai = ar;
+                    // Only read complete groups inside the vector-covered rows
+                    if (row + half < rows) {
+                        const float *in = a + 2ULL * (row + half + (k + p) * n);
+                        const __m256 lo = _mm256_loadu_ps(in);
+                        const __m256 hi = _mm256_loadu_ps(in + 8);
+                        ar = components<0>(lo, hi);
+                        ai = components<1>(lo, hi);
+                        // Fuse the optional Strassen sum into A packing
+                        if (otherA) {
+                            const float *next = otherA + 2ULL * (row + half + (k + p) * n);
+                            const __m256 x = _mm256_loadu_ps(next);
+                            const __m256 y = _mm256_loadu_ps(next + 8);
+                            const __m256 br = components<0>(x, y);
+                            const __m256 bi = components<1>(x, y);
+                            ar = A.sign > 0 ? _mm256_add_ps(ar, br) : _mm256_sub_ps(ar, br);
+                            ai = A.sign > 0 ? _mm256_add_ps(ai, bi) : _mm256_sub_ps(ai, bi);
                         }
-                        // Keep the three streams contiguous for separate kernel calls
-                        _mm256_storeu_ps(out + 24ULL * p + half, ar);
-                        _mm256_storeu_ps(out + 24ULL * (count + p) + half, ai);
-                        _mm256_storeu_ps(out + 24ULL * (2 * count + p) + half,
-                                        _mm256_add_ps(ar, ai));
                     }
-            }
-
-            // Share four-column B panels between workers
-            // The barrier at the end waits for all A and B packing to finish
-#pragma omp for schedule(static)
-            for (int col = 0; col < cols; col += 4) {
-                // Each B stream has 4*count floats
-                float *out = packedB + 3ULL * col * count;
-                // Visit the rows of B covered by this depth slice
-                for (int p = 0; p < count; ++p)
-                    // Store four adjacent columns for the kernel's scalar broadcasts
-                    for (int j = 0; j < 4; ++j) {
-                        // Form B's optional sum without a separate matrix pass
-                        const floatType value = B.at(k + p + (col + j) * n);
-                        out[4ULL * p + j] = value.real();
-                        out[4ULL * (count + p) + j] = value.imag();
-                        out[4ULL * (2 * count + p) + j] = value.real() + value.imag();
-                    }
-            }
-
-            // Share NC-column bands split into MC-row tiles, with no overlapping writes
-            // The end barrier keeps packed data alive until every reader is finished
-#pragma omp for collapse(2) schedule(static)
-            for (int col = 0; col < cols; col += NC)
-                // Split each column band into row tiles for the workers
-                for (int row = 0; row < rows; row += MC) {
-                    // Trim the last work tile to the vector-covered part of C
-                    const int width = cols - col < NC ? cols - col : NC;
-                    const int height = rows - row < MC ? rows - row : MC;
-                    // Walk 24-row microtiles within this work tile
-                    for (int i = row; i < row + height; i += 24) {
-                        // Finish each real product across the band before switching A streams
-                        for (int term = 0; term < 3; ++term)
-                            // Reuse one packed A component across four-column microtiles
-                            for (int j = col; j < col + width; j += 4)
-                                multiply24x4(count,
-                                    packed + (3ULL * i + 24 * term) * count,
-                                    packedB + (3ULL * j + 4 * term) * count,
-                                    products[term] + 24 * (j - col));
-                        // Combine only the columns filled in this band
-                        for (int j = col; j < col + width; ++j)
-                            // Store eight valid rows at a time and skip padded groups
-                            for (int half = 0; half < 24 && i + half < rows; half += 8) {
-                                const int offset = 24 * (j - col) + half;
-                                const size_t index = 2ULL * (i + half + j * n);
-                                const __m256 p = _mm256_loadu_ps(products[0] + offset);
-                                const __m256 q = _mm256_loadu_ps(products[1] + offset);
-                                const __m256 s = _mm256_loadu_ps(products[2] + offset);
-                                finishSums(c + index, C.first && k == 0, C.sign, p, q, s);
-                                // The same worker owns both destinations for this tile
-                                if (d)
-                                    finishSums(d + index, D.first && k == 0, D.sign, p, q, s);
-                            }
-                    }
+                    // Keep the three streams contiguous for separate kernel calls
+                    _mm256_storeu_ps(out + 24ULL * p + half, ar);
+                    _mm256_storeu_ps(out + 24ULL * (count + p) + half, ai);
+                    _mm256_storeu_ps(out + 24ULL * (2 * count + p) + half,
+                                    _mm256_add_ps(ar, ai));
                 }
         }
 
-        // Share the remaining scalar work by column, separate from vector outputs
+        // Share four-column B panels between workers
+        // The barrier at the end waits for all A and B packing to finish
 #pragma omp for schedule(static)
-        for (int col = 0; col < N; ++col)
-            // Vector-covered columns need bottom rows only
-            // Leftover columns need every row
-            for (int row = col < cols ? rows : 0; row < N; ++row)
-                scalar(row, col);
+        for (int col = 0; col < cols; col += 4) {
+            // Each B stream has 4*count floats
+            float *out = packedB + 3ULL * col * count;
+            // Load four contiguous complex rows from each column
+            const int vectorCount = count & ~3;
+            for (int p = 0; p < vectorCount; p += 4) {
+                __m256 columns[4];
+                // Gather the four columns before transposing their components
+                for (int j = 0; j < 4; ++j) {
+                    const size_t offset = 2ULL * (k + p + (col + j) * n);
+                    columns[j] = _mm256_loadu_ps(b + offset);
+                    // Form Strassen sums before packing, without extra storage
+                    if (otherB) {
+                        const __m256 next = _mm256_loadu_ps(otherB + offset);
+                        columns[j] = B.sign > 0 ? _mm256_add_ps(columns[j], next)
+                                               : _mm256_sub_ps(columns[j], next);
+                    }
+                }
+                packB4(out + 4ULL * p, count,
+                       columns[0], columns[1], columns[2], columns[3]);
+            }
+            // Pack the last zero to three rows without reading past the slice
+            for (int p = vectorCount; p < count; ++p)
+                // Store four adjacent columns for the kernel's scalar broadcasts
+                for (int j = 0; j < 4; ++j) {
+                    // Form B's optional sum without a separate matrix pass
+                    const floatType value = B.at(k + p + (col + j) * n);
+                    out[4ULL * p + j] = value.real();
+                    out[4ULL * (count + p) + j] = value.imag();
+                    out[4ULL * (2 * count + p) + j] = value.real() + value.imag();
+                }
+        }
+
+        // Share NC-column bands split into MC-row tiles, with no overlapping writes
+        // The end barrier keeps packed data alive until every reader is finished
+#pragma omp for collapse(2) schedule(static)
+        for (int col = 0; col < cols; col += NC)
+            // Split each column band into row tiles for the workers
+            for (int row = 0; row < rows; row += MC) {
+                // Trim the last work tile to the vector-covered part of C
+                const int width = cols - col < NC ? cols - col : NC;
+                const int height = rows - row < MC ? rows - row : MC;
+                // Walk 24-row microtiles within this work tile
+                for (int i = row; i < row + height; i += 24) {
+                    // Finish each real product across the band before switching A streams
+                    for (int term = 0; term < 3; ++term)
+                        // Reuse one packed A component across four-column microtiles
+                        for (int j = col; j < col + width; j += 4)
+                            multiply24x4(count,
+                                packed + (3ULL * i + 24 * term) * count,
+                                packedB + (3ULL * j + 4 * term) * count,
+                                products[term] + 24 * (j - col));
+                    // Combine only the columns filled in this band
+                    for (int j = col; j < col + width; ++j)
+                        // Store eight valid rows at a time and skip padded groups
+                        for (int half = 0; half < 24 && i + half < rows; half += 8) {
+                            const int offset = 24 * (j - col) + half;
+                            const size_t index = 2ULL * (i + half + j * n);
+                            const __m256 p = _mm256_loadu_ps(products[0] + offset);
+                            const __m256 q = _mm256_loadu_ps(products[1] + offset);
+                            const __m256 s = _mm256_loadu_ps(products[2] + offset);
+                            finishSums(c + index, C.first && k == 0, C.sign, p, q, s);
+                            // The same worker owns both destinations for this tile
+                            if (d)
+                                finishSums(d + index, D.first && k == 0, D.sign, p, q, s);
+                        }
+                }
+            }
     }
 
-    // The parallel region has ended, so no worker can still read this buffer
-    _mm_free(packed);
+    // Share scalar edges, then wait before the next product reuses packed inputs
+    // This barrier also orders contributions when products share a C quadrant
+#pragma omp for schedule(static)
+    for (int col = 0; col < N; ++col)
+        // Vector-covered columns need bottom rows only
+        // Leftover columns need every row
+        for (int row = col < cols ? rows : 0; row < N; ++row)
+            scalar(row, col);
 }
 
 // Use one Strassen level at N>=2048 when the matrix splits evenly
@@ -294,40 +330,59 @@ int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
     if (N <= 0)
         return STUDENTID;
     const size_t n = static_cast<size_t>(N);
-    if (N < 2048 || N % 2) {
-        multiplyBlock(N, n, {A, nullptr, 1}, {B, nullptr, 1},
-                      {C, 1, true}, {nullptr, 1, false});
-        return STUDENTID;
+    const bool split = N >= 2048 && N % 2 == 0;
+    const int blockSize = split ? N / 2 : N;
+    const int rows = blockSize & ~7, cols = blockSize & ~3;
+    // Allocate one leaf-sized slice and reuse it across all seven products
+    const size_t packedRows = (rows + 23ULL) / 24 * 24;
+    const int depth = blockSize < KC ? blockSize : KC;
+    float *packed =
+        rows ? static_cast<float *>(_mm_malloc(
+                   (3ULL * packedRows + 3ULL * cols) * depth * sizeof(float), 64))
+             : nullptr;
+    // B follows the reserved A space even when the final depth slice is shorter
+    float *packedB = packed ? packed + 3ULL * packedRows * depth : nullptr;
+
+    // Keep one team alive for every product, with private scratch for each worker
+    // Blocks below eight rows and allocation failures use one scalar worker
+#pragma omp parallel if(packed != nullptr)
+    {
+        alignas(32) float products[3][24 * NC];
+        if (!split) {
+            multiplyBlock(N, n, {A, nullptr, 1}, {B, nullptr, 1},
+                          {C, 1, true}, {nullptr, 1, false}, packed, packedB, products);
+        } else {
+            // Quadrant pointers keep the full matrix stride, not the half-size stride
+            const int h = N / 2;
+            const floatType *a00 = A, *a01 = A + h * n, *a10 = A + h, *a11 = a01 + h;
+            const floatType *b00 = B, *b01 = B + h * n, *b10 = B + h, *b11 = b01 + h;
+            floatType *c00 = C, *c01 = C + h * n, *c10 = C + h, *c11 = c01 + h;
+
+            // Every worker follows this order and each helper ends with a barrier
+            // M0 = (A00+A11)(B00+B11), initialise C00 and C11
+            multiplyBlock(h, n, {a00, a11, 1}, {b00, b11, 1},
+                          {c00, 1, true}, {c11, 1, true}, packed, packedB, products);
+            // M1 = (A10+A11)B00, initialise C10 and subtract from C11
+            multiplyBlock(h, n, {a10, a11, 1}, {b00, nullptr, 1},
+                          {c10, 1, true}, {c11, -1, false}, packed, packedB, products);
+            // M2 = A00(B01-B11), initialise C01 and add to C11
+            multiplyBlock(h, n, {a00, nullptr, 1}, {b01, b11, -1},
+                          {c01, 1, true}, {c11, 1, false}, packed, packedB, products);
+            // M3 = A11(B10-B00), add to C00 and C10
+            multiplyBlock(h, n, {a11, nullptr, 1}, {b10, b00, -1},
+                          {c00, 1, false}, {c10, 1, false}, packed, packedB, products);
+            // M4 = (A00+A01)B11, subtract from C00 and add to C01
+            multiplyBlock(h, n, {a00, a01, 1}, {b11, nullptr, 1},
+                          {c00, -1, false}, {c01, 1, false}, packed, packedB, products);
+            // M5 = (A10-A00)(B00+B01), add to C11 only
+            multiplyBlock(h, n, {a10, a00, -1}, {b00, b01, 1},
+                          {c11, 1, false}, {nullptr, 1, false}, packed, packedB, products);
+            // M6 = (A01-A11)(B10+B11), add to C00 only
+            multiplyBlock(h, n, {a01, a11, -1}, {b10, b11, 1},
+                          {c00, 1, false}, {nullptr, 1, false}, packed, packedB, products);
+        }
     }
-
-    // Quadrant pointers keep the full matrix stride, not the half-size stride
-    const int h = N / 2;
-    const floatType *a00 = A, *a01 = A + h * n, *a10 = A + h, *a11 = a01 + h;
-    const floatType *b00 = B, *b01 = B + h * n, *b10 = B + h, *b11 = b01 + h;
-    floatType *c00 = C, *c01 = C + h * n, *c10 = C + h, *c11 = c01 + h;
-
-    // Products run in order, each using the runtime's OpenMP team
-    // A product finishes before the next starts, so C contributions cannot race
-    // M0 = (A00+A11)(B00+B11), initialise C00 and C11
-    multiplyBlock(h, n, {a00, a11, 1}, {b00, b11, 1},
-                  {c00, 1, true}, {c11, 1, true});
-    // M1 = (A10+A11)B00, initialise C10 and subtract from C11
-    multiplyBlock(h, n, {a10, a11, 1}, {b00, nullptr, 1},
-                  {c10, 1, true}, {c11, -1, false});
-    // M2 = A00(B01-B11), initialise C01 and add to C11
-    multiplyBlock(h, n, {a00, nullptr, 1}, {b01, b11, -1},
-                  {c01, 1, true}, {c11, 1, false});
-    // M3 = A11(B10-B00), add to C00 and C10
-    multiplyBlock(h, n, {a11, nullptr, 1}, {b10, b00, -1},
-                  {c00, 1, false}, {c10, 1, false});
-    // M4 = (A00+A01)B11, subtract from C00 and add to C01
-    multiplyBlock(h, n, {a00, a01, 1}, {b11, nullptr, 1},
-                  {c00, -1, false}, {c01, 1, false});
-    // M5 = (A10-A00)(B00+B01), add to C11 only
-    multiplyBlock(h, n, {a10, a00, -1}, {b00, b01, 1},
-                  {c11, 1, false}, {nullptr, 1, false});
-    // M6 = (A01-A11)(B10+B11), add to C00 only
-    multiplyBlock(h, n, {a01, a11, -1}, {b10, b11, 1},
-                  {c00, 1, false}, {nullptr, 1, false});
+    // No worker can still read the shared slice after the team joins
+    _mm_free(packed);
     return STUDENTID;
 }
