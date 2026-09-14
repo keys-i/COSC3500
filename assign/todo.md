@@ -74,7 +74,7 @@ At the restored baseline's MKL rate, `0.40x` needs `5.765` matrices/s: another `
 - [x] Each previously passed eight dense checks at `N=2046,2048,2049,2050` — repeated calls, NaN-filled C, unchanged inputs and intact guards
 - [x] Dense checks used three double-precision projections and 25 direct samples — maximum error `8.86e-07` normal, `1.10e-06` Strassen, not GradeBot's metric
 - [x] Earlier forced-allocation-failure checks passed for both, including signed Strassen outputs
-- [x] `test.sh` supports `naive`, `strassen` and `naive..strassen`, with source restoration and separate CSVs
+- [x] `test.sh [cpu|cuda|mpi] <n|a..b> [repeats=1]` selects the backend, defaulting to CPU; CPU also supports `naive`, `strassen` and `naive..strassen`, with source restoration and separate CSVs
 - [ ] Confirm the restored baseline with GCC and four cores — local OpenMP execution is unavailable
 - [ ] Run `./test.sh 2048 5 naive..strassen` with the same resources and placement
 - [ ] Compare rates, ratios, run-to-run spread and errors against the column-first baseline
@@ -90,7 +90,7 @@ $x>0$ is the runtime ratio, $y$ is the fitted grade
 | GPU (CUDA) | $(x-9.522727)^2=11.463636(y-1.258480)$ |
 | GPU (MPI) | $(x-5.160034)^2=5.430584(y-2.905679)$ |
 
-`test.sh` applies the CPU fit to individual runs and the median ratio
+`test.sh` applies the selected backend's fit to individual runs and the median ratio
 
 $$y=2.952148+\frac{(x-10.582021)^2}{24.883719}$$
 

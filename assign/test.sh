@@ -2,9 +2,19 @@
 set -uo pipefail
 cd -- "$(dirname -- "$0")" || exit 1
 
-usage() { printf 'Usage: %s <n|a..b> [repeats=1] [naive|strassen|naive..strassen] (default: naive)\n' "$0" >&2; exit 2; }
+usage() { printf 'Usage: %s [cpu|cuda|mpi] <n|a..b> [repeats=1] [naive|strassen|naive..strassen] (defaults: cpu, naive; variants are CPU-only)\n' "$0" >&2; exit 2; }
+backend=cpu
+case ${1-} in cpu|cuda|mpi) backend=$1; shift ;; esac
 [[ $# -ge 1 && $# -le 3 && $1 =~ ^[1-9][0-9]*(\.\.[1-9][0-9]*)?$ ]] || usage
+[[ $backend == cpu || $# -le 2 ]] || usage
 start=${1%%..*}; end=${1##*..}; repeats=${2-1}; variant=${3-naive}
+reference=mkl
+case $backend in
+    cpu) label=CPU; grade_base=2.952148; grade_vertex=10.582021; grade_scale=24.883719 ;;
+    cuda) label=GPU; reference=cublas; grade_base=1.258480; grade_vertex=9.522727; grade_scale=11.463636 ;;
+    mpi) label=MPI; grade_base=2.905679; grade_vertex=5.160034; grade_scale=5.430584 ;;
+esac
+template="slurm/goslurm_COSC3500Assignment_RangpurDebug$label"
 case $variant in
     naive|strassen) variants=("$variant") ;;
     naive..strassen) variants=(naive strassen) ;;
@@ -66,15 +76,17 @@ if [[ $variant != naive ]]; then
     }
 fi
 command -v sbatch >/dev/null || { printf 'sbatch is not available\n' >&2; exit 1; }
-[[ -r slurm/goslurm_COSC3500Assignment_RangpurDebugCPU ]] || { printf 'Missing CPU Slurm template\n' >&2; exit 1; }
+[[ -r $template ]] || { printf 'Missing %s Slurm template\n' "$label" >&2; exit 1; }
 mkdir -p results || exit 1
 summary_status=0
 # Run each kernel under the same lock, keeping its own CSVs and job outputs
 for variant in "${variants[@]}"; do
     ((interrupted == 0)) || exit "$interrupted"
-    csv="results/cpu-$variant.csv"
-    raw="results/cpu-$variant-runs.csv"
-    printf 'N,run,mkl_per_second,you_per_second,runtime_ratio,error,grade,status\n' > "$raw" || exit 1
+    prefix=$backend
+    [[ $backend != cpu ]] || prefix="cpu-$variant"
+    csv="results/$prefix.csv"
+    raw="results/$prefix-runs.csv"
+    printf 'N,run,%s_per_second,you_per_second,runtime_ratio,error,grade,status\n' "$reference" > "$raw" || exit 1
 
     if [[ $variant == strassen ]]; then
         swapping=1
@@ -85,25 +97,25 @@ for variant in "${variants[@]}"; do
     for ((n = start; n <= end; n *= 2)); do
         for ((run = 1; run <= repeats; ++run)); do
             ((interrupted == 0)) || exit "$interrupted"
-            printf 'Running %s N=%s (%s/%s)...\n' "$variant" "$n" "$run" "$repeats"
+            printf 'Running %s N=%s (%s/%s)...\n' "$prefix" "$n" "$run" "$repeats"
             job_id=$(
                 trap '' HUP INT TERM
-                sed "s/Assignment1_GradeBot 128 4 1 0 0/Assignment1_GradeBot $n 4 1 0 0/" \
-                    slurm/goslurm_COSC3500Assignment_RangpurDebugCPU | \
-                    sbatch --wait --parsable --output="results/cpu-$variant-$n-%j.out"
+                sed "s/\(Assignment1_GradeBot \)[0-9][0-9]*/\1$n/" "$template" | \
+                    sbatch --wait --parsable --output="results/$prefix-$n-%j.out"
             )
             job_status=$?
             ((interrupted == 0)) || exit "$interrupted"
             job_id=${job_id%%;*}
-            output="results/cpu-$variant-$n-$job_id.out"
+            output="results/$prefix-$n-$job_id.out"
             if [[ ! $job_id =~ ^[0-9]+$ || ! -f $output ]]; then
                 printf '%s,%s,,,,,,submission-failed\n' "$n" "$run" >> "$raw" || exit 1
                 continue
             fi
 
-            awk -v n="$n" -v run="$run" -v rc="$job_status" '
+            awk -v n="$n" -v run="$run" -v rc="$job_status" -v label="$label" \
+                -v base="$grade_base" -v vertex="$grade_vertex" -v scale="$grade_scale" '
                 function numeric(x) { return x ~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$/ }
-                /^CPU\[/ && !seen {
+                index($0,label "[") == 1 && !seen {
                     seen=1; size=$(NF-5); m=$(NF-4); y=$(NF-3); r=$(NF-2); e=$(NF-1)
                 }
                 /TIME LIMIT/ { timeout=1 }
@@ -112,15 +124,15 @@ for variant in "${variants[@]}"; do
                     if (status == "completed" && (size != n || !numeric(m) || !numeric(y) ||
                         !numeric(r) || !numeric(e) || m+0 <= 0 || y+0 <= 0 || r+0 <= 0 || e+0 < 0))
                         status="invalid"
-                    grade=status == "completed" ? sprintf("%.3f",2.952148+(r-10.582021)^2/24.883719) : ""
+                    grade=status == "completed" ? sprintf("%.3f",base+(r-vertex)^2/scale) : ""
                     printf "%s,%d,%s,%s,%s,%s,%s,%s\n",n,run,m,y,r,e,grade,status
                 }
             ' "$output" >> "$raw" || exit 1
         done
     done
 
-    # Use medians; keep the worst error
-    awk -F, '
+    # Keep medians and worst error; repeated runs also report means and sample variances
+    awk -F, -v repeats="$repeats" -v reference="$reference" -v base="$grade_base" -v vertex="$grade_vertex" -v scale="$grade_scale" '
         function median(a,n,size,    i,j,value) {
             for (i=2; i<=size; ++i) {
                 value=a[n,i]; j=i-1
@@ -139,28 +151,49 @@ for variant in "${variants[@]}"; do
             }
             if ($8 == "completed") {
                 i=++count[n]; mkl[n,i]=$3+0; you[n,i]=$4+0; ratio[n,i]=$5+0
+                # Welfords update avoids cancellation for tightly clustered timings
+                for (field=3; field<=7; ++field) {
+                    delta=$field-mean[n,field]
+                    mean[n,field]+=delta/i
+                    squared_deviation[n,field]+=delta*($field-mean[n,field])
+                }
             } else {
                 failure[n]=failure[n] == "" || failure[n] == $8 ? $8 : "failed"
                 failed=1
             }
         }
         END {
-            print "N,mkl_per_second,you_per_second,runtime_ratio,error,grade,completed_runs,repeats,status"
+            printf "N,%s_per_second,you_per_second,runtime_ratio,error,grade,completed_runs,repeats,status",reference
+            if (repeats>1) {
+                split(reference "_per_second you_per_second runtime_ratio error grade",metrics," ")
+                for (field=1; field<=5; ++field)
+                    printf ",%s_mean,%s_variance",metrics[field],metrics[field]
+            }
+            print ""
             for (group=1; group<=groups; ++group) {
                 n=order[group]; size=count[n]+0
                 e=n in bad_error ? bad_error[n] : n in error ? sprintf("%.3e",error[n]) : ""
                 if (size) {
                     r=median(ratio,n,size)
-                    printf "%s,%.3f,%.3f,%.3f,%s,%.3f,%d,%d,%s\n",n,
-                        median(mkl,n,size),median(you,n,size),r,e,2.952148+(r-10.582021)^2/24.883719,
+                    printf "%s,%.3f,%.3f,%.3f,%s,%.3f,%d,%d,%s",n,
+                        median(mkl,n,size),median(you,n,size),r,e,base+(r-vertex)^2/scale,
                         size,total[n],(size == total[n] ? "completed" : "partial")
-                } else printf "%s,,,,%s,,0,%d,%s\n",n,e,total[n],failure[n]
+                } else printf "%s,,,,%s,,0,%d,%s",n,e,total[n],failure[n]
+                if (repeats>1) {
+                    for (field=3; field<=7; ++field) {
+                        if (size) printf ",%.9g,",mean[n,field]
+                        else printf ",,"
+                        if (size>1) printf "%.9g",squared_deviation[n,field]/(size-1)
+                    }
+                }
+                print ""
             }
             exit failed ? 1 : 0
         }
     ' "$raw" > "$csv"
     (( $? == 0 )) || summary_status=1
     printf 'Median rates/ratio, maximum error. Individual runs: %s\n' "$raw"
+    ((repeats <= 1)) || printf 'Means and sample variances use completed runs; variance is blank with fewer than two\n'
     cat "$csv"
     printf 'Saved summary to %s\n' "$csv"
 done
