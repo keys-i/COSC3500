@@ -77,15 +77,16 @@ if [[ $variant != naive ]]; then
 fi
 command -v sbatch >/dev/null || { printf 'sbatch is not available\n' >&2; exit 1; }
 [[ -r $template ]] || { printf 'Missing %s Slurm template\n' "$label" >&2; exit 1; }
-mkdir -p results || exit 1
+results_dir="results/$backend"
+mkdir -p "$results_dir" || exit 1
 summary_status=0
 # Run each kernel under the same lock, keeping its own CSVs and job outputs
 for variant in "${variants[@]}"; do
     ((interrupted == 0)) || exit "$interrupted"
     prefix=$backend
     [[ $backend != cpu ]] || prefix="cpu-$variant"
-    csv="results/$prefix.csv"
-    raw="results/$prefix-runs.csv"
+    csv="$results_dir/$prefix.csv"
+    raw="$results_dir/$prefix-runs.csv"
     printf 'N,run,%s_per_second,you_per_second,runtime_ratio,error,grade,status\n' "$reference" > "$raw" || exit 1
 
     if [[ $variant == strassen ]]; then
@@ -101,12 +102,12 @@ for variant in "${variants[@]}"; do
             job_id=$(
                 trap '' HUP INT TERM
                 sed "s/\(Assignment1_GradeBot \)[0-9][0-9]*/\1$n/" "$template" | \
-                    sbatch --wait --parsable --output="results/$prefix-$n-%j.out"
+                    sbatch --wait --parsable --output="$results_dir/$prefix-$n-%j.out"
             )
             job_status=$?
             ((interrupted == 0)) || exit "$interrupted"
             job_id=${job_id%%;*}
-            output="results/$prefix-$n-$job_id.out"
+            output="$results_dir/$prefix-$n-$job_id.out"
             if [[ ! $job_id =~ ^[0-9]+$ || ! -f $output ]]; then
                 printf '%s,%s,,,,,,submission-failed\n' "$n" "$run" >> "$raw" || exit 1
                 continue
