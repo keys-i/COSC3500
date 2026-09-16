@@ -1,7 +1,6 @@
 #include <climits>
 #include <cstddef>
 #include <matrixMultiplyMPI.h>
-#include <sys/_types/_sigaltstack.h>
 #include <vector>
 #define STUDENTID 49088276 // DO NOT REMOVE
 /**
