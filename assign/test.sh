@@ -151,7 +151,7 @@ for variant in "${variants[@]}"; do
             }
             if ($8 == "completed") {
                 i=++count[n]; mkl[n,i]=$3+0; you[n,i]=$4+0; ratio[n,i]=$5+0
-                # Welfords update avoids cancellation for tightly clustered timings
+                # Stable online variance avoids cancellation for tightly clustered timings
                 for (field=3; field<=7; ++field) {
                     delta=$field-mean[n,field]
                     mean[n,field]+=delta/i
