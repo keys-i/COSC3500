@@ -26,7 +26,7 @@ __host__ int matrixMultiply_GPU(int N, const floatTypeCUDA* A, const floatTypeCU
     const unsigned tiles = 1u + (unsigned(N) - 1u) / 16u;
     const dim3 grid(tiles, tiles);
 
-    matrixMultiplyKernel_GPU<<grid, block>>(N, A, B C, 0, 0, 0);
+    matrixMultiplyKernel_GPU<<<grid, block>>>(N, A, B C, 0, 0, 0);
 
     cudaError_t err = cudaGetLastError();
     if (err == cudaSuccess) 
@@ -55,7 +55,7 @@ __global__ void matrixMultiplyKernel_GPU(int N, const floatTypeCUDA* A, const fl
         const floatTypeCUDA a = A[row + size_t(k) * N];
         const floatTypeCUDA b = B[k + col * N];
 
-        real += a.x * b.x - a.y * b.y
+        real += a.x * b.x - a.y * b.y;
         imag += a.x * b.y + a.y * b.x;
     }
 
