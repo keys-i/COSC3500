@@ -1,8 +1,19 @@
+#include <algorithm>
 #include <climits>
 #include <cstddef>
 #include <matrixMultiplyMPI.h>
 #include <vector>
 #define STUDENTID 49088276 // DO NOT REMOVE
+
+// helper to check MPI output status
+static void checkMPI(int err) {
+    if (err != MPI_SUCCESS) {
+        std::fprintf(stderr, "MPI multiplication failed: %d\n", err);
+        MPI_Abort(MPI_COMM_WORLD, err);
+        std::abort();
+    }
+}
+
 /**
  * @brief Implements an NxN matrix multiply C=A*B
  *
@@ -40,7 +51,7 @@ int matrixMultiply_MPI(int N, const floatType *A, const floatType *B,
     const MPI_Datatype type = MPI_CXX_FLOAT_COMPLEX;
 
     try {
-        std::vector<int> conts(ranks), displacements(ranks);
+        std::vector<int> counts(ranks), displacements(ranks);
 
         // get first N% ranks process one extra col
         const int base = N / ranks;
@@ -93,7 +104,7 @@ int matrixMultiply_MPI(int N, const floatType *A, const floatType *B,
         checkMPI(MPI_Gatherv(
             localC.data(), localCount, type,
             rank == 0 ? C : nullptr,
-            counts.data(), displacements.data(), type.
+            counts.data(), displacements.data(), type,
                 0, MPI_COMM_WORLD
         ));
     } catch (const std::bad_alloc&) {
@@ -101,13 +112,4 @@ int matrixMultiply_MPI(int N, const floatType *A, const floatType *B,
     }
 
     return STUDENTID;
-}
-
-// helper to check MPI output status
-static void checkMPI(int err) {
-    if (err != MPI_SUCCESS) {
-        std::fprintf(stderr, "MPI multiplication failed: %d\n", err);
-        MPI_ABORT(MPI_COMM_WORLD, err);
-        std::abort();
-    }
 }
