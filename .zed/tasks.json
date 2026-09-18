@@ -1,0 +1,42 @@
+[
+  {
+    "label": "Rangpur: save and sync assignment",
+    "command": "/opt/homebrew/bin/rsync",
+    "args": [
+      "-az",
+      "--itemize-changes",
+      "--exclude=.git",
+      "--exclude=results/",
+      "--exclude=.test.lock",
+      "--exclude=*.o",
+      "--exclude=*.out",
+      "--exclude=Assignment1_GradeBot",
+      "-e",
+      "ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o UpdateHostKeys=no",
+      "--rsync-path=if test -e /home/Student/s4908827/cosc3500-mac/assign/.test.lock; then echo \"Assignment test lock exists; wait for the test to finish\" >&2; exit 1; fi; rsync",
+      "assign/",
+      "rangpur.compute.eait.uq.edu.au:/home/Student/s4908827/cosc3500-mac/assign/"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "save": "all",
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Rangpur: terminal",
+    "command": "/usr/bin/ssh",
+    "args": [
+      "-t",
+      "-o",
+      "ConnectTimeout=10",
+      "-o",
+      "StrictHostKeyChecking=yes",
+      "-o",
+      "UpdateHostKeys=no",
+      "rangpur.compute.eait.uq.edu.au",
+      "cd /home/Student/s4908827/cosc3500-mac/assign && exec bash -l"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false
+  }
+]

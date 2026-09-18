@@ -3,17 +3,11 @@ Diagnostics:
 
 ---
 If:
-  PathMatch: (assign|third_party)/.*
+  PathMatch: third_party/.*
 Index:
   Background: Skip
 Diagnostics:
   Suppress: '*'
-
----
-If:
-  PathMatch: assign/.*\.cu(h)?
-CompileFlags:
-  Add: [-nocudainc, -nocudalib]
 
 ---
 If:
