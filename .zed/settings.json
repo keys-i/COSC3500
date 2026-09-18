@@ -1,0 +1,32 @@
+{
+  "file_types": {
+    "C++": [
+      "cu",
+      "cuh"
+    ]
+  },
+  "lsp": {
+    "clangd": {
+      "binary": {
+        "path": "/opt/homebrew/opt/llvm/bin/clangd",
+        "arguments": [
+          "--background-index",
+          "--clang-tidy=false",
+          "-j=2"
+        ]
+      }
+    }
+  },
+  "languages": {
+    "C++": {
+      "language_servers": [
+        "clangd"
+      ]
+    }
+  },
+  "git": {
+    "disable_git": true,
+    "enable_status": false,
+    "enable_diff": false
+  }
+}
