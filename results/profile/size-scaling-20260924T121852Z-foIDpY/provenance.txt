@@ -1,0 +1,44 @@
+run_dir=/home/Student/s4908827/cosc3500-m2-separate.9KlNu4/results/profile/size-scaling-20260924T121852Z-foIDpY
+serial_build=/home/Student/s4908827/cosc3500-m2-separate.9KlNu4/build/size-scaling-serial
+openmp_build=/home/Student/s4908827/cosc3500-m2-separate.9KlNu4/build/size-scaling-openmp
+workloads=100k 200k 400k 800k
+seeds=31 32 33
+threads=1 2 4 8
+samples=5
+warmups=1
+minimum_case_ms=1000
+
+== kernel ==
+Linux vcpu-5 4.18.0-553.150.1.el8_10.x86_64 #1 SMP Fri Jul 31 15:23:31 EDT 2026 x86_64 x86_64 x86_64 GNU/Linux
+
+== cpu ==
+Architecture:        x86_64
+CPU op-mode(s):      32-bit, 64-bit
+Byte Order:          Little Endian
+CPU(s):              8
+On-line CPU(s) list: 0-7
+Thread(s) per core:  1
+Core(s) per socket:  8
+Socket(s):           1
+NUMA node(s):        1
+Vendor ID:           AuthenticAMD
+CPU family:          23
+Model:               0
+Model name:          AMD EPYC 7542 32-Core Processor
+Stepping:            0
+CPU MHz:             2894.562
+BogoMIPS:            5789.12
+Hypervisor vendor:   VMware
+Virtualization type: full
+L1d cache:           32K
+L1i cache:           32K
+L2 cache:            512K
+L3 cache:            16384K
+NUMA node0 CPU(s):   0-7
+Flags:               fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl tsc_reliable nonstop_tsc cpuid extd_apicid pni pclmulqdq ssse3 fma cx16 sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext ssbd ibpb vmmcall fsgsbase bmi1 avx2 smep bmi2 rdseed adx smap clflushopt sha_ni xsaveopt xsavec xsaves clzero arat overflow_recov succor
+
+== affinity ==
+pid 919349's current affinity list: 0-7
+
+== compiler ==
+g++ (GCC) 13.3.1 20240611 (Red Hat 13.3.1-2)

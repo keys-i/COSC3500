@@ -1,15 +1,17 @@
 
-# M0 and M1 references
+# References
 
-See [refs.md](refs.md) for dataset, event and artwork sources.
+These sources support the engine, rendering, cluster workflow and the archived
+Milestone 1 baseline. M2 measurement evidence is recorded separately in the
+[M2 ledger](m2.log.md).
 
-## M0
+## Archived M0 smoke program
 
 | Source | Use |
 | --- | --- |
 | [C++ `puts`](https://en.cppreference.com/w/cpp/io/c/puts) | Smoke program |
 
-## M1
+## Engine and optimisation
 
 ### Serial simulation
 
@@ -56,4 +58,6 @@ See [refs.md](refs.md) for dataset, event and artwork sources.
 
 ## Use of AI
 
-AI was used to compile this reference list and write this statement.
+AI-assisted drafting and code review were used during the M2 revision. Reported
+measurements remain raw, checksum-validated outputs; assistance does not
+replace that evidence.

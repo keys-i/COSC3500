@@ -1,7 +1,9 @@
 # Performance evidence
 
-M1 times compiled simulation work only. Parsing, CLX generation, rendering,
-snapshot output and report drawing sit outside the measured process.
+M1 and M2 time compiled simulation work only. Parsing, CLX generation,
+rendering, snapshot output and report drawing sit outside the measured process.
+M1 results belong to the frozen `m1` binary. M2 results must name the separate
+`m2` binary and independent source tree.
 
 ## Workloads
 
@@ -17,7 +19,7 @@ enter the continuous-agent path changed by L0–L7.
 
 ## Measurement contract
 
-Every case runs from the fixed `evidence` build with a numeric seed. The harness
+Every case runs from a fixed release build with a numeric seed. The harness
 warms the executable, repeats it until the requested sample and minimum-time
 conditions are met, then reports:
 
@@ -66,3 +68,11 @@ M1_BENCH_OUT="$PWD/$latest" python3 tools/scripts/report.py graph
 
 The CSV is the source of truth. Keep it beside any graph or speedup quoted in a
 report.
+
+## M2 source-separation gate
+
+Before accepting an M2 row, record the command path to `m2`, `M2_OPT_LEVEL`,
+`HPC_M2_OPENMP`, compiler flags, and the raw output directory. Compare M2 L0
+with M2 L7 for the serial optimisation, then M2 L7 OpenMP p1 with p2/p4/p8
+for parallel scaling. Historical M1 L0 rows are cross-codebase context, not
+an M2 baseline. The M2 ledger defines the rerun matrix.

@@ -31,8 +31,10 @@ struct Case {
     Program program;
 };
 
-/// Return the fixed suite used by scripts and the benchmark report
+/// Return the fixed M1 suite used by scripts and the benchmark report
 [[nodiscard]] const std::array<Case, 12U> &m1_cases() noexcept;
+/// Return the fixed M2 suite used by the parallel benchmark scripts
+[[nodiscard]] const std::array<Case, 4U> &m2_cases() noexcept;
 /// Look up one program, or return null when the requested case is unsupported
 [[nodiscard]] const Program *program(std::string_view target,
                                      std::string_view case_name = {}) noexcept;

@@ -375,7 +375,7 @@ def draw_turn_status(pygame, screen, fonts, frames, position, numbers, cache):
         turn_text = (
             "GAME OVER"
             if next_player < 0
-            else "YOUR TURN"
+            else "TO MOVE"
             if index == next_player
             else "WAITING"
         )

@@ -18,6 +18,7 @@ option(HPC_WARNINGS_AS_ERRORS "Treat project warnings as errors" OFF)
 option(HPC_FIXED_RELEASE_FLAGS "Use fixed release evidence flags" OFF)
 option(HPC_BUILD_M0 "Build the formative m0 executable" ON)
 option(HPC_BUILD_M1 "Build the serial m1 executable" ON)
+option(HPC_BUILD_M2 "Build the independent m2 executable" ON)
 set(
   M1_OPT_LEVEL
   "7"
@@ -30,6 +31,26 @@ endif()
 option(
   HPC_M1_WIDE_GRID
   "Use 64-bit continuous-grid indices for m1 capacity experiments"
+  OFF
+)
+set(
+  M2_OPT_LEVEL
+  "7"
+  CACHE STRING
+  "Cumulative m2 source optimisation level (0..7)"
+)
+if(NOT M2_OPT_LEVEL MATCHES "^[0-7]$")
+  message(FATAL_ERROR "M2_OPT_LEVEL must be an integer in 0..7")
+endif()
+option(
+  HPC_M2_WIDE_GRID
+  "Use 64-bit continuous-grid indices for m2 capacity experiments"
+  OFF
+)
+option(HPC_M2_OPENMP "Enable OpenMP in the independent m2 engine" OFF)
+option(
+  HPC_M2_PHASE_PROFILE
+  "Emit m2 continuous-kernel diagnostic phase timings"
   OFF
 )
 option(HPC_REQUIRE_SLURM_ALLOCATION "Require a Slurm allocation" OFF)
@@ -47,16 +68,20 @@ function(hpc_link_build_policy target)
   target_link_libraries("${target}" PRIVATE hpc_build)
 endfunction()
 
-function(hpc_enable_clx_aot target)
+function(hpc_enable_clx_aot target source_namespace)
   # Build scenario Lua ahead of time so runs never compile scripts
   set(clx_source "${PROJECT_SOURCE_DIR}/third_party/clx")
   if(NOT EXISTS "${clx_source}/CMakeLists.txt")
     message(FATAL_ERROR "CLX v0.3.0 is missing; initialise the submodule")
   endif()
-  set(previous_compile_commands "${CMAKE_EXPORT_COMPILE_COMMANDS}")
-  set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
-  add_subdirectory("${clx_source}" "${CMAKE_BINARY_DIR}/clx" EXCLUDE_FROM_ALL)
-  set(CMAKE_EXPORT_COMPILE_COMMANDS "${previous_compile_commands}")
+  get_property(clx_configured GLOBAL PROPERTY HPC_CLX_CONFIGURED)
+  if(NOT clx_configured)
+    set(previous_compile_commands "${CMAKE_EXPORT_COMPILE_COMMANDS}")
+    set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
+    add_subdirectory("${clx_source}" "${CMAKE_BINARY_DIR}/clx" EXCLUDE_FROM_ALL)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS "${previous_compile_commands}")
+    set_property(GLOBAL PROPERTY HPC_CLX_CONFIGURED TRUE)
+  endif()
   target_include_directories("${target}" SYSTEM PRIVATE "${clx_source}/include")
 
   file(
@@ -98,7 +123,7 @@ function(hpc_enable_clx_aot target)
       if(scenario_file MATCHES "^${PROJECT_SOURCE_DIR}/proj/scenarios/")
         message(
           FATAL_ERROR
-          "M1 demo scenario must declare [rules] file=*.lua: \
+          "${source_namespace} demo scenario must declare [rules] file=*.lua: \
 ${scenario_file}"
         )
       endif()
@@ -110,7 +135,7 @@ ${scenario_file}"
       get_filename_component(parent_dir "${scenario_dir}" DIRECTORY)
       set(rule "${parent_dir}/${CMAKE_MATCH_1}")
       if(NOT EXISTS "${rule}")
-        message(FATAL_ERROR "M1 AOT rules file is missing: ${rule}")
+        message(FATAL_ERROR "${source_namespace} AOT rules file is missing: ${rule}")
       endif()
     endif()
     get_filename_component(program_dir "${rule}" DIRECTORY)
@@ -123,7 +148,10 @@ ${scenario_file}"
     set(generated_${program_symbol} TRUE)
     set(symbol "${program_symbol}")
     set(bundle_dir "${program_dir}")
-    set(stage "${CMAKE_BINARY_DIR}/generated/scenarios/${program_bundle}")
+    set(
+      stage
+      "${CMAKE_BINARY_DIR}/generated/${source_namespace}/scenarios/${program_bundle}"
+    )
     set(entry "${stage}/${symbol}.lua")
     file(GLOB bundle_lua CONFIGURE_DEPENDS "${bundle_dir}/*.lua")
     set(staged_lua "${entry}")
@@ -194,15 +222,18 @@ ${scenario_file}"
     )
   endforeach()
 
-  set(registry_source "${CMAKE_BINARY_DIR}/generated/scenarios/registry.cpp")
+  set(
+    registry_source
+    "${CMAKE_BINARY_DIR}/generated/${source_namespace}/scenarios/registry.cpp"
+  )
   # Map validated bundle paths to their compiled Lua entry points
-  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated/scenarios")
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated/${source_namespace}/scenarios")
   file(
     WRITE "${registry_source}"
     "#include <clx.h>\n"
     "#include \"simulation/runtime/lua.hpp\"\n"
     "${registry_declarations}"
-    "namespace m1 {\n"
+    "namespace ${source_namespace} {\n"
     "namespace {\n"
     "${registry_modules}"
     "const ScenarioProgram programs[] = {\n"
@@ -214,43 +245,31 @@ ${scenario_file}"
     "    count = sizeof(programs) / sizeof(*programs);\n"
     "    return programs;\n"
     "}\n"
-    "} // namespace m1\n"
+    "} // namespace ${source_namespace}\n"
   )
   list(APPEND generated_sources "${registry_source}")
 
-  add_library(m1_aot_scenarios STATIC ${generated_sources})
-  add_dependencies(m1_aot_scenarios clx)
-  target_link_libraries(m1_aot_scenarios PUBLIC clx_static)
+  set(aot_target "${source_namespace}_aot_scenarios")
+  add_library(${aot_target} STATIC ${generated_sources})
+  add_dependencies(${aot_target} clx)
+  target_link_libraries(${aot_target} PUBLIC clx_static)
   target_include_directories(
-    m1_aot_scenarios
-    PRIVATE "${PROJECT_SOURCE_DIR}/proj/m1"
+    ${aot_target}
+    PRIVATE "${PROJECT_SOURCE_DIR}/proj/${source_namespace}"
   )
   # Ignore warnings from CLX-generated code
   target_compile_options(
-    m1_aot_scenarios
+    ${aot_target}
     PRIVATE $<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:-w>
   )
-  target_link_libraries("${target}" PRIVATE m1_aot_scenarios)
-  set_property(TARGET m1_aot_scenarios PROPERTY FOLDER "build-tools")
+  target_link_libraries("${target}" PRIVATE ${aot_target})
+  set_property(TARGET ${aot_target} PROPERTY FOLDER "build-tools")
 endfunction()
 
 # Coursework executables
 if(HPC_BUILD_M0)
   hpc_add_entrypoint(NAME m0 SOURCE "${PROJECT_SOURCE_DIR}/proj/m0/main.cpp")
 endif()
-
-# Build later coursework targets only when their sources exist
-set(optional_entrypoints "m2|${PROJECT_SOURCE_DIR}/proj/m2/main.cpp|parallel")
-foreach(entrypoint IN LISTS optional_entrypoints)
-  string(REPLACE "|" ";" fields "${entrypoint}")
-  list(GET fields 0 name)
-  list(GET fields 1 source)
-  if(EXISTS "${source}")
-    hpc_add_entrypoint(NAME "${name}" SOURCE "${source}")
-  else()
-    message(STATUS "${name}: source not found; skipping target")
-  endif()
-endforeach()
 
 if(HPC_BUILD_M1 AND EXISTS "${PROJECT_SOURCE_DIR}/proj/m1/cmdline.cpp")
   # m1_core contains simulation code; m1 adds files and the CLI
@@ -273,19 +292,69 @@ if(HPC_BUILD_M1 AND EXISTS "${PROJECT_SOURCE_DIR}/proj/m1/cmdline.cpp")
   target_include_directories(m1_core PUBLIC "${PROJECT_SOURCE_DIR}/proj/m1")
   set_target_properties(m1_core PROPERTIES CXX_EXTENSIONS OFF)
   hpc_link_build_policy(m1_core)
-  target_link_libraries(m1_core PRIVATE m1_scalar)
+  target_link_libraries(m1_core PRIVATE hpc_scalar)
   target_compile_definitions(m1_core PRIVATE M1_OPT_LEVEL=${M1_OPT_LEVEL})
   if(HPC_M1_WIDE_GRID)
     target_compile_definitions(m1_core PRIVATE M1_WIDE_GRID=1)
   endif()
-  hpc_enable_clx_aot(m1_core)
+  hpc_enable_clx_aot(m1_core m1)
   target_link_libraries(m1 PRIVATE m1_core)
   if(BUILD_TESTING)
-    add_executable(simulation "${PROJECT_SOURCE_DIR}/tests/m1/simulation.cpp")
+    add_executable(simulation "${PROJECT_SOURCE_DIR}/tests/m1_simulation.cpp")
     target_compile_definitions(simulation PRIVATE M1_OPT_LEVEL=${M1_OPT_LEVEL})
     target_link_libraries(simulation PRIVATE m1_core)
     add_test(NAME m1.simulation COMMAND $<TARGET_FILE:simulation>)
     set_tests_properties(m1.simulation PROPERTIES LABELS "unit;simulation")
+  endif()
+endif()
+
+if(HPC_BUILD_M2 AND EXISTS "${PROJECT_SOURCE_DIR}/proj/m2/cmdline.cpp")
+  # m2 is a source-level fork: it must never link m1_core
+  hpc_add_entrypoint(NAME m2 SOURCE "${PROJECT_SOURCE_DIR}/proj/m2/cmdline.cpp")
+  target_sources(m2 PRIVATE "${PROJECT_SOURCE_DIR}/proj/m2/scene.cpp")
+  add_library(
+    m2_core
+    STATIC
+    "${PROJECT_SOURCE_DIR}/proj/m2/config/parse.cpp"
+    "${PROJECT_SOURCE_DIR}/proj/m2/config/characters.cpp"
+    "${PROJECT_SOURCE_DIR}/proj/m2/config/kernels.cpp"
+    "${PROJECT_SOURCE_DIR}/proj/m2/simulation/state.cpp"
+    "${PROJECT_SOURCE_DIR}/proj/m2/simulation/runtime/lua.cpp"
+    "${PROJECT_SOURCE_DIR}/proj/m2/simulation/runtime/commands.cpp"
+    "${PROJECT_SOURCE_DIR}/proj/m2/simulation/kernels/continuous.cpp"
+    "${PROJECT_SOURCE_DIR}/proj/m2/simulation/kernels/cellular.cpp"
+    "${PROJECT_SOURCE_DIR}/proj/m2/simulation/kernels/events.cpp"
+    "${PROJECT_SOURCE_DIR}/proj/m2/simulation/kernels/pde.cpp"
+  )
+  target_include_directories(m2_core PUBLIC "${PROJECT_SOURCE_DIR}/proj/m2")
+  set_target_properties(m2_core PROPERTIES CXX_EXTENSIONS OFF)
+  hpc_link_build_policy(m2_core)
+  target_link_libraries(m2_core PRIVATE hpc_scalar)
+  target_compile_definitions(m2_core PRIVATE M2_OPT_LEVEL=${M2_OPT_LEVEL})
+  if(HPC_M2_WIDE_GRID)
+    target_compile_definitions(m2_core PRIVATE M2_WIDE_GRID=1)
+  endif()
+  if(HPC_M2_OPENMP)
+    find_package(OpenMP REQUIRED COMPONENTS CXX)
+    target_link_libraries(m2_core PRIVATE OpenMP::OpenMP_CXX)
+    target_compile_definitions(m2_core PRIVATE M2_OPENMP=1)
+  endif()
+  if(HPC_M2_PHASE_PROFILE)
+    target_compile_definitions(m2_core PRIVATE M2_PHASE_PROFILE=1)
+  endif()
+  hpc_enable_clx_aot(m2_core m2)
+  target_link_libraries(m2 PRIVATE m2_core)
+  if(BUILD_TESTING)
+    add_executable(m2_simulation "${PROJECT_SOURCE_DIR}/tests/m2_simulation.cpp")
+    target_sources(m2_simulation PRIVATE "${PROJECT_SOURCE_DIR}/proj/m2/scene.cpp")
+    target_compile_definitions(m2_simulation PRIVATE M2_OPT_LEVEL=${M2_OPT_LEVEL})
+    target_link_libraries(m2_simulation PRIVATE m2_core)
+    if(HPC_M2_OPENMP)
+      target_compile_definitions(m2_simulation PRIVATE M2_OPENMP=1)
+      target_link_libraries(m2_simulation PRIVATE OpenMP::OpenMP_CXX)
+    endif()
+    add_test(NAME m2.simulation COMMAND $<TARGET_FILE:m2_simulation>)
+    set_tests_properties(m2.simulation PROPERTIES LABELS "unit;simulation;m2")
   endif()
 endif()
 
@@ -676,7 +745,7 @@ endif()
         NAME m1.visualiser-dependencies
         COMMAND
           "${M1_UV_EXECUTABLE}" run --locked --offline
-          tests/visual/test_renderer.py
+          tests/visualiser_test.py
       )
       set_tests_properties(
         m1.visualiser-dependencies
@@ -734,7 +803,7 @@ UV_CACHE_DIR=${CMAKE_BINARY_DIR}/uv-cache"
         NAME m1.twists
         COMMAND
           "${M1_UV_EXECUTABLE}" run --locked --offline
-          tests/scenarios/conway/check_twists.py results/snapshots/conway.csv
+          tests/conway_twists.py results/snapshots/conway.csv
       )
       set_tests_properties(
         m1.twists
@@ -754,9 +823,10 @@ UV_CACHE_DIR=${CMAKE_BINARY_DIR}/uv-cache"
       "${PROJECT_SOURCE_DIR}/tests/bench.cpp"
       "${PROJECT_SOURCE_DIR}/benches/bench.cpp"
       "${PROJECT_SOURCE_DIR}/benches/m1.cpp"
+      "${PROJECT_SOURCE_DIR}/benches/m2.cpp"
     )
     target_compile_definitions(benchmark PRIVATE COSC3500_BENCH_EMBEDDED)
-    target_link_libraries(benchmark PRIVATE hpc_build m1_scalar)
+    target_link_libraries(benchmark PRIVATE hpc_build hpc_scalar)
     add_test(NAME hpc.benchmark COMMAND $<TARGET_FILE:benchmark>)
     set_tests_properties(hpc.benchmark PROPERTIES LABELS "unit;smoke")
   endif()

@@ -1,24 +1,49 @@
 #!/usr/bin/env bash
-# Install local tools, fetch CLX, and expose repository tool configuration
+# Prepare the C++ build, optional renderer, or contributor tools
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
-if (($#)); then
-    [[ $# == 1 && ($1 == help || $1 == --help) ]] || {
-        echo 'usage: tools/scripts/setup.sh' >&2
-        exit 2
-    }
-    echo 'usage: tools/scripts/setup.sh'
-    exit
+visual=false
+developer=false
+
+usage() {
+    cat <<'EOF'
+usage: tools/scripts/setup.sh [--visual] [--developer]
+
+Prepare the C++ build prerequisites and verify vendored CLX.
+  --visual     install the offline renderer and video-export prerequisites
+  --developer  install formatters, language servers, and Python check tools
+EOF
+}
+
+for option in "$@"; do
+    case $option in
+        --visual) visual=true ;;
+        --developer) developer=true ;;
+        help|--help) usage; exit ;;
+        *) usage >&2; exit 2 ;;
+    esac
+done
+
+clx_source="$root/third_party/clx"
+if [[ ! -f "$clx_source/CMakeLists.txt" || ! -f "$clx_source/include/clx.h" ]]; then
+    cat >&2 <<EOF
+The vendored CLX source is missing or incomplete at $clx_source.
+Obtain a checkout that includes the vendored source, then rerun setup.
+This script does not fetch or modify source dependencies.
+EOF
+    exit 1
 fi
 
 case $(uname -s) in
     Darwin)
         command -v brew >/dev/null || {
-            echo 'Homebrew is required' >&2
+            echo 'Homebrew is required for macOS setup' >&2
             exit 1
         }
         brew bundle --file="$root/tools/config/Brewfile"
+        $visual && brew install ffmpeg uv
+        $developer && brew install llvm lua-language-server stylua uv
         ;;
     Linux)
         # Prefer site modules; never use a privileged install
@@ -34,9 +59,9 @@ case $(uname -s) in
             source /opt/rh/gcc-toolset-13/enable
             export CC=gcc CXX=g++
         fi
-        for command_name in git cmake "${CXX:-c++}"; do
+        for command_name in cmake ninja "${CXX:-c++}"; do
             command -v "$command_name" >/dev/null || {
-                printf 'missing %s; load your site module (for example: module load cmake compiler) and rerun\n' "$command_name" >&2
+                printf 'missing %s; load your site module (for example: module load cmake compiler ninja) and rerun\n' "$command_name" >&2
                 exit 1
             }
         done
@@ -47,62 +72,53 @@ case $(uname -s) in
         ;;
 esac
 
-git -C "$root" submodule update --init --recursive
-cd "$root"
-# uv is the only user-local bootstrap on machines that do not provide it
-if ! command -v uv >/dev/null; then
-    command -v curl >/dev/null || {
-        echo 'uv is missing; install it in your user account or provide curl' >&2
+if ! $visual && ! $developer; then
+    exit
+fi
+
+command -v uv >/dev/null || {
+    echo 'uv is required for --visual or --developer; install it first' >&2
+    exit 1
+}
+if $visual && [[ $(uname -s) == Linux ]]; then
+    command -v ffmpeg >/dev/null || {
+        echo 'ffmpeg is required for --visual; load a site module or install it in your user account' >&2
         exit 1
     }
-    curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.local/bin:$PATH"
-fi
-command -v uv >/dev/null || {
-    echo 'uv installation failed' >&2
-    exit 1
-}
-if ! command -v ninja >/dev/null; then
-    uv tool install ninja
-    PATH="$(uv tool dir --bin):$PATH"
-    export PATH
-fi
-command -v ninja >/dev/null || {
-    echo 'ninja installation failed' >&2
-    exit 1
-}
-uv sync --locked
-
-# Preserve the selected compiler after this process exits.
-if [[ -r /opt/rh/gcc-toolset-13/enable ]]; then
-    cmake --fresh --preset dev
-    cmake --fresh --preset evidence
 fi
 
-# Root links let each formatter find the canonical file in tools/config
-clangd_config=tools/config/cpp/.clangd
-if [[ -d /home/groups/cosc3500/shared/matmul/include ]]; then
-    clangd_config=tools/config/cpp/.clangd-cluster
+if $visual && $developer; then
+    uv sync --locked --python 3.13
+elif $visual; then
+    uv sync --locked --no-dev --python 3.13
+else
+    uv sync --locked --only-group dev --python 3.13
 fi
-for config in \
-    .clang-format:tools/config/cpp/.clang-format \
-    .clang-tidy:tools/config/cpp/.clang-tidy \
-    .clangd:"$clangd_config" \
-    .gersemirc:tools/config/cpp/.gersemirc \
-    .luarc.json:tools/config/lua/language-server.json \
-    .stylua.toml:tools/config/lua/.stylua.toml \
-    pyrightconfig.json:tools/config/python/pyrightconfig.json \
-    .ruff.toml:tools/config/python/ruff.toml; do
-    link=${config%%:*}
-    [[ ! -e $link || -L $link ]] || {
-        echo "$link must be an ignored tool link" >&2
+
+if $developer; then
+    clangd_config=tools/config/cpp/.clangd
+    if [[ -d /home/groups/cosc3500/shared/matmul/include ]]; then
+        clangd_config=tools/config/cpp/.clangd-cluster
+    fi
+    for config in \
+        .clang-format:tools/config/cpp/.clang-format \
+        .clang-tidy:tools/config/cpp/.clang-tidy \
+        .clangd:"$clangd_config" \
+        .gersemirc:tools/config/cpp/.gersemirc \
+        .luarc.json:tools/config/lua/language-server.json \
+        .stylua.toml:tools/config/lua/.stylua.toml \
+        pyrightconfig.json:tools/config/python/pyrightconfig.json \
+        .ruff.toml:tools/config/python/ruff.toml; do
+        link=${config%%:*}
+        [[ ! -e $link || -L $link ]] || {
+            echo "$link must be an ignored tool link" >&2
+            exit 2
+        }
+        ln -sfn "${config#*:}" "$link"
+    done
+    [[ ! -e compile_commands.json || -L compile_commands.json ]] || {
+        echo 'compile_commands.json must be an ignored tool link' >&2
         exit 2
     }
-    ln -sfn "${config#*:}" "$link"
-done
-
-[[ ! -e compile_commands.json || -L compile_commands.json ]] || {
-    echo 'compile_commands.json must be an ignored tool link' >&2
-    exit 2
-}
-ln -sfn build/dev/compile_commands.json compile_commands.json
+    ln -sfn build/dev/compile_commands.json compile_commands.json
+fi

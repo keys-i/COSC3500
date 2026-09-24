@@ -5,27 +5,29 @@
 [![Security][security-badge]][security-workflow]
 [![Explore][explore-badge]][explore-workflow]
 
-A serial C++20 simulation engine for COSC3500 Milestone 1. It reads validated
-`.sim` bundles, runs one of five generic kernels and exports deterministic
-state for an offline renderer. Scenario rules are written in Lua and compiled
-to C++ by CLX before the program runs.
+A C++20 simulation engine for COSC3500. `proj/m1/` is the frozen serial
+Milestone 1 record. `proj/m2/` is a separate source tree and executable for
+Milestone 2: it reads the same validated `.sim` bundles, runs deterministic
+state updates, and can enable OpenMP for the measured continuous-kernel path.
+Scenario rules are compiled ahead of time by CLX.
 
 [![Open in GitHub Codespaces][codespaces-badge]][codespaces-link]
 
 ## Build it
 
-You need CMake 3.25 or newer, Ninja, GNU Make, Bash, a C++20 compiler and `uv`.
+You need CMake 3.25 or newer, Ninja, GNU Make, Bash and a C++20 compiler.
 
 ```bash
 git clone --recurse-submodules https://github.com/keys-i/COSC3500.git
 cd COSC3500
 ./tools/scripts/setup.sh
-make m
-tools/scripts/test.sh test
+make m2
+tools/scripts/test.sh m2
 ```
 
-On macOS, setup installs the pinned local tools from the Brewfile. Rangpur has
-its own compiler and Slurm path in [the cluster guide](docs/cluster.md)
+On macOS, setup installs the tools listed in the Brewfile; it does not pin
+their versions. Rangpur has its own compiler and Slurm path in [the cluster
+guide](docs/cluster.md)
 
 ## Included scenarios
 
@@ -37,9 +39,9 @@ its own compiler and Slurm path in [the cluster guide](docs/cluster.md)
 | Timeline | Chronus | `templates/chronus` |
 | PDE | Heston equation | `templates/heston` |
 
-Continuous agents are exercised by the predator-prey benchmark used for the
-L0–L7 optimisation ladder. The scenarios above use the same parser and
-compiled-rule interface and produce repeatable output.
+Continuous agents are exercised by the predator-prey benchmark. M2 claims
+refer only to the independent `m2` executable and its recorded run directory;
+M1 measurements are historical context, not M2 results.
 
 ## Read what you need
 
@@ -48,6 +50,8 @@ compiled-rule interface and produce repeatable output.
 - [Infrastructure](docs/infra.md) — repository layout, presets and generated files
 - [Rangpur](docs/cluster.md) — setup, submission, monitoring and result transfer
 - [References](docs/refs.md) — technical sources, datasets, licences and provenance
+- [M1 ledger](docs/m1.log.md) — frozen historical serial evidence
+- [M2 ledger](docs/m2.log.md) — independent-source measurement plan and results
 
 [checks-badge]: https://github.com/keys-i/COSC3500/actions/workflows/check.yml/badge.svg
 [checks-workflow]: https://github.com/keys-i/COSC3500/actions/workflows/check.yml

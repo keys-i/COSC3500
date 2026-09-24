@@ -1,7 +1,2 @@
 brew "cmake"
-brew "ffmpeg"
-brew "llvm"
-brew "lua-language-server"
 brew "ninja"
-brew "stylua"
-brew "uv"

@@ -1,0 +1,4 @@
+steps=10 characters=2 initial=100000 active=100000 entity_updates=1000000 candidate_checks=1639570 sensed_interactions=1144577 captures=0 births=0 deaths=0 cell_updates=0 turns=0 timeline_events=0 run_seed=32 render_seed=16927763432924390401 result=-1 state_bytes=6600012 checksum=71694acd167d9539
+elapsed_ns=53183075
+pair_evaluations=1639570 pair_list_rebuilds=1 pair_list_bytes=5835916
+page_policy=none host_page_bytes=0 advised_bytes=0 anon_huge_bytes=0 backing_verified=false

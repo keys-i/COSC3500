@@ -1,0 +1,7 @@
+variant,engine,opt_level,threads,median_ns_per_unit,median_speedup_vs_m1_l0,median_parallel_efficiency
+baseline,m1,0,1,358.239308,1.000000,
+final-serial,m2,7,1,94.944902,3.773128,
+final-openmp,m2,7,1,95.184898,3.758861,1.000000
+final-openmp,m2,7,2,67.600302,5.299374,0.704852
+final-openmp,m2,7,4,53.845809,6.660986,0.443199
+final-openmp,m2,7,8,52.130964,6.863229,0.228235

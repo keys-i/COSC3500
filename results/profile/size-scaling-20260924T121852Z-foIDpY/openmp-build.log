@@ -1,0 +1,55 @@
+[0/2] Re-checking globbed directories...
+[1/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/package.cpp.o
+[2/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/math.cpp.o
+[3/53] Building ASM object clx/CMakeFiles/clx_static.dir/src/runtime/coro_switch_x86_64.s.o
+[4/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/io.cpp.o
+[5/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/table.cpp.o
+[6/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/strings.cpp.o
+[7/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/base.cpp.o
+[8/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/utf8.cpp.o
+[9/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/runtime.cpp.o
+[10/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/coroutine.cpp.o
+[11/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/os.cpp.o
+[12/53] Building CXX object clx/CMakeFiles/clx.dir/src/syntax/lexer.cpp.o
+[13/53] Building CXX object CMakeFiles/hpc_bench.dir/benches/m1.cpp.o
+[14/53] Building CXX object CMakeFiles/hpc_bench.dir/benches/m2.cpp.o
+[15/53] Building CXX object clx/CMakeFiles/clx_static.dir/src/runtime/openlibs.cpp.o
+[16/53] Linking CXX static library clx/libclx.a
+[17/53] Building CXX object clx/CMakeFiles/clx.dir/src/syntax/parser.cpp.o
+[18/53] Building CXX object CMakeFiles/hpc_bench.dir/benches/bench.cpp.o
+[19/53] Building CXX object clx/CMakeFiles/clx.dir/src/clx.cpp.o
+[20/53] Linking CXX executable bench/hpc_bench
+[21/53] Building CXX object clx/CMakeFiles/clx.dir/src/optimizer/optimizer.cpp.o
+[22/53] Building CXX object clx/CMakeFiles/clx.dir/src/codegen/codegen.cpp.o
+[23/53] Linking CXX executable clx/clx
+[24/53] Compile proj/scenarios/heston Lua modules
+[25/53] Compile proj/scenarios/carrom Lua modules
+[26/53] Compile proj/scenarios/conway Lua modules
+[27/53] Compile proj/scenarios/chronus Lua modules
+[28/53] Compile proj/scenarios/chess Lua modules
+[29/53] Building CXX object CMakeFiles/m2_core.dir/proj/m2/config/parse.cpp.o
+[30/53] Building CXX object CMakeFiles/m2_aot_scenarios.dir/generated/m2/scenarios/proj/scenarios/chronus/proj_scenarios_chronus_ai.cpp.o
+[31/53] Building CXX object CMakeFiles/m2_aot_scenarios.dir/generated/m2/scenarios/proj/scenarios/heston/proj_scenarios_heston.cpp.o
+[32/53] Building CXX object CMakeFiles/m2_aot_scenarios.dir/generated/m2/scenarios/registry.cpp.o
+[33/53] Building CXX object CMakeFiles/m2_aot_scenarios.dir/generated/m2/scenarios/proj/scenarios/chess/proj_scenarios_chess_players.cpp.o
+[34/53] Building CXX object CMakeFiles/m2_aot_scenarios.dir/generated/m2/scenarios/proj/scenarios/conway/proj_scenarios_conway_kingdoms.cpp.o
+[35/53] Building CXX object CMakeFiles/m2_aot_scenarios.dir/generated/m2/scenarios/proj/scenarios/conway/proj_scenarios_conway.cpp.o
+[36/53] Building CXX object CMakeFiles/m2_core.dir/proj/m2/simulation/state.cpp.o
+[37/53] Building CXX object CMakeFiles/m2_core.dir/proj/m2/config/characters.cpp.o
+[38/53] Building CXX object CMakeFiles/m2_core.dir/proj/m2/config/kernels.cpp.o
+[39/53] Building CXX object CMakeFiles/m2_core.dir/proj/m2/simulation/kernels/cellular.cpp.o
+[40/53] Building CXX object CMakeFiles/m2_core.dir/proj/m2/simulation/kernels/events.cpp.o
+[41/53] Building CXX object CMakeFiles/m2_core.dir/proj/m2/simulation/runtime/commands.cpp.o
+[42/53] Building CXX object CMakeFiles/m2_core.dir/proj/m2/simulation/runtime/lua.cpp.o
+[43/53] Building CXX object CMakeFiles/m2_core.dir/proj/m2/simulation/kernels/pde.cpp.o
+[44/53] Building CXX object CMakeFiles/m2.dir/proj/m2/scene.cpp.o
+[45/53] Building CXX object CMakeFiles/m2_core.dir/proj/m2/simulation/kernels/continuous.cpp.o
+[46/53] Building CXX object CMakeFiles/m2_aot_scenarios.dir/generated/m2/scenarios/proj/scenarios/carrom/proj_scenarios_carrom.cpp.o
+[47/53] Building CXX object CMakeFiles/m2.dir/proj/m2/cmdline.cpp.o
+[48/53] Building CXX object CMakeFiles/m2_aot_scenarios.dir/generated/m2/scenarios/proj/scenarios/chess/proj_scenarios_chess.cpp.o
+[49/53] Building CXX object CMakeFiles/m2_aot_scenarios.dir/generated/m2/scenarios/proj/scenarios/chronus/proj_scenarios_chronus.cpp.o
+[50/53] Linking CXX static library libm2_aot_scenarios.a
+[51/53] Linking CXX static library libm2_core.a
+[52/53] Linking CXX executable bin/m2
+lto-wrapper: warning: using serial compilation of 61 LTRANS jobs
+lto-wrapper: note: see the ‘-flto’ option documentation for more information

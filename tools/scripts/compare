@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+[[ $(uname -s) == Linux ]] || { printf 'ERROR: Linux is required\n' >&2; exit 2; }
+for command in cmake ninja taskset python3 sha256sum; do
+    command -v "$command" >/dev/null || { printf 'ERROR: %s is required\n' "$command" >&2; exit 2; }
+done
+
+baseline_build="$root/build/profile-final-openmp"
+candidate_build="$root/build/ab-candidate"
+baseline="$baseline_build/bin/m2"
+benchmark="$baseline_build/bench/hpc_bench"
+[[ -x $baseline && -x $benchmark ]] || {
+    printf 'ERROR: the original M2 OpenMP profile build is missing\n' >&2
+    exit 2
+}
+grep -qx 'HPC_M2_OPENMP:BOOL=ON' "$baseline_build/CMakeCache.txt"
+grep -q -- '-DM2_OPT_LEVEL=7' "$baseline_build/compile_commands.json"
+
+allowed_cpus=$(taskset -pc "$$" | sed -E 's/^.*: *//')
+[[ $allowed_cpus == 0-7 ]] || {
+    printf 'ERROR: expected vcpu-5 affinity 0-7, got %s\n' "$allowed_cpus" >&2
+    exit 2
+}
+output_root=${AB_PROFILE_OUT:-$root/results/profile}
+mkdir -p "$output_root"
+run_dir=$(mktemp -d "$output_root/ab-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
+run_dir=$(cd "$run_dir" && pwd -P)
+{
+    printf 'run_dir=%s\nbaseline=%s\ncandidate_build=%s\n' "$run_dir" "$baseline" "$candidate_build"
+    printf 'case=continuous/predator-prey/100k\nseeds=31 32 33\nthreads=1 2 4 8\n'
+    printf 'rounds=2; order=baseline,candidate then candidate,baseline\n'
+    printf 'samples=5\nwarmups=1\nminimum_case_ms=1000\n'
+    printf '\n== kernel ==\n'; uname -a
+    printf '\n== cpu ==\n'; lscpu
+    printf '\n== affinity ==\n'; taskset -pc "$$"
+    printf '\n== compiler ==\n'; "${CXX:-g++}" --version | head -n 1
+    printf '\n== baseline binary SHA-256 ==\n'; sha256sum "$baseline"
+    printf '\n== candidate source SHA-256 ==\n'; sha256sum "$root/proj/m2/simulation/kernels/continuous.cpp"
+} >"$run_dir/provenance.txt"
+
+cmake -S "$root" -B "$candidate_build" -G Ninja -DBUILD_TESTING=OFF \
+    -DCMAKE_BUILD_TYPE=Release -DHPC_FIXED_RELEASE_FLAGS=ON \
+    -DM2_OPT_LEVEL=7 -DHPC_M2_OPENMP=ON >"$run_dir/configure.log" 2>&1
+cmake --build "$candidate_build" --target m2 >"$run_dir/build.log" 2>&1
+grep -qx 'HPC_M2_OPENMP:BOOL=ON' "$candidate_build/CMakeCache.txt"
+grep -q -- '-DM2_OPT_LEVEL=7' "$candidate_build/compile_commands.json"
+grep -q -- '-DM2_OPENMP=1' "$candidate_build/compile_commands.json"
+candidate="$candidate_build/bin/m2"
+sha256sum "$candidate" >>"$run_dir/provenance.txt"
+
+run_one() {
+    local seed=$1 threads=$2 round=$3 variant=$4 binary=$5 cpus tuple
+    cpus=0
+    for ((core=1; core<threads; ++core)); do cpus+=",$core"; done
+    tuple="$run_dir/seed-$seed/threads-$threads/round-$round"
+    mkdir -p "$tuple"
+    local -a command=(taskset -c "$cpus" env OMP_DYNAMIC=false OMP_NUM_THREADS="$threads"
+        OMP_PROC_BIND=close OMP_PLACES=cores "$benchmark" --target m2 --binary "$binary"
+        --case continuous/predator-prey/100k --seed "$seed" --warmup 1
+        --samples 5 --minimum-case-ms 1000 --csv)
+    { printf 'seed=%s threads=%s round=%s variant=%s:' "$seed" "$threads" "$round" "$variant"
+      printf ' %q' "${command[@]}"; printf '\n'; } >>"$run_dir/commands.txt"
+    "${command[@]}" >"$tuple/$variant.raw.csv"
+}
+
+for seed in 31 32 33; do
+    for threads in 1 2 4 8; do
+        run_one "$seed" "$threads" 1 baseline "$baseline"
+        run_one "$seed" "$threads" 1 candidate "$candidate"
+        run_one "$seed" "$threads" 2 candidate "$candidate"
+        run_one "$seed" "$threads" 2 baseline "$baseline"
+    done
+done
+python3 "$root/tools/scripts/comparison.py" "$run_dir" >"$run_dir/report.log" 2>&1
+printf 'M2 A/B evidence written to %s\n' "$run_dir"

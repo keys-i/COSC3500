@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
@@ -20,7 +21,7 @@
 #include <vector>
 
 /// \file
-/// Run deterministic m1 children, validate output, and report timing samples
+/// Run deterministic engine children, validate output, and report timing samples
 
 extern char **environ;
 
@@ -28,12 +29,17 @@ namespace hpc::bench {
 
 const Program *program(const std::string_view target,
                        const std::string_view case_name) noexcept {
-    if (target != "m1") {
-        return nullptr;
-    }
-    for (const Case &value : m1_cases()) {
-        if (case_name == value.name) {
-            return &value.program;
+    if (target == "m1") {
+        for (const Case &value : m1_cases()) {
+            if (case_name == value.name) {
+                return &value.program;
+            }
+        }
+    } else if (target == "m2") {
+        for (const Case &value : m2_cases()) {
+            if (case_name == value.name) {
+                return &value.program;
+            }
         }
     }
     return nullptr;
@@ -47,6 +53,9 @@ namespace {
 struct Options {
     std::string binary;
     std::string case_name;
+    std::string target{"m1"};
+    std::string seed{"31"};
+    bool seed_supplied = false;
     std::size_t warmups = 1U;
     std::size_t samples = 3U;
     std::size_t minimum_case_ms = 100U;
@@ -67,7 +76,7 @@ struct Measurement {
     std::uint64_t peak_rss_bytes = 0U;
 };
 
-// Page-policy values reported by the m1 benchmark child
+// Page-policy values reported by a benchmark child
 struct PageReport {
     std::string policy;
     std::uint64_t host_page_bytes = 0U;
@@ -114,6 +123,22 @@ struct Sample {
         throw std::runtime_error(std::string(name) + " must be an integer");
     }
     return parsed;
+}
+
+[[nodiscard]] std::string seed(const std::string_view value) {
+    if (value.empty() ||
+        !std::all_of(value.begin(), value.end(), [](const unsigned char c) {
+            return c >= '0' && c <= '9';
+        })) {
+        throw std::runtime_error("--seed must be an unsigned integer");
+    }
+    std::uint64_t parsed = 0U;
+    const auto [end, error] =
+        std::from_chars(value.data(), value.data() + value.size(), parsed);
+    if (error != std::errc{} || end != value.data() + value.size()) {
+        throw std::runtime_error("--seed must be an unsigned integer");
+    }
+    return std::string(value);
 }
 
 // Find the last field because elapsed output follows the deterministic summary
@@ -184,6 +209,14 @@ struct Sample {
             options.binary = value;
         } else if (name == "--case") {
             options.case_name = value;
+        } else if (name == "--target") {
+            if (value != "m1" && value != "m2") {
+                throw std::runtime_error("--target must be m1 or m2");
+            }
+            options.target = value;
+        } else if (name == "--seed") {
+            options.seed = seed(value);
+            options.seed_supplied = true;
         } else if (name == "--warmup") {
             options.warmups = positive(value, name);
         } else if (name == "--samples") {
@@ -273,8 +306,8 @@ median_interval(const std::vector<double> &values) {
 #endif
 }
 
-// Spawn one m1 process and retain its stdout for validation
-[[nodiscard]] Measurement run(const std::string &binary,
+// Spawn one engine process and retain its stdout for validation
+[[nodiscard]] Measurement run(const Options &options,
                               const hpc::bench::Program &program) {
     // Use a child so wait4 reports this sample's peak RSS
     int pipefd[2] = {-1, -1};
@@ -292,17 +325,15 @@ median_interval(const std::vector<double> &values) {
     posix_spawn_file_actions_addclose(&actions, pipefd[1]);
     char benchmark[] = "--benchmark";
     char seed[] = "--seed";
-    // Use the same seed for every timing sample
-    char seed_value[] = "31";
-    char *arguments[] = {const_cast<char *>(binary.c_str()),
+    char *arguments[] = {const_cast<char *>(options.binary.c_str()),
                          benchmark,
                          const_cast<char *>(program.argument.data()),
                          seed,
-                         seed_value,
+                         const_cast<char *>(options.seed.c_str()),
                          nullptr};
     pid_t child = 0;
-    const int spawned = posix_spawn(&child, binary.c_str(), &actions, nullptr,
-                                    arguments, environ);
+    const int spawned = posix_spawn(&child, options.binary.c_str(), &actions,
+                                    nullptr, arguments, environ);
     // Actions are process-local once posix_spawn returns
     posix_spawn_file_actions_destroy(&actions);
     close(pipefd[1]);
@@ -342,7 +373,8 @@ median_interval(const std::vector<double> &values) {
     return {std::move(output), rss_bytes(usage)};
 }
 
-[[nodiscard]] std::uint64_t elapsed(const std::string &output,
+[[nodiscard]] std::uint64_t elapsed(const Options &options,
+                                    const std::string &output,
                                     const hpc::bench::Program &program) {
     // Validate only fields before elapsed_ns because timing varies by run
     const std::size_t marker = output.rfind("elapsed_ns=");
@@ -350,11 +382,14 @@ median_interval(const std::vector<double> &values) {
         marker == std::string::npos
             ? std::string_view{}
             : std::string_view(output).substr(0U, marker);
-    if ((!program.expected_output.empty() &&
-         deterministic != program.expected_output) ||
-        (!program.expected_prefix.empty() &&
-         !deterministic.starts_with(program.expected_prefix)) ||
-        (program.checksum != "invariant" &&
+    // Fixed M1 fixtures describe seed 31; supplied seeds validate repetition
+    const bool output_matches =
+        (options.seed_supplied || program.expected_output.empty() ||
+         deterministic == program.expected_output) &&
+        (program.expected_prefix.empty() ||
+         deterministic.starts_with(program.expected_prefix));
+    if (!output_matches ||
+        (!options.seed_supplied && program.checksum != "invariant" &&
          field(deterministic, "checksum=") != program.checksum)) {
         throw std::runtime_error(
             "benchmark output differs from the expected output");
@@ -382,8 +417,8 @@ median_interval(const std::vector<double> &values) {
     bool have_page_report = false;
     bool have_metrics = false;
     while (duration < minimum) {
-        Measurement result = run(options.binary, program);
-        duration += elapsed(result.output, program);
+        Measurement result = run(options, program);
+        duration += elapsed(options, result.output, program);
         operations += program.operations;
         peak_rss = std::max(peak_rss, result.peak_rss_bytes);
         // Deterministic fields must agree before their timings may be combined
@@ -482,9 +517,23 @@ void benchmark_case(const Options &options, const hpc::bench::Case &value) {
               << (page_report.backing_verified ? "true" : "false") << '\n';
 }
 
+template <std::size_t Count>
+void benchmark_cases(const Options &options,
+                     const std::array<hpc::bench::Case, Count> &cases) {
+    for (const hpc::bench::Case &value : cases) {
+        if ((!options.case_name.empty() && options.case_name != value.name) ||
+            (options.case_name.empty() &&
+             (value.name.ends_with("/10m") || value.name.ends_with("/100m") ||
+              value.name.ends_with("/1b") ||
+              value.name.starts_with("capacity/")))) {
+            continue;
+        }
+        benchmark_case(options, value);
+    }
+}
+
 [[nodiscard]] int benchmark(const int argc, char *argv[]) {
     const Options options = parse_options(argc, argv);
-    const auto &cases = hpc::bench::m1_cases();
     // The header describes either the machine-readable or terminal output path
     if (options.csv) {
         std::cout
@@ -502,19 +551,12 @@ void benchmark_case(const Options &options, const hpc::bench::Case &value) {
                   << std::setw(8) << "CV" << std::setw(14) << "Munit/s"
                   << " unit state\n";
     }
-    // Default runs omit 10M+ and capacity cases; --case selects one exactly
-    for (const hpc::bench::Case &value : cases) {
-        if ((!options.case_name.empty() && options.case_name != value.name) ||
-            (options.case_name.empty() &&
-             (value.name.ends_with("/10m") || value.name.ends_with("/100m") ||
-              value.name.ends_with("/1b") ||
-              value.name.starts_with("capacity/")))) {
-            continue;
-        }
-        benchmark_case(options, value);
-    }
+    if (options.target == "m1")
+        benchmark_cases(options, hpc::bench::m1_cases());
+    else
+        benchmark_cases(options, hpc::bench::m2_cases());
     if (!options.case_name.empty() &&
-        hpc::bench::program("m1", options.case_name) == nullptr) {
+        hpc::bench::program(options.target, options.case_name) == nullptr) {
         throw std::runtime_error("unknown benchmark case: " +
                                  options.case_name);
     }
@@ -539,6 +581,16 @@ void benchmark_case(const Options &options, const hpc::bench::Case &value) {
         rejected = true;
     }
 
+    char seed_option[] = "--seed";
+    char seed_value[] = "42";
+    char target_option[] = "--target";
+    char target_value[] = "m2";
+    char binary_option[] = "--binary";
+    char binary_value[] = "m2";
+    char *valid[] = {executable, binary_option, binary_value, target_option,
+                     target_value, seed_option, seed_value, nullptr};
+    const Options seeded = parse_options(7, valid);
+
     const PageReport report =
         pages("elapsed_ns=1\npair_evaluations=2 pair_list_rebuilds=3 "
               "pair_list_bytes=4\npage_policy=huge host_page_bytes=4096 "
@@ -551,7 +603,13 @@ void benchmark_case(const Options &options, const hpc::bench::Case &value) {
     return result.median == 3.0 &&
            std::abs(result.cv - 0.5270462766947299) < 1e-12 &&
            result.ci_low == again.ci_low && result.ci_high == again.ci_high &&
-           rejected && hpc::bench::program("m1", "nope") == nullptr &&
+           rejected && seeded.target == "m2" && seeded.seed == "42" &&
+           seeded.seed_supplied &&
+           hpc::bench::program("m1", "nope") == nullptr &&
+           hpc::bench::program("m2", "continuous/predator-prey/100k") !=
+               nullptr &&
+           hpc::bench::program("m2", "continuous/predator-prey/800k") !=
+               nullptr &&
            report.policy == "huge" && report.host_page_bytes == 4096U &&
            report.backing_verified && metrics.state_bytes == 1U &&
            metrics.pair_evaluations == 2U && metrics.pair_list_rebuilds == 3U &&

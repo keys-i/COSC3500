@@ -160,7 +160,7 @@ def export_video(
     temporary = None
     try:
         temporary = tempfile.TemporaryDirectory(
-            prefix="m1-video-", dir=output.parent
+            prefix="sim-video-", dir=output.parent
         )
         intermediate = Path(temporary.name) / "video.mp4"
         completed = Path(temporary.name) / "completed.mp4"
@@ -605,9 +605,11 @@ def run_render(
         if metadata
         else ({}, [])
     )
-    poster_metadata, visual = (
-        load_scene_meta(metadata) if metadata else (None, {})
+    scene, poster_metadata, visual = (
+        load_scene_meta(metadata) if metadata else (None, None, {})
     )
+    if scene is not None and scene["art"] != "ready":
+        raise ValueError("scene metadata marks its visual art as unavailable")
     reduced_motion = reduced_motion or visual.get("reduced_motion") == "true"
     if presentation:
         presentation = {

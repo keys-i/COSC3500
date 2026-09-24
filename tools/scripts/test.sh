@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the documented test, visual, speed, and page-size workflows
+# Run independent M1 baseline and M2 engine checks
 set -Eeuo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
@@ -9,11 +9,17 @@ die() {
     printf 'ERROR: %s\n' "$*" >&2
     exit 2
 }
-configure() {
-    # The release preset keeps tests and timing on the same executable
+configure_m1() {
+    # M1 evidence stays serial and separate from the M2 executable
     local build="$root/build/evidence"
     cmake --preset evidence -S "$root" >/dev/null
     cmake --build "$build" --target m0 m1 simulation hpc_bench benchmark --verbose >&2 || return
+    printf '%s\n' "$build"
+}
+configure_m2() {
+    local build="$root/build/evidence"
+    cmake --preset evidence -S "$root" >/dev/null
+    cmake --build "$build" --target m2 m2_simulation >&2 || return
     printf '%s\n' "$build"
 }
 seed_contract() {
@@ -58,11 +64,11 @@ seed_contracts() {
     done
     ((failed == 0)) || die 'one or more seed contracts failed'
 }
-test() {
+test_m1() {
     # CTest covers parsers and kernels; these checks cover reports and seeds
     local build
     local -a ctest_args=(--output-on-failure)
-    build=$(configure)
+    build=$(configure_m1)
     [[ -z ${CTEST_EXCLUDE_REGEX:-} ]] ||
         ctest_args+=(--exclude-regex "$CTEST_EXCLUDE_REGEX")
     [[ -z ${CTEST_PARALLEL_LEVEL:-} ]] ||
@@ -79,10 +85,35 @@ test() {
         *) die 'TEST_SEED_CONTRACTS must be 0 or 1' ;;
     esac
 }
+m2_replay() {
+    local binary=$1 selector=$2 first second checksum_first checksum_second
+    first=$("$binary" "$selector" --seed 31)
+    second=$("$binary" "$selector" --seed 31)
+    checksum_first=$(sed -n 's/.* checksum=\([0-9a-f]*\).*/\1/p' <<<"$first")
+    checksum_second=$(sed -n 's/.* checksum=\([0-9a-f]*\).*/\1/p' <<<"$second")
+    [[ -n $checksum_first && $checksum_first == "$checksum_second" ]] ||
+        die "M2 replay mismatch: $selector"
+}
+test_m2() {
+    local build scenario
+    build=$(configure_m2)
+    ctest --test-dir "$build" --output-on-failure -R '^m2\.simulation$'
+    for scenario in chess chronus carrom conway; do
+        m2_replay "$build/bin/m2" "templates/$scenario"
+    done
+    for scenario in continuous cellular-host turn timeline pde-heat pde-reaction; do
+        m2_replay "$build/bin/m2" "test/$scenario"
+    done
+    "$build/bin/m2" --benchmark templates/conway/100k --seed 31 >/dev/null
+}
+test_all() {
+    test_m1
+    test_m2
+}
 viz() {
     # Render only the four scenarios with complete presentation assets
     local build meta bundle name state video rendered=0 skipped="$root/results/videos/skipped.csv"
-    build=$(configure)
+    build=$(configure_m1)
     mkdir -p "$root/results/videos"
     printf 'bundle,status\n' >"$skipped"
     # Skip bundles without finished art
@@ -104,9 +135,11 @@ viz() {
     [[ $rendered -eq 4 ]] || die "viz exported $rendered production templates; expected 4"
 }
 
-usage='usage: tools/scripts/test.sh test|viz|bench|bench levels|bench page|bench cluster'
+usage='usage: tools/scripts/test.sh test|m2|all|viz|bench|bench levels|bench page|bench cluster'
 case "$#:${1:-}:${2:-}" in
-    1:test:) test ;;
+    1:test: | 1:m1:) test_m1 ;;
+    1:m2:) test_m2 ;;
+    1:all:) test_all ;;
     1:viz:) viz ;;
     1:bench:) python3 tools/scripts/report.py ;;
     2:bench:levels) python3 tools/scripts/report.py levels ;;

@@ -1,0 +1,13 @@
+case,entities,threads,seed,median_ns_per_unit,normalised_elapsed_vs_100k_p1,weak_scaling_efficiency,checksum
+continuous/predator-prey/100k,100000,1,31,94.983739,1.000000,1.000000,cf299cf42034d25c
+continuous/predator-prey/100k,100000,1,32,94.684373,1.000000,1.000000,71694acd167d9539
+continuous/predator-prey/100k,100000,1,33,94.413439,1.000000,1.000000,31321f12775b1892
+continuous/predator-prey/200k,200000,2,31,72.790130,1.532686,0.652449,b7a3c892b5d6d297
+continuous/predator-prey/200k,200000,2,32,72.649982,1.534572,0.651648,115eaada2dfcb972
+continuous/predator-prey/200k,200000,2,33,72.729041,1.540650,0.649077,d64d1bd9c36ed571
+continuous/predator-prey/400k,400000,4,31,65.312666,2.750478,0.363573,0b5ca7ecce44b545
+continuous/predator-prey/400k,400000,4,32,66.279079,2.800001,0.357143,5b6defc4e584fa19
+continuous/predator-prey/400k,400000,4,33,65.427365,2.771951,0.360757,932e379997d6c1a6
+continuous/predator-prey/800k,800000,8,31,65.394011,5.507807,0.181560,41e8d94f545145f5
+continuous/predator-prey/800k,800000,8,32,65.335079,5.520242,0.181151,ebac6b7e7bf7f8b6
+continuous/predator-prey/800k,800000,8,33,66.286590,5.616708,0.178040,f75c793ffbaae1c8

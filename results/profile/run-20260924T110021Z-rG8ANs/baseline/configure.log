@@ -1,0 +1,19 @@
+-- The CXX compiler identification is GNU 13.3.1
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /opt/rh/gcc-toolset-13/root/usr/bin/g++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- The C compiler identification is GNU 13.3.1
+-- The ASM compiler identification is GNU
+-- Found assembler: /opt/rh/gcc-toolset-13/root/usr/bin/gcc
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /opt/rh/gcc-toolset-13/root/usr/bin/gcc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- clx: embedding Lua from /home/Student/s4908827/cosc3500-m2-separate.9KlNu4/third_party/clx/src/runtime/vm/lua/src
+-- m1 v4 continuous template is not present
+-- Configuring done (1.0s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/Student/s4908827/cosc3500-m2-separate.9KlNu4/build/profile-baseline

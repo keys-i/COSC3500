@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+
+die() {
+    printf 'ERROR: %s\n' "$*" >&2
+    exit 2
+}
+
+absolute_path() {
+    local path=$1
+    [[ $path == /* ]] || path=$root/$path
+    printf '%s\n' "$path"
+}
+
+positive_integer() {
+    [[ $2 =~ ^[1-9][0-9]*$ ]] || die "$1 must be a positive integer"
+}
+
+record_command() {
+    local label=$1
+    shift
+    {
+        printf '%s:' "$label"
+        printf ' %q' "$@"
+        printf '\n'
+    } >>"$run_dir/commands.txt"
+}
+
+run_to_file() {
+    local label=$1 file=$2
+    shift 2
+    record_command "$label" "$@"
+    "$@" >"$file" 2>&1
+}
+
+cpu_list_for_threads() {
+    local requested=$1 range start end cpu joined
+    local -a selected=()
+    IFS=',' read -ra ranges <<<"$allowed_cpus"
+    for range in "${ranges[@]}"; do
+        if [[ $range == *-* ]]; then start=${range%-*}; end=${range#*-};
+        else start=$range; end=$range; fi
+        for ((cpu = start; cpu <= end && ${#selected[@]} < requested; ++cpu)); do
+            selected+=("$cpu")
+        done
+        ((${#selected[@]} == requested)) && break
+    done
+    ((${#selected[@]} == requested)) || die "need $requested CPUs; affinity permits $allowed_cpus"
+    printf -v joined '%s,' "${selected[@]}"
+    printf '%s\n' "${joined%,}"
+}
+
+run_perf() {
+    local label=$1 tuple_dir=$2
+    shift 2
+    ((perf_enabled)) || return 0
+    record_command "$label perf-stat" perf stat -x, -e "$events" \
+        --output "$tuple_dir/perf-stat.raw" -- "$@"
+    if ! perf stat -x, -e "$events" --output "$tuple_dir/perf-stat.raw" \
+        -- "$@" >"$tuple_dir/perf-stat-workload.csv" 2>&1; then
+        perf_enabled=0
+        printf '%s perf stat failed; timing evidence is retained\n' "$label" >>"$run_dir/perf-status.txt"
+        return 0
+    fi
+    if grep -q '<not counted>' "$tuple_dir/perf-stat.raw"; then
+        perf_enabled=0
+        printf '%s perf counters were not counted; timing evidence is retained\n' "$label" >>"$run_dir/perf-status.txt"
+        return 0
+    fi
+    record_command "$label perf-record" perf record -o "$tuple_dir/perf.data" -g -- "$@"
+    if ! perf record -o "$tuple_dir/perf.data" -g -- "$@" \
+        >"$tuple_dir/perf-record-workload.csv" 2>&1; then
+        perf_enabled=0
+        printf '%s perf record failed; timing evidence is retained\n' "$label" >>"$run_dir/perf-status.txt"
+        return 0
+    fi
+    record_command "$label perf-report" perf report --stdio --no-children -i "$tuple_dir/perf.data"
+    if ! perf report --stdio --no-children -i "$tuple_dir/perf.data" \
+        >"$tuple_dir/perf-report.txt" 2>&1; then
+        perf_enabled=0
+        printf '%s perf report had no usable samples; timing evidence is retained\n' "$label" >>"$run_dir/perf-status.txt"
+    fi
+}
+
+run_tuple() {
+    local variant=$1 build=$2 seed=$3 threads=$4 cpus tuple_dir
+    local bench=$build/bench/hpc_bench binary=$build/bin/m2
+    local -a benchmark
+    cpus=$(cpu_list_for_threads "$threads")
+    tuple_dir=$run_dir/$variant/seed-$seed/threads-$threads
+    mkdir -p "$tuple_dir"
+    benchmark=(taskset -c "$cpus" env OMP_NUM_THREADS="$threads" OMP_PROC_BIND=close
+        OMP_PLACES=cores "$bench" --target m2 --binary "$binary" --case "$workload" --seed "$seed"
+        --warmup "$warmups" --samples "$samples" --minimum-case-ms "$minimum_case_ms" --csv)
+    run_to_file "$variant seed-$seed threads-$threads timing" \
+        "$tuple_dir/timing.raw.csv" "${benchmark[@]}"
+    run_perf "$variant seed-$seed threads-$threads" "$tuple_dir" "${benchmark[@]}"
+}
+
+configure_variant() {
+    local variant=$1 build=$2 level=$3 openmp=$4
+    local log_dir=$run_dir/$variant
+    mkdir -p "$log_dir"
+    run_to_file "$variant configure" "$log_dir/configure.log" \
+        cmake -S "$root" -B "$build" -G Ninja -DBUILD_TESTING=ON \
+        -DCMAKE_BUILD_TYPE=Release -DHPC_FIXED_RELEASE_FLAGS=ON \
+        -DHPC_BUILD_M0=OFF -DHPC_BUILD_M1=OFF -DHPC_M2_OPENMP="$openmp" -DM2_OPT_LEVEL="$level"
+    run_to_file "$variant build" "$log_dir/build.log" cmake --build "$build" --target m2 hpc_bench
+    [[ -x $build/bench/hpc_bench && -x $build/bin/m2 ]] || die "$variant build did not produce hpc_bench and m2: $build"
+    grep -qx "HPC_M2_OPENMP:BOOL=$openmp" "$build/CMakeCache.txt" || die "$variant OpenMP setting was not recorded"
+    if [[ $openmp == ON ]]; then
+        grep -q -- '-DM2_OPENMP=1' "$build/compile_commands.json" || die "$variant did not compile with M2_OPENMP=ON"
+    elif grep -q -- '-DM2_OPENMP=' "$build/compile_commands.json"; then
+        die "$variant unexpectedly compiled with M2 OpenMP"
+    fi
+    grep -q -- "-DM2_OPT_LEVEL=$level" "$build/compile_commands.json" || die "$variant did not compile with M2_OPT_LEVEL=$level"
+}
+
+[[ $(uname -s) == Linux ]] || die 'tools/scripts/profile requires Linux'
+command -v cmake >/dev/null || die 'cmake is required'
+command -v ninja >/dev/null || die 'Ninja is required'
+command -v lscpu >/dev/null || die 'lscpu is required for CPU provenance'
+command -v taskset >/dev/null || die 'taskset is required for affinity provenance'
+command -v python3 >/dev/null || die 'python3 is required for result validation'
+
+baseline_level=0
+final_level=7
+workload=${WORKLOAD:-continuous/predator-prey/100k}
+samples=${SAMPLES:-5}
+warmups=${WARMUPS:-1}
+minimum_case_ms=${MINIMUM_CASE_MS:-1000}
+events=${PERF_EVENTS:-cycles,instructions,branches,branch-misses,cache-references,cache-misses}
+positive_integer SAMPLES "$samples"
+positive_integer WARMUPS "$warmups"
+positive_integer MINIMUM_CASE_MS "$minimum_case_ms"
+[[ -n $events ]] || die 'PERF_EVENTS must not be empty'
+seeds=(31 32 33)
+thread_counts=(1 2 4 8)
+
+baseline_build=$(absolute_path "${BASELINE_BUILD:-build/profile-baseline}")
+final_serial_build=$(absolute_path "${FINAL_SERIAL_BUILD:-build/profile-final-serial}")
+final_openmp_build=$(absolute_path "${FINAL_OPENMP_BUILD:-build/profile-final-openmp}")
+[[ $baseline_build != "$final_serial_build" && $baseline_build != "$final_openmp_build" && $final_serial_build != "$final_openmp_build" ]] || die 'profile build directories must differ'
+output_root=$(absolute_path "${PROFILE_OUT:-results/profile}")
+mkdir -p "$output_root"
+run_dir=$(mktemp -d "$output_root/run-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
+run_dir=$(cd "$run_dir" && pwd -P)
+touch "$run_dir/commands.txt"
+allowed_cpus=$(taskset -pc "$$" | sed -E 's/^.*: *//')
+[[ $allowed_cpus =~ ^[0-9,-]+$ ]] || die "cannot parse CPU affinity: $allowed_cpus"
+perf_enabled=1
+if ! command -v perf >/dev/null; then
+    perf_enabled=0
+    printf 'perf is unavailable; timing evidence is retained\n' >"$run_dir/perf-status.txt"
+fi
+
+record_command environment uname -a
+{
+    printf 'run_dir=%s\nbaseline_build=%s\nfinal_serial_build=%s\nfinal_openmp_build=%s\n' "$run_dir" "$baseline_build" "$final_serial_build" "$final_openmp_build"
+    printf 'baseline_engine=m2\nfinal_engine=m2\nbaseline_level=%s\nfinal_level=%s\nworkload=%s\n' "$baseline_level" "$final_level" "$workload"
+    printf 'seeds=%s\nthread_counts=%s\n' "${seeds[*]}" "${thread_counts[*]}"
+    printf 'samples=%s\nwarmups=%s\nminimum_case_ms=%s\nperf_events=%s\n' "$samples" "$warmups" "$minimum_case_ms" "$events"
+    printf '\n== kernel ==\n'; uname -a
+    printf '\n== cpu ==\n'; lscpu
+    printf '\n== affinity ==\n'; taskset -pc "$$"
+    printf '\n== perf ==\n'
+    if ((perf_enabled)); then perf --version; else printf 'unavailable\n'; fi
+} >"$run_dir/provenance.txt"
+
+configure_variant baseline "$baseline_build" "$baseline_level" OFF
+configure_variant final-serial "$final_serial_build" "$final_level" OFF
+configure_variant final-openmp "$final_openmp_build" "$final_level" ON
+for seed in "${seeds[@]}"; do
+    run_tuple baseline "$baseline_build" "$seed" 1
+    run_tuple final-serial "$final_serial_build" "$seed" 1
+    for threads in "${thread_counts[@]}"; do
+        run_tuple final-openmp "$final_openmp_build" "$seed" "$threads"
+    done
+done
+python3 "$root/tools/scripts/profiles.py" "$run_dir"
+
+for variant in baseline final-serial final-openmp; do
+    build=$baseline_build
+    [[ $variant == final-serial ]] && build=$final_serial_build
+    [[ $variant == final-openmp ]] && build=$final_openmp_build
+    compiler=$(sed -n 's/^CMAKE_CXX_COMPILER:FILEPATH=//p' "$build/CMakeCache.txt")
+    [[ -n $compiler && -x $compiler ]] || die "cannot identify $variant compiler"
+    record_command "$variant compiler" "$compiler" --version
+    { printf '\n== %s compiler ==\n' "$variant"; "$compiler" --version | head -n 1; } >>"$run_dir/provenance.txt"
+done
+
+if ((perf_enabled)); then
+    printf 'Profile evidence written to %s\n' "$run_dir"
+else
+    printf 'Timing evidence written to %s; perf was unavailable or denied\n' "$run_dir" >&2
+fi

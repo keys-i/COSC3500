@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+[[ $(uname -s) == Linux ]] || { printf 'ERROR: Linux is required\n' >&2; exit 2; }
+for command in cmake ninja lscpu taskset python3; do
+    command -v "$command" >/dev/null || { printf 'ERROR: %s is required\n' "$command" >&2; exit 2; }
+done
+
+cpu_list() {
+    local requested=$1 range start end cpu joined
+    local -a selected=()
+    IFS=',' read -ra ranges <<<"$allowed_cpus"
+    for range in "${ranges[@]}"; do
+        if [[ $range == *-* ]]; then start=${range%-*}; end=${range#*-}; else start=$range; end=$range; fi
+        for ((cpu = start; cpu <= end && ${#selected[@]} < requested; ++cpu)); do selected+=("$cpu"); done
+        ((${#selected[@]} == requested)) && break
+    done
+    ((${#selected[@]} == requested)) || { printf 'ERROR: need %s CPUs; affinity permits %s\n' "$requested" "$allowed_cpus" >&2; exit 2; }
+    printf -v joined '%s,' "${selected[@]}"
+    printf '%s\n' "${joined%,}"
+}
+
+output_root=${SIZE_SCALING_OUT:-$root/results/profile}
+serial_build=${SIZE_SCALING_SERIAL_BUILD:-$root/build/size-scaling-serial}
+openmp_build=${SIZE_SCALING_OPENMP_BUILD:-$root/build/size-scaling-openmp}
+[[ $serial_build != "$openmp_build" ]] || { printf 'ERROR: serial and OpenMP build directories must differ\n' >&2; exit 2; }
+mkdir -p "$output_root"
+run_dir=$(mktemp -d "$output_root/size-scaling-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
+run_dir=$(cd "$run_dir" && pwd -P)
+allowed_cpus=$(taskset -pc "$$" | sed -E 's/^.*: *//')
+[[ $allowed_cpus =~ ^[0-9,-]+$ ]] || { printf 'ERROR: cannot parse CPU affinity\n' >&2; exit 2; }
+{
+    printf 'run_dir=%s\nserial_build=%s\nopenmp_build=%s\nworkloads=100k 200k 400k 800k\nseeds=31 32 33\nthreads=1 2 4 8\nsamples=5\nwarmups=1\nminimum_case_ms=1000\n' "$run_dir" "$serial_build" "$openmp_build"
+    printf '\n== kernel ==\n'; uname -a
+    printf '\n== cpu ==\n'; lscpu
+    printf '\n== affinity ==\n'; taskset -pc "$$"
+} >"$run_dir/provenance.txt"
+
+cmake -S "$root" -B "$serial_build" -G Ninja -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release \
+    -DHPC_FIXED_RELEASE_FLAGS=ON -DM2_OPT_LEVEL=7 -DHPC_M2_OPENMP=OFF >"$run_dir/serial-configure.log" 2>&1
+cmake --build "$serial_build" --target m2 hpc_bench >"$run_dir/serial-build.log" 2>&1
+grep -qx 'HPC_M2_OPENMP:BOOL=OFF' "$serial_build/CMakeCache.txt"
+if grep -q -- '-DM2_OPENMP=' "$serial_build/compile_commands.json"; then
+    printf 'ERROR: serial build unexpectedly compiled with OpenMP\n' >&2
+    exit 2
+fi
+cmake -S "$root" -B "$openmp_build" -G Ninja -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release \
+    -DHPC_FIXED_RELEASE_FLAGS=ON -DM2_OPT_LEVEL=7 -DHPC_M2_OPENMP=ON >"$run_dir/openmp-configure.log" 2>&1
+cmake --build "$openmp_build" --target m2 hpc_bench >"$run_dir/openmp-build.log" 2>&1
+grep -qx 'HPC_M2_OPENMP:BOOL=ON' "$openmp_build/CMakeCache.txt"
+grep -q -- '-DM2_OPENMP=1' "$openmp_build/compile_commands.json"
+compiler=${CXX:-g++}
+command -v "$compiler" >/dev/null || { printf 'ERROR: compiler not found: %s\n' "$compiler" >&2; exit 2; }
+{ printf '\n== compiler ==\n'; "$compiler" --version | head -n 1; } >>"$run_dir/provenance.txt"
+
+for size in 100k 200k 400k 800k; do
+    for seed in 31 32 33; do
+        serial_tuple="$run_dir/serial/$size/seed-$seed"
+        mkdir -p "$serial_tuple"
+        serial_command=(taskset -c "$(cpu_list 1)" env OMP_NUM_THREADS=1 OMP_PROC_BIND=close OMP_PLACES=cores \
+            "$serial_build/bench/hpc_bench" --target m2 --binary "$serial_build/bin/m2" --case "continuous/predator-prey/$size" --seed "$seed" \
+            --warmup 1 --samples 5 --minimum-case-ms 1000 --csv)
+        { printf 'serial %s seed=%s:' "$size" "$seed"; printf ' %q' "${serial_command[@]}"; printf '\n'; } >>"$run_dir/commands.txt"
+        "${serial_command[@]}" >"$serial_tuple/timing.raw.csv"
+        for threads in 1 2 4 8; do
+            tuple="$run_dir/$size/seed-$seed/threads-$threads"
+            mkdir -p "$tuple"
+            cpus=$(cpu_list "$threads")
+            command=(taskset -c "$cpus" env OMP_NUM_THREADS="$threads" OMP_PROC_BIND=close OMP_PLACES=cores \
+                "$openmp_build/bench/hpc_bench" --target m2 --binary "$openmp_build/bin/m2" --case "continuous/predator-prey/$size" --seed "$seed" \
+                --warmup 1 --samples 5 --minimum-case-ms 1000 --csv)
+            { printf '%s seed=%s threads=%s:' "$size" "$seed" "$threads"; printf ' %q' "${command[@]}"; printf '\n'; } >>"$run_dir/commands.txt"
+            "${command[@]}" >"$tuple/timing.raw.csv"
+        done
+    done
+done
+python3 "$root/tools/scripts/scaling.py" "$run_dir" >"$run_dir/report.log" 2>&1
+printf 'Fixed-density scaling evidence written to %s\n' "$run_dir"

@@ -1,5 +1,7 @@
 PRESET ?= dev
 export PRESET
+ENGINE ?= m2
+MILESTONE ?= m2
 SLURM_TARGET ?= m1
 SAN ?= au
 VALGRIND ?= memcheck
@@ -8,24 +10,31 @@ PERF_EVENTS ?= cycles,instructions,branches,branch-misses,cache-references,cache
 CLEAN_ALL := $(filter all,$(MAKECMDGOALS))
 
 # Keep user-facing targets thin so CI and local runs share the scripts
-.PHONY: m lint security valgrind fmt typecheck check cov package \
+.PHONY: m m1 m2 lint security valgrind fmt typecheck check cov package \
 	profile record clean all slurm help
 
 help:
 	@printf '%s\n' \
-		'make m | fmt | lint | typecheck | check | cov' \
-		'make security SAN=m|t|l|au | valgrind VALGRIND=memcheck|cachegrind|callgrind|massif' \
-		'make profile PRESET=cluster | package | clean [all] | slurm SLURM_TARGET=m0|m1'
+		'make m ENGINE=m1|m2 | m1 | m2 | fmt | lint | typecheck | check | cov' \
+		'make security ENGINE=m1|m2 SAN=m|t|l|au | valgrind ENGINE=m1|m2 VALGRIND=memcheck|cachegrind|callgrind|massif' \
+		'make profile ENGINE=m2 PRESET=cluster | package MILESTONE=m1|m2 | clean [all] | slurm SLURM_TARGET=m0|m1'
 
 m:
+	@case "$(ENGINE)" in m1|m2) ;; *) echo 'ENGINE must be m1 or m2' >&2; exit 2;; esac
 	cmake --preset $(PRESET)
-	cmake --build --preset $(PRESET) --target m1
+	cmake --build --preset $(PRESET) --target $(ENGINE)
+
+m1:
+	$(MAKE) m ENGINE=m1
+
+m2:
+	$(MAKE) m ENGINE=m2
 
 security:
-	tools/scripts/security san $(SAN) --preset $(PRESET)
+	tools/scripts/security san $(SAN) --target $(ENGINE) --preset $(PRESET)
 
 valgrind:
-	tools/scripts/security valgrind $(VALGRIND) --preset $(PRESET)
+	tools/scripts/security valgrind $(VALGRIND) --target $(ENGINE) --preset $(PRESET)
 
 lint:
 	tools/scripts/check lint
@@ -37,20 +46,20 @@ typecheck:
 	uv run --locked --offline basedpyright
 
 check: fmt lint
-	tools/scripts/test.sh test
+	tools/scripts/test.sh $(ENGINE)
 
 cov:
 	tools/scripts/check cov
 
 package:
-	tools/scripts/package
+	tools/scripts/package $(MILESTONE)
 
 profile: m
 	# Count hardware events outside the timed simulation process
-	perf stat -r 5 -e $(PERF_EVENTS) -- build/$(PRESET)/bin/m1 --benchmark $(PERF_SCENE) --seed 31
+	perf stat -r 5 -e $(PERF_EVENTS) -- build/$(PRESET)/bin/$(ENGINE) --benchmark $(PERF_SCENE) --seed 31
 
 record: m
-	perf record -g -- build/$(PRESET)/bin/m1 --benchmark $(PERF_SCENE) --seed 31
+	perf record -g -- build/$(PRESET)/bin/$(ENGINE) --benchmark $(PERF_SCENE) --seed 31
 
 clean:
 	# Plain clean keeps build trees; clean all also removes generated data

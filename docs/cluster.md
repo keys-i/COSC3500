@@ -11,10 +11,9 @@ From the repository root:
 ./tools/scripts/setup.sh
 ```
 
-Rangpur setup selects GCC Toolset 13 when it is available, installs Ninja in
-the user account when no module provides it, initialises CLX and creates the
-`dev` and `evidence` build trees. It does not use `sudo` or install packages
-through the operating system.
+Rangpur setup selects GCC Toolset 13 when it is available and verifies CMake,
+Ninja and a C++ compiler. The default path is C++ only: it does not install
+Python tooling, renderer dependencies, packages, or use `sudo`.
 
 On another cluster, load its C++20 toolchain first or pass module names to the
 setup process:
@@ -23,7 +22,7 @@ setup process:
 HPC_MODULES='cmake compiler' ./tools/scripts/setup.sh
 ```
 
-## Submit the evidence run
+## Submit the M1 evidence run
 
 ```bash
 make slurm
@@ -48,6 +47,21 @@ M0 remains available separately:
 ```bash
 make slurm SLURM_TARGET=m0
 ```
+
+## Run the independent M2 experiment
+
+Run the independent `m2` binary at L0 serial, L7 serial and L7 OpenMP.
+The L0-to-L7 rows measure optimisation within M2; the L7 OpenMP p1-to-p8
+rows measure parallel scaling. The older M1 L0 comparison in the M2 ledger
+is historical cross-codebase context:
+
+```bash
+tools/scripts/profile
+```
+
+Keep the generated `results/profile/run-*` directory with the Slurm output.
+Its provenance must identify the node, CPU model, affinity, compiler, `m2`
+path, M2 switches, seeds, and checksum gate.
 
 ## Check the jobs
 

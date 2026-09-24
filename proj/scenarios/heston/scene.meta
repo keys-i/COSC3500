@@ -1,6 +1,6 @@
 [scene]
 kind=benchmark
-art=ready
+art=unavailable
 
 [poster]
 subtitle=Heston PDE accuracy benchmark.

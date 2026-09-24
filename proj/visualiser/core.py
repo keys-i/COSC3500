@@ -326,7 +326,7 @@ def repository_file(value, field):
 
 
 def load_scene_meta(path):
-    """Validate metadata used only for poster and scene presentation details"""
+    """Validate scene availability plus poster and presentation metadata"""
     parser = configparser.ConfigParser(interpolation=None)
     try:
         with path.open(encoding="utf-8") as source:
@@ -337,14 +337,16 @@ def load_scene_meta(path):
         raise ValueError(
             "scene metadata needs exactly [scene], [poster], and [visual]"
         )
-    # Scene fields decide whether this scenario may export a poster
+    # Scene fields specify whether the scenario has renderable art
     scene = {key: value.strip() for key, value in parser["scene"].items()}
     if (
         set(scene) != {"kind", "art"}
         or scene["kind"] not in {"demo", "benchmark"}
-        or scene["art"] != "ready"
+        or scene["art"] not in {"ready", "unavailable"}
     ):
-        raise ValueError("[scene] needs kind=demo|benchmark and art=ready")
+        raise ValueError(
+            "[scene] needs kind=demo|benchmark and art=ready|unavailable"
+        )
     # Poster text has strict length limits because it is drawn at a fixed size
     poster = {key: value.strip() for key, value in parser["poster"].items()}
     if set(poster) != {"subtitle", "meme"} or any(
@@ -430,7 +432,7 @@ def load_scene_meta(path):
     result["safe_margin"] = margin
     if hold is not None:
         result["terminal_hold_seconds"] = hold
-    return poster, result
+    return scene, poster, result
 
 
 def row_entity(row, line, facing=None):

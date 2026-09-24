@@ -4,7 +4,7 @@ set -Eeuo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
 usage() {
-    echo 'usage: security san <m|t|l|au> [--preset NAME] | security valgrind <memcheck|cachegrind|callgrind|massif> [--preset NAME]' >&2
+    echo 'usage: security san <m|t|l|au> [--target m1|m2] [--preset NAME] | security valgrind <memcheck|cachegrind|callgrind|massif> [--target m1|m2] [--preset NAME]' >&2
     exit 2
 }
 fail() {
@@ -16,22 +16,33 @@ kind=$1
 mode=$2
 shift 2
 preset=${PRESET:-dev}
-while (($#)); do case $1 in --preset)
-    (($# >= 2)) || usage
-    preset=$2
-    shift 2
-    ;;
-*) usage ;; esac done
+target=${TARGET:-m2}
+while (($#)); do
+    case $1 in
+        --preset)
+            (($# >= 2)) || usage
+            preset=$2
+            shift 2
+            ;;
+        --target)
+            (($# >= 2)) || usage
+            target=$2
+            shift 2
+            ;;
+        *) usage ;;
+    esac
+done
 case $preset in dev | release | cluster | asan | coverage) ;; *) fail "unknown preset: $preset" ;; esac
+case $target in m1 | m2) ;; *) fail "unknown target: $target" ;; esac
 build() {
     cmake --preset "$1" -S "$root"
-    cmake --build --preset "$1" --target m1
+    cmake --build --preset "$1" --target "$target"
 }
 case $kind:$mode in
     # The asan preset combines address and undefined-behaviour checks
     san:au)
         build asan
-        "$root/build/asan/bin/m1" --benchmark templates/conway/10k
+        "$root/build/asan/bin/$target" --benchmark templates/conway/10k
         ;;
     san:m | san:t | san:l)
         extra=()
@@ -52,28 +63,28 @@ case $kind:$mode in
         # Separate sanitizer trees keep incompatible compiler flags apart
         build_dir=$root/build/$preset/security/$sanitizer
         cmake --preset "$preset" -S "$root" -B "$build_dir" -DHPC_SANITIZER="$sanitizer" "${extra[@]}"
-        cmake --build "$build_dir" --target m1
-        "$build_dir/bin/m1" --benchmark templates/conway/10k
+        cmake --build "$build_dir" --target "$target"
+        "$build_dir/bin/$target" --benchmark templates/conway/10k
         ;;
     valgrind:memcheck | valgrind:cachegrind | valgrind:callgrind | valgrind:massif)
         [[ $(uname) == Linux ]] || fail 'valgrind is Linux-only'
-        command -v valgrind >/dev/null || fail 'valgrind is required; run ./tools/scripts/setup.sh'
+        command -v valgrind >/dev/null || fail 'valgrind is required; install it for this optional diagnostic'
         build "$preset"
         # Valgrind reports are temporary unless printed by an annotation tool
         out=$(mktemp -d "$root/build/$preset/valgrind.XXXXXX")
         trap 'rm -rf -- "$out"' EXIT
         case $mode in
-            memcheck) valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=definite,indirect,possible --error-exitcode=1 "$root/build/$preset/bin/m1" --benchmark templates/conway/10k ;;
+            memcheck) valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=definite,indirect,possible --error-exitcode=1 "$root/build/$preset/bin/$target" --benchmark templates/conway/10k ;;
             cachegrind)
-                valgrind --tool=cachegrind --cachegrind-out-file="$out/out" "$root/build/$preset/bin/m1" --benchmark templates/conway/10k
+                valgrind --tool=cachegrind --cachegrind-out-file="$out/out" "$root/build/$preset/bin/$target" --benchmark templates/conway/10k
                 cg_annotate "$out/out"
                 ;;
             callgrind)
-                valgrind --tool=callgrind --callgrind-out-file="$out/out" "$root/build/$preset/bin/m1" --benchmark templates/conway/10k
+                valgrind --tool=callgrind --callgrind-out-file="$out/out" "$root/build/$preset/bin/$target" --benchmark templates/conway/10k
                 callgrind_annotate "$out/out"
                 ;;
             massif)
-                valgrind --tool=massif --massif-out-file="$out/out" "$root/build/$preset/bin/m1" --benchmark templates/conway/10k
+                valgrind --tool=massif --massif-out-file="$out/out" "$root/build/$preset/bin/$target" --benchmark templates/conway/10k
                 ms_print "$out/out"
                 ;;
         esac

@@ -1,11 +1,15 @@
 # Scenario format
 
-M1 reads a strict version-4 `.sim` file and converts it to typed state before
+`m1` and `m2` accept the same scenario format. `m1` is frozen historical
+source; performance work for M2 must invoke `m2` from the separate
+`proj/m2/` implementation.
+
+The engine reads a strict version-4 `.sim` file and converts it to typed state before
 the first simulation step. Raw names, strings and configuration never belong
 in a hot loop.
 
 A scenario chooses one generic kernel. Its local Lua module supplies policy and
-is compiled ahead of time by CLX, so Lua is not interpreted while M1 runs.
+is compiled ahead of time by CLX, so Lua is not interpreted while the engine runs.
 
 ## Bundle layout
 
@@ -41,10 +45,10 @@ does not declare `art=ready`.
 ## Run and replay
 
 ```bash
-make m
-build/dev/bin/m1 templates/conway
-build/dev/bin/m1 templates/conway --snapshots --seed 17
-build/dev/bin/m1 templates/chronus --snapshots --seed auto
+make m2
+build/dev/bin/m2 templates/conway
+build/dev/bin/m2 templates/conway --snapshots --seed 17
+build/dev/bin/m2 templates/chronus --snapshots --seed auto
 ```
 
 `--snapshots` writes state under `results/snapshots/`; `--stream` sends the same
@@ -134,6 +138,11 @@ fields are `visible`, `shape`, `colour`, `glyph`, `layer`, `size`, `label`,
 
 Every continuous character needs `speed`. `max_steering` caps the combined
 steering vector before speed is applied.
+
+The continuous kernel simulates positions and velocities in two dimensions; it
+has no `z` state. The renderer can apply a limited 2.5D projection, while
+timeline records may supply `z` as presentation height. Neither is a third
+simulation axis or 2.5D collision/physics model.
 
 A behaviour definition accepts `code`, `weight`, optional `target` and optional
 `parameter`. Supported codes are:
@@ -256,15 +265,22 @@ CLX runs `on_setup()` before simulation. Turn modules then receive
 callback emits validated engine commands at the kernel boundary; native
 `[action.*]` and `[event.*]` sections do not exist.
 
-Timeline commands can move an entity, swap a singleton sprite or replace its
-short text:
+Timeline commands can update an entity immediately, animate a move, animate a
+visual transform, swap a singleton sprite, or replace its short text:
 
 ```lua
-engine.move(entity, x, y, z)
+engine.move(entity, x, y[, z])
+engine.timed_move(entity, x, y, duration[, z[, arc]])
+engine.keyframe(entity, rotation, scale, opacity, duration)
 engine.state(entity, image_asset_id)
 engine.text(entity, text)
 ```
 
+`timed_move` interpolates to an in-bounds target over a positive whole-step
+duration; optional `z` and `arc` are non-negative presentation heights.
+`keyframe` interpolates rotation, scale and opacity over a positive whole-step
+duration; scale is in `(0, 100]` and opacity in `[0, 1]`. These timeline
+controls make a limited visual 2.5D projection, not 2.5D simulation physics.
 Text is limited to 96 bytes with no newline. Reusable IDs should be resolved in
 `on_setup()` rather than searched every step.
 
@@ -329,11 +345,11 @@ to `1.25` and defaults to `1`. The flat-scene layer convention is far
 background `-100`, environment `-60`, gameplay `0`, effects `20` and
 foreground `80`.
 
-`scene.meta` records the visual intent, palette, layer order, materials,
-relative sizes, safe margin and review frames. Depth-aware placement uses
-`plane`, `depth`, `foot_y`, `pose`, `material` and `occluder`. The renderer
-sorts those fields with a stable entity ID, so the same state draws in the same
-order.
+`scene.meta` contains availability, poster copy and visual hints such as a
+reference, palette, layers, scale, camera and safe margin. It does not contain
+per-entity placement. The renderer accepts optional snapshot fields `plane`,
+`foot_y`, `pose`, `material` and `occluder`, plus `z` as the renderer height.
+It uses those fields with a stable entity ID for deterministic draw order.
 
 Prefix an asset path with `shared/` to load it from `proj/assets/`. Missing art
 must remain visibly missing; do not hide it behind emoji or an unrelated
@@ -342,7 +358,7 @@ placeholder.
 ## Render a bundle
 
 ```bash
-build/dev/bin/m1 templates/chess --snapshots
+build/dev/bin/m2 templates/chess --snapshots
 
 uv run --locked --offline python -m typer proj.visualiser run render \
   results/snapshots/chess.csv \
@@ -361,5 +377,5 @@ at 2560×1440 and 60 fps, run `tools/scripts/test.sh viz`.
 
 - Keep variants beside the Lua and artwork they share
 - Add one deterministic fixture when parser or simulation behaviour changes
-- Run the formatter, M1 build and deterministic test suite
+- Run the formatter, M2 build and deterministic test suite
 - Read [the performance contract](performance.md) before changing a measured case
