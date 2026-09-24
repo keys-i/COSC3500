@@ -1,26 +1,16 @@
-#include <cstdio>
-#include <cstring>
 #include <matrixMultiply.h>
 #define STUDENTID 49088276 // DO NOT REMOVE
 
-// Column-major complex multiplication: element (row, col) is at row + col * N
-// Each depth slice packs A and B, computes output tiles, then adds them into C
-// Three real products replace four: P = Ar*Br, Q = Ai*Bi, S = (Ar+Ai)*(Br+Bi)
-// Recover the complex result with Cr = P-Q and Ci = S-P-Q
-// Workers share packed inputs but write separate output tiles
-
-// Extract eight real (Imag=0) or imaginary (Imag=1) components
-// lo and hi each hold four complex values as interleaved real/imaginary pairs
+// The 3M method computes P=ArBr, Q=AiBi, S=(Ar+Ai)(Br+Bi)
+// Each output is (P-Q) + i(S-P-Q)
 template <int Imag>
 __attribute__((always_inline, target("avx2,fma"))) static inline __m256
 components(__m256 lo, __m256 hi) {
-    // Select the components within each 128-bit lane, then restore row order
     return _mm256_castpd_ps(_mm256_permute4x64_pd(
         _mm256_castps_pd(_mm256_shuffle_ps(lo, hi, Imag ? 0xDD : 0x88)), 0xD8));
 }
 
-// Transpose one component of four B columns into four consecutive packed rows
-// lo holds rows 0 and 1, hi holds rows 2 and 3, with four columns per row
+// Pack four B columns so the inner kernel reads consecutive floats
 template <int Imag>
 __attribute__((always_inline, target("avx2,fma"))) static inline void
 transposeB(__m256 b0, __m256 b1, __m256 b2, __m256 b3,
@@ -33,8 +23,6 @@ transposeB(__m256 b0, __m256 b1, __m256 b2, __m256 b3,
     hi = _mm256_permute2f128_ps(even, odd, 0x31);
 }
 
-// Pack a 4x4 complex B tile into real, imaginary and sum streams
-// count is the full depth slice, so each stream starts 4*count floats apart
 __attribute__((always_inline, target("avx2,fma"))) static inline void
 packB4(float *out, int count, __m256 b0, __m256 b1, __m256 b2, __m256 b3) {
     __m256 r0, r1, i0, i1;
@@ -48,8 +36,6 @@ packB4(float *out, int count, __m256 b0, __m256 b1, __m256 b2, __m256 b3) {
     _mm256_storeu_ps(out + 8 * count + 8, _mm256_add_ps(r1, i1));
 }
 
-// Interleave eight real/imaginary pairs and write them back into C
-// Unaligned stores allow C to start at any valid complex-element address
 __attribute__((always_inline, target("avx2,fma"))) static inline void
 storeSums(float *c, __m256 real, __m256 imag) {
     const __m256 lo = _mm256_unpacklo_ps(real, imag);
@@ -58,8 +44,7 @@ storeSums(float *c, __m256 real, __m256 imag) {
     _mm256_storeu_ps(c + 8, _mm256_permute2f128_ps(lo, hi, 0x31));
 }
 
-// Update one output column across 24 rows using a single B value
-// a0, a1 and a2 cover the first, middle and last groups of eight rows
+// Keep the twelve accumulators in registers across the depth loop
 __attribute__((always_inline, target("avx2,fma"))) static inline void
 accumulate(__m256 a0, __m256 a1, __m256 a2, const float *b,
            __m256 &s0, __m256 &s1, __m256 &s2) {
@@ -67,18 +52,12 @@ accumulate(__m256 a0, __m256 a1, __m256 a2, const float *b,
     s0 = _mm256_fmadd_ps(a0, value, s0);
     s1 = _mm256_fmadd_ps(a1, value, s1);
     s2 = _mm256_fmadd_ps(a2, value, s2);
-    // Finish these sums before loading the next B value to limit register pressure
-    // This only controls the compiler and is not a thread-synchronisation barrier
-    asm volatile("" : : "x"(s0), "x"(s1), "x"(s2) : "memory");
 }
 
-// Combine eight entries from P, Q and S for the current depth slice
-// The first slice overwrites C, so the caller does not need to initialise it
 __attribute__((always_inline, target("avx2,fma"))) static inline void
 finishSums(float *c, bool first, __m256 p, __m256 q, __m256 s) {
     __m256 real = _mm256_sub_ps(p, q);
     __m256 imag = _mm256_sub_ps(_mm256_sub_ps(s, p), q);
-    // Later slices add to the result already stored by earlier slices
     if (!first) {
         const __m256 lo = _mm256_loadu_ps(c), hi = _mm256_loadu_ps(c + 8);
         real = _mm256_add_ps(real, components<0>(lo, hi));
@@ -87,20 +66,12 @@ finishSums(float *c, bool first, __m256 p, __m256 q, __m256 s) {
     storeSums(c, real, imag);
 }
 
-// Multiply packed 24-by-count A and count-by-4 B panels into a real 24x4 tile
-// A has 24 consecutive rows per k and B has four consecutive columns per k
-// The result uses out[col * 24 + row], with no accumulation into old contents
-// Keep this kernel separate so its target and optimisation settings stay local
-__attribute__((noinline, target("avx2,fma"),
-               optimize("O3", "no-unroll-loops"))) static void
+// One call produces a real 24 by 4 tile
+__attribute__((noinline, target("avx2,fma"))) static void
 multiply24x4(int count, const float *a, const float *b, float *out) {
-    // sXY holds column X and eight-row group Y, giving 12 vector accumulators
     __m256 s00, s01, s02, s10, s11, s12, s20, s21, s22, s30, s31, s32;
     s00 = s01 = s02 = s10 = s11 = s12 = s20 = s21 = s22 = s30 = s31 = s32 =
         _mm256_setzero_ps();
-    // Walk the packed depth and reuse each A vector across all four columns
-    // Keep the depth loop rolled to limit register pressure
-#pragma GCC unroll 1
     for (int k = 0; k < count; ++k, a += 24, b += 4) {
         const __m256 a0 = _mm256_loadu_ps(a), a1 = _mm256_loadu_ps(a + 8);
         const __m256 a2 = _mm256_loadu_ps(a + 16);
@@ -109,7 +80,6 @@ multiply24x4(int count, const float *a, const float *b, float *out) {
         accumulate(a0, a1, a2, b + 2, s20, s21, s22);
         accumulate(a0, a1, a2, b + 3, s30, s31, s32);
     }
-    // Write three vectors per column into the worker's 96-float scratch tile
     _mm256_storeu_ps(out, s00);
     _mm256_storeu_ps(out + 8, s01);
     _mm256_storeu_ps(out + 16, s02);
@@ -124,85 +94,57 @@ multiply24x4(int count, const float *a, const float *b, float *out) {
     _mm256_storeu_ps(out + 88, s32);
 }
 
-/**
- * @brief Compute column-major complex C=A*B using packed AVX2/FMA tiles
- *
- * @param[in] N : dimension of square matrix (NxN)
- * @param[in] A : pointer to input NxN matrix
- * @param[in] B : pointer to input NxN matrix
- * @param[out] C : pointer to output NxN matrix
- * @param[in] args : optional tuning arguments, unused here
- * @param[in] argCount : number of tuning arguments, unused here
- * @return : your student ID
- */
-__attribute__((target("avx2,fma"), optimize("O3", "unroll-loops"))) int
-matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
-               int *args, int argCount) {
-    // Return before touching any pointer when the matrix is empty
-    if (N <= 0)
-        return STUDENTID;
+// MPI passes its column range; the CPU entry passes all columns
+__attribute__((target("avx2,fma"))) void
+matrixMultiplyColumns(int N, const floatType *A, const floatType *B,
+                      floatType *C, int firstCol, int lastCol) {
+    if (N <= 0 || firstCol >= lastCol)
+        return;
 
-    // Vector work covers whole eight-row groups and whole four-column groups
-    const int rows = N & ~7, cols = N & ~3;
+    const int rows = N & ~7;
+    int vectorFirst = (firstCol + 3) & ~3;
+    const int vectorLast = lastCol & ~3;
+    if (vectorFirst > vectorLast)
+        vectorFirst = vectorLast;
+    const int cols = vectorLast - vectorFirst;
     const size_t n = static_cast<size_t>(N);
-    // Pad A to whole 24-row panels so the last kernel can still load 24 rows
     const size_t packedRows = (rows + 23ULL) / 24 * 24;
-    // The complex arrays expose interleaved real and imaginary floats
     const float *a = reinterpret_cast<const float *>(A);
     const float *b = reinterpret_cast<const float *>(B);
     float *c = reinterpret_cast<float *>(C);
-    // Compute one entry for scalar edges or when scratch allocation fails
     const auto scalar = [&](int row, int col) {
         floatType sum = 0;
-        // Dot the selected row of A with the selected column of B
         for (int k = 0; k < N; ++k)
             sum += A[row + k * n] * B[k + col * n];
         C[row + col * n] = sum;
     };
-    // MC and NC split C into work tiles, while KC sets the packed depth
-    // MC must be a multiple of 24 and NC a multiple of 4 to match the panels
-    // The smaller MC gives small matrices more output tiles to share
-    const int MC = N <= 128 ? 72 : 120, NC = 32, KC = 256;
+    const int MC = N <= 128 ? 72 : 120, NC = 48, KC = 256;
     const int depth = N < KC ? N : KC;
-    // Reserve three streams for each packed A and B panel in one shared slice
     float *packed =
-        rows ? static_cast<float *>(_mm_malloc(
+        rows && cols ? static_cast<float *>(_mm_malloc(
                    (3ULL * packedRows + 3ULL * cols) * depth * sizeof(float), 64))
              : nullptr;
-    // Matrices below eight rows and failed allocations use the scalar path
     if (!packed) {
-        // Visit output columns in column-major order
-        for (int col = 0; col < N; ++col)
-            // Fill every row in this column without using packed storage
+        for (int col = firstCol; col < lastCol; ++col)
             for (int row = 0; row < N; ++row)
                 scalar(row, col);
-        return STUDENTID;
+        return;
     }
-    // B starts after the reserved A space, even when the final slice is shorter
     float *packedB = packed + 3ULL * packedRows * depth;
 
-    // Reuse one OpenMP team, with the thread count supplied by the runtime
+// Barriers keep packed inputs intact until every worker finishes its tiles
 #pragma omp parallel
     {
-        // Keep P, Q and S for 24 rows across this column band, 9 KiB per worker
         alignas(32) float products[3][24 * NC];
-        // All workers advance through k together, with barriers protecting reuse
         for (int k = 0; k < N; k += KC) {
-            // The final slice may have fewer than KC entries
             const int count = N - k < KC ? N - k : KC;
 
-            // Share whole 24-row A panels between workers
-            // nowait lets workers start packing B as soon as their A work is done
 #pragma omp for schedule(static) nowait
             for (int row = 0; row < rows; row += 24) {
-                // Each panel has real, imaginary and sum blocks of 24*count floats
                 float *out = packed + 3ULL * row * count;
-                // Visit the columns of A covered by this depth slice
                 for (int p = 0; p < count; ++p)
-                    // Pack three eight-row groups and leave padded groups as zero
                     for (int half = 0; half < 24; half += 8) {
                         __m256 ar = _mm256_setzero_ps(), ai = ar;
-                        // Only read complete groups inside the vector-covered rows
                         if (row + half < rows) {
                             const float *in = a + 2ULL * (row + half + (k + p) * n);
                             const __m256 lo = _mm256_loadu_ps(in);
@@ -210,7 +152,6 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                             ar = components<0>(lo, hi);
                             ai = components<1>(lo, hi);
                         }
-                        // Keep the three streams contiguous for separate kernel calls
                         _mm256_storeu_ps(out + 24ULL * p + half, ar);
                         _mm256_storeu_ps(out + 24ULL * (count + p) + half, ai);
                         _mm256_storeu_ps(out + 24ULL * (2 * count + p) + half,
@@ -218,17 +159,12 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                     }
             }
 
-            // Share four-column B panels between workers
-            // The barrier at the end waits for all A and B packing to finish
 #pragma omp for schedule(static)
-            for (int col = 0; col < cols; col += 4) {
-                // Each B stream has 4*count floats
-                float *out = packedB + 3ULL * col * count;
-                // Load four contiguous complex rows from each column
+            for (int col = vectorFirst; col < vectorLast; col += 4) {
+                float *out = packedB + 3ULL * (col - vectorFirst) * count;
                 const int vectorCount = count & ~3;
                 for (int p = 0; p < vectorCount; p += 4) {
                     __m256 columns[4];
-                    // Gather the four columns before transposing their components
                     for (int j = 0; j < 4; ++j) {
                         const size_t offset = 2ULL * (k + p + (col + j) * n);
                         columns[j] = _mm256_loadu_ps(b + offset);
@@ -236,9 +172,7 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                     packB4(out + 4ULL * p, count,
                            columns[0], columns[1], columns[2], columns[3]);
                 }
-                // Pack the last zero to three rows without reading past the slice
                 for (int p = vectorCount; p < count; ++p)
-                    // Store four adjacent columns for the kernel's scalar broadcasts
                     for (int j = 0; j < 4; ++j) {
                         const floatType value = B[k + p + (col + j) * n];
                         out[4ULL * p + j] = value.real();
@@ -247,28 +181,19 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                     }
             }
 
-            // Share NC-column bands split into MC-row tiles, with no overlapping writes
-            // The end barrier keeps packed data alive until every reader is finished
 #pragma omp for collapse(2) schedule(static)
-            for (int col = 0; col < cols; col += NC)
-                // Split each column band into row tiles for the workers
+            for (int col = vectorFirst; col < vectorLast; col += NC)
                 for (int row = 0; row < rows; row += MC) {
-                    // Trim the last work tile to the vector-covered part of C
-                    const int width = cols - col < NC ? cols - col : NC;
+                    const int width = vectorLast - col < NC ? vectorLast - col : NC;
                     const int height = rows - row < MC ? rows - row : MC;
-                    // Walk 24-row microtiles within this work tile
                     for (int i = row; i < row + height; i += 24) {
-                        // Finish each real product across the band before switching A streams
                         for (int term = 0; term < 3; ++term)
-                            // Reuse one packed A component across four-column microtiles
                             for (int j = col; j < col + width; j += 4)
                                 multiply24x4(count,
                                     packed + (3ULL * i + 24 * term) * count,
-                                    packedB + (3ULL * j + 4 * term) * count,
+                                    packedB + (3ULL * (j - vectorFirst) + 4 * term) * count,
                                     products[term] + 24 * (j - col));
-                        // Combine only the columns filled in this band
                         for (int j = col; j < col + width; ++j)
-                            // Store eight valid rows at a time and skip padded groups
                             for (int half = 0; half < 24 && i + half < rows; half += 8) {
                                 const int offset = 24 * (j - col) + half;
                                 finishSums(c + 2ULL * (i + half + j * n), k == 0,
@@ -280,16 +205,18 @@ matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                 }
         }
 
-        // Share the remaining scalar work by column, separate from vector outputs
 #pragma omp for schedule(static)
-        for (int col = 0; col < N; ++col)
-            // Vector-covered columns need bottom rows only
-            // Leftover columns need every row
-            for (int row = col < cols ? rows : 0; row < N; ++row)
+        for (int col = firstCol; col < lastCol; ++col)
+            for (int row = col >= vectorFirst && col < vectorLast ? rows : 0;
+                 row < N; ++row)
                 scalar(row, col);
     }
 
-    // The parallel region has ended, so no worker can still read this buffer
     _mm_free(packed);
+}
+
+int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
+                   int *args, int argCount) {
+    matrixMultiplyColumns(N, A, B, C, 0, N);
     return STUDENTID;
 }

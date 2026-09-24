@@ -2,67 +2,89 @@
 #include <cstdio>
 #include <cstdlib>
 #include <matrixMultiplyGPU.cuh>
-#define STUDENTID 49088276 //DO NOT REMOVE
-/**
-* @brief Implements an NxN matrix multiply C=A*B
-*  	 	   			     	 		 			 	      
-* @param[in] N : dimension of square matrix (NxN)
-* @param[in] A : pointer to input NxN matrix
-* @param[in] B : pointer to input NxN matrix
-* @param[out] C : pointer to output NxN matrix
-* @param[in] flags : pointer to array of integers which can be used for debugging and performance tweaks. Optional. If unused, set to zero
-* @param[in] flagCount : the length of the flags array
-* @return : your student ID
-*  	 	   			     	 		 			 	      
-* */
 
-__host__ int matrixMultiply_GPU(int N, const floatTypeCUDA* A, const floatTypeCUDA* B, floatTypeCUDA* C, int* flags, int flagCount){  	 	   			     	 		 			 	      
-    //Your code must be able to deal with N=0 scenario without crashing.
-    if (N<=0) return STUDENTID;
+#define STUDENTID 49088276 // DO NOT REMOVE
 
-    //WRITE YOUR CODE HERE
+__host__ int matrixMultiply_GPU(int N, const floatTypeCUDA *A,
+                                const floatTypeCUDA *B, floatTypeCUDA *C,
+                                int *flags, int flagCount) {
+    if (N <= 0)
+        return STUDENTID;
 
-    const dim3 block(16, 16);
-    const unsigned tiles = 1u + (unsigned(N) - 1u) / 16u;
-    const dim3 grid(tiles, tiles);
-
-    matrixMultiplyKernel_GPU<<<grid, block>>>(N, A, B, C, 0, 0, 0);
-
-    cudaError_t err = cudaGetLastError();
-    if (err == cudaSuccess) 
-        err = cudaDeviceSynchronize();
-
-    if (err != cudaSuccess) {
+    const unsigned tiles = 1u + (static_cast<unsigned>(N) - 1u) / 64u;
+    matrixMultiplyKernel_GPU<<<dim3(tiles, tiles), dim3(16, 16)>>>(
+        N, A, B, C, 0, 0, 0);
+    cudaError_t error = cudaGetLastError();
+    if (error == cudaSuccess)
+        error = cudaDeviceSynchronize();
+    if (error != cudaSuccess) {
         std::fprintf(stderr, "CUDA multiplication failed: %s\n",
-                     cudaGetErrorString(err));
+                     cudaGetErrorString(error));
         std::abort();
     }
-
     return STUDENTID;
+}
 
-}  	 	   			     	 		 			 	      
+__global__ void matrixMultiplyKernel_GPU(int N, const floatTypeCUDA *A,
+                                         const floatTypeCUDA *B,
+                                         floatTypeCUDA *C, int flag0, int flag1,
+                                         int flag2) {
+    __shared__ floatTypeCUDA tileA[16][64], tileB[64][17];
+    const int tx = threadIdx.x, ty = threadIdx.y;
+    const int thread = ty * 16 + tx;
+    const std::size_t n = static_cast<std::size_t>(N);
+    const std::size_t firstRow = std::size_t(blockIdx.x) * 64;
+    const std::size_t firstCol = std::size_t(blockIdx.y) * 64;
+    float real[4][4] = {}, imag[4][4] = {};
 
-//The kernel (device code) parameters have been setup almost the same as the host code, except the flags are passed in individually rather than as a pointer. This is done just so you don't have to copy the parameters to GPU memory first, you'll be able to pass in up to 3 on the function call.  	 	   			     	 		 			 	      
-__global__ void matrixMultiplyKernel_GPU(int N, const floatTypeCUDA* A, const floatTypeCUDA* B, floatTypeCUDA* C, int flag0, int flag1, int flag2){  	 	   			     	 		 			 	      
-    const std::size_t row = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
-    const std::size_t col = size_t(blockIdx.y) * blockDim.y + threadIdx.y;
-    if (row >= size_t(N) || col >= size_t(N))
-        return;
+    for (std::size_t base = 0; base < n; base += 16) {
+        // Zero padding keeps partial tiles on the same inner loop
+#pragma unroll
+        for (int index = thread; index < 1024; index += 256) {
+            const int aDepth = index / 64, aRow = index % 64;
+            const int bDepth = index % 16, bCol = index / 16;
+            const std::size_t row = firstRow + aRow, col = firstCol + bCol;
+            const std::size_t ak = base + aDepth, bk = base + bDepth;
+            tileA[aDepth][aRow] = row < n && ak < n ? A[row + ak * n]
+                                                     : floatTypeCUDA{};
+            tileB[bCol][bDepth] = col < n && bk < n ? B[bk + col * n]
+                                                     : floatTypeCUDA{};
+        }
+        __syncthreads();
 
-    float real = 0.0f, imag = 0.0f;
-
-    for (int k = 0; k <  N; ++k) {
-        const floatTypeCUDA a = A[row + size_t(k) * N];
-        const floatTypeCUDA b = B[k + col * N];
-
-        real += a.x * b.x - a.y * b.y;
-        imag += a.x * b.y + a.y * b.x;
+#pragma unroll
+        for (int k = 0; k < 16; ++k) {
+            floatTypeCUDA a[4], b[4];
+#pragma unroll
+            for (int i = 0; i < 4; ++i) {
+                a[i] = tileA[k][tx + i * 16];
+                b[i] = tileB[ty + i * 16][k];
+            }
+#pragma unroll
+            for (int i = 0; i < 4; ++i)
+#pragma unroll
+                for (int j = 0; j < 4; ++j) {
+                    real[i][j] = fmaf(a[i].x, b[j].x, real[i][j]);
+                    real[i][j] = fmaf(-a[i].y, b[j].y, real[i][j]);
+                    imag[i][j] = fmaf(a[i].x, b[j].y, imag[i][j]);
+                    imag[i][j] = fmaf(a[i].y, b[j].x, imag[i][j]);
+                }
+        }
+        __syncthreads();
     }
 
-    floatTypeCUDA result;
-
-    result.x = real;
-    result.y = imag;
-
-    C[row + col * N] = result;
+#pragma unroll
+    for (int j = 0; j < 4; ++j) {
+        const std::size_t col = firstCol + ty + j * 16;
+#pragma unroll
+        for (int i = 0; i < 4; ++i) {
+            const std::size_t row = firstRow + tx + i * 16;
+            if (row < n && col < n) {
+                floatTypeCUDA value;
+                value.x = real[i][j];
+                value.y = imag[i][j];
+                C[row + col * n] = value;
+            }
+        }
+    }
 }

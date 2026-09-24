@@ -1,51 +1,33 @@
-#include <cstdio>
-#include <cstring>
 #include <matrixMultiply.h>
 #define STUDENTID 49088276 // DO NOT REMOVE
 
-// Shared by workspace allocation and the packed block helper
 static constexpr int NC = 32, KC = 256;
 
-// Column-major complex multiplication: element (row, col) is at row + col * N
-// Large even matrices use one Strassen level, with seven half-sized products
-// Input sums are formed during packing and products go straight into C quadrants
-// Three real products replace four: P = Ar*Br, Q = Ai*Bi, S = (Ar+Ai)*(Br+Bi)
-// Recover the complex result with Cr = P-Q and Ci = S-P-Q
-// Workers share packed inputs but write separate output tiles
-
-// A Strassen operand is one block, optionally plus or minus a second block
-// Both blocks retain the leading dimension of the original matrix
+// A block can read a signed sum without storing a temporary matrix
 struct InputBlock {
     const floatType *data, *other;
     int sign;
 
-    // Read one combined entry for scalar packing and output edges
     floatType at(size_t index) const {
         return other ? data[index] + (sign > 0 ? other[index] : -other[index])
                      : data[index];
     }
 };
 
-// A product contributes to one or two C blocks, each with its own sign
-// first marks the first product touching this block, so old C is never read
+// Products write directly into one or two result quadrants
 struct OutputBlock {
     floatType *data;
     int sign;
     bool first;
 };
 
-// Extract eight real (Imag=0) or imaginary (Imag=1) components
-// lo and hi each hold four complex values as interleaved real/imaginary pairs
 template <int Imag>
 __attribute__((always_inline, target("avx2,fma"))) static inline __m256
 components(__m256 lo, __m256 hi) {
-    // Select the components within each 128-bit lane, then restore row order
     return _mm256_castpd_ps(_mm256_permute4x64_pd(
         _mm256_castps_pd(_mm256_shuffle_ps(lo, hi, Imag ? 0xDD : 0x88)), 0xD8));
 }
 
-// Transpose one component of four B columns into four consecutive packed rows
-// lo holds rows 0 and 1, hi holds rows 2 and 3, with four columns per row
 template <int Imag>
 __attribute__((always_inline, target("avx2,fma"))) static inline void
 transposeB(__m256 b0, __m256 b1, __m256 b2, __m256 b3,
@@ -58,8 +40,6 @@ transposeB(__m256 b0, __m256 b1, __m256 b2, __m256 b3,
     hi = _mm256_permute2f128_ps(even, odd, 0x31);
 }
 
-// Pack a 4x4 complex B tile into real, imaginary and sum streams
-// count is the full depth slice, so each stream starts 4*count floats apart
 __attribute__((always_inline, target("avx2,fma"))) static inline void
 packB4(float *out, int count, __m256 b0, __m256 b1, __m256 b2, __m256 b3) {
     __m256 r0, r1, i0, i1;
@@ -73,8 +53,6 @@ packB4(float *out, int count, __m256 b0, __m256 b1, __m256 b2, __m256 b3) {
     _mm256_storeu_ps(out + 8 * count + 8, _mm256_add_ps(r1, i1));
 }
 
-// Interleave eight real/imaginary pairs and write them back into C
-// Unaligned stores allow C to start at any valid complex-element address
 __attribute__((always_inline, target("avx2,fma"))) static inline void
 storeSums(float *c, __m256 real, __m256 imag) {
     const __m256 lo = _mm256_unpacklo_ps(real, imag);
@@ -83,8 +61,6 @@ storeSums(float *c, __m256 real, __m256 imag) {
     _mm256_storeu_ps(c + 8, _mm256_permute2f128_ps(lo, hi, 0x31));
 }
 
-// Update one output column across 24 rows using a single B value
-// a0, a1 and a2 cover the first, middle and last groups of eight rows
 __attribute__((always_inline, target("avx2,fma"))) static inline void
 accumulate(__m256 a0, __m256 a1, __m256 a2, const float *b,
            __m256 &s0, __m256 &s1, __m256 &s2) {
@@ -92,14 +68,9 @@ accumulate(__m256 a0, __m256 a1, __m256 a2, const float *b,
     s0 = _mm256_fmadd_ps(a0, value, s0);
     s1 = _mm256_fmadd_ps(a1, value, s1);
     s2 = _mm256_fmadd_ps(a2, value, s2);
-    // Finish these sums before loading the next B value to limit register pressure
-    // This only controls the compiler and is not a thread-synchronisation barrier
     asm volatile("" : : "x"(s0), "x"(s1), "x"(s2) : "memory");
 }
 
-// Combine eight entries from P, Q and S for the current depth slice
-// Apply the Strassen sign before adding to the destination block
-// Its first product and first depth slice overwrite C without reading it
 __attribute__((always_inline, target("avx2,fma"))) static inline void
 finishSums(float *c, bool first, int sign, __m256 p, __m256 q, __m256 s) {
     __m256 real = _mm256_sub_ps(p, q);
@@ -108,7 +79,6 @@ finishSums(float *c, bool first, int sign, __m256 p, __m256 q, __m256 s) {
         real = _mm256_xor_ps(real, _mm256_set1_ps(-0.0f));
         imag = _mm256_xor_ps(imag, _mm256_set1_ps(-0.0f));
     }
-    // Later slices add to the result already stored by earlier slices
     if (!first) {
         const __m256 lo = _mm256_loadu_ps(c), hi = _mm256_loadu_ps(c + 8);
         real = _mm256_add_ps(real, components<0>(lo, hi));
@@ -117,19 +87,12 @@ finishSums(float *c, bool first, int sign, __m256 p, __m256 q, __m256 s) {
     storeSums(c, real, imag);
 }
 
-// Multiply packed 24-by-count A and count-by-4 B panels into a real 24x4 tile
-// A has 24 consecutive rows per k and B has four consecutive columns per k
-// The result uses out[col * 24 + row], with no accumulation into old contents
-// Keep this kernel separate so its target and optimisation settings stay local
-__attribute__((noinline, target("avx2,fma"),
-               optimize("O3", "no-unroll-loops"))) static void
+// The leaf kernel multiplies a packed 24 by 4 real tile
+__attribute__((noinline, target("avx2,fma"))) static void
 multiply24x4(int count, const float *a, const float *b, float *out) {
-    // sXY holds column X and eight-row group Y, giving 12 vector accumulators
     __m256 s00, s01, s02, s10, s11, s12, s20, s21, s22, s30, s31, s32;
     s00 = s01 = s02 = s10 = s11 = s12 = s20 = s21 = s22 = s30 = s31 = s32 =
         _mm256_setzero_ps();
-    // Walk the packed depth and reuse each A vector across all four columns
-    // Keep the depth loop rolled to limit register pressure
 #pragma GCC unroll 1
     for (int k = 0; k < count; ++k, a += 24, b += 4) {
         const __m256 a0 = _mm256_loadu_ps(a), a1 = _mm256_loadu_ps(a + 8);
@@ -139,7 +102,6 @@ multiply24x4(int count, const float *a, const float *b, float *out) {
         accumulate(a0, a1, a2, b + 2, s20, s21, s22);
         accumulate(a0, a1, a2, b + 3, s30, s31, s32);
     }
-    // Write three vectors per column into the worker's 96-float scratch tile
     _mm256_storeu_ps(out, s00);
     _mm256_storeu_ps(out + 8, s01);
     _mm256_storeu_ps(out + 16, s02);
@@ -154,26 +116,26 @@ multiply24x4(int count, const float *a, const float *b, float *out) {
     _mm256_storeu_ps(out + 88, s32);
 }
 
-// Multiply N-by-N block views using the original matrix stride n
-// Every worker calls this helper in the same order within one OpenMP team
-// Packed inputs are shared, product scratch belongs to the calling worker
-__attribute__((target("avx2,fma"), optimize("O3", "unroll-loops"))) static void
+__attribute__((target("avx2,fma"))) static void
 multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
               OutputBlock C, OutputBlock D, float *packed, float *packedB,
-              float products[3][24 * NC]) {
-    // Vector work covers whole eight-row groups and whole four-column groups
-    const int rows = N & ~7, cols = N & ~3;
-    // The complex arrays expose interleaved real and imaginary floats
+              float products[3][24 * NC], int firstCol = 0, int lastCol = -1) {
+    const int rows = N & ~7;
+    if (lastCol < 0)
+        lastCol = N;
+    int vectorFirst = (firstCol + 3) & ~3;
+    const int vectorLast = lastCol & ~3;
+    if (vectorFirst > vectorLast)
+        vectorFirst = vectorLast;
+    const int cols = vectorLast - vectorFirst;
     const float *a = reinterpret_cast<const float *>(A.data);
     const float *otherA = reinterpret_cast<const float *>(A.other);
     const float *b = reinterpret_cast<const float *>(B.data);
     const float *otherB = reinterpret_cast<const float *>(B.other);
     float *c = reinterpret_cast<float *>(C.data);
     float *d = reinterpret_cast<float *>(D.data);
-    // Compute one entry for scalar edges or when scratch allocation fails
     const auto scalar = [&](int row, int col) {
         floatType sum = 0;
-        // Dot the selected row of A with the selected column of B
         for (int k = 0; k < N; ++k)
             sum += A.at(row + k * n) * B.at(k + col * n);
         const size_t index = row + col * n;
@@ -184,44 +146,29 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
             D.data[index] = D.first ? other : D.data[index] + other;
         }
     };
-    // MC and NC split C into work tiles, while KC sets the packed depth
-    // MC must be a multiple of 24 and NC a multiple of 4 to match the panels
-    // The smaller MC gives small matrices more output tiles to share
     const int MC = N <= 128 ? 72 : 120;
-    // Matrices below eight rows and failed allocations use the scalar path
     if (!packed) {
-        // Share columns and finish all writes before the next product starts
 #pragma omp for schedule(static)
-        for (int col = 0; col < N; ++col)
-            // Fill every row in this column without using packed storage
+        for (int col = firstCol; col < lastCol; ++col)
             for (int row = 0; row < N; ++row)
                 scalar(row, col);
         return;
     }
-    // All workers advance through k together, with barriers protecting reuse
     for (int k = 0; k < N; k += KC) {
-        // The final slice may have fewer than KC entries
         const int count = N - k < KC ? N - k : KC;
 
-        // Share whole 24-row A panels between workers
-        // nowait lets workers start packing B as soon as their A work is done
 #pragma omp for schedule(static) nowait
         for (int row = 0; row < rows; row += 24) {
-            // Each panel has real, imaginary and sum blocks of 24*count floats
             float *out = packed + 3ULL * row * count;
-            // Visit the columns of A covered by this depth slice
             for (int p = 0; p < count; ++p)
-                // Pack three eight-row groups and leave padded groups as zero
                 for (int half = 0; half < 24; half += 8) {
                     __m256 ar = _mm256_setzero_ps(), ai = ar;
-                    // Only read complete groups inside the vector-covered rows
                     if (row + half < rows) {
                         const float *in = a + 2ULL * (row + half + (k + p) * n);
                         const __m256 lo = _mm256_loadu_ps(in);
                         const __m256 hi = _mm256_loadu_ps(in + 8);
                         ar = components<0>(lo, hi);
                         ai = components<1>(lo, hi);
-                        // Fuse the optional Strassen sum into A packing
                         if (otherA) {
                             const float *next = otherA + 2ULL * (row + half + (k + p) * n);
                             const __m256 x = _mm256_loadu_ps(next);
@@ -232,7 +179,6 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
                             ai = A.sign > 0 ? _mm256_add_ps(ai, bi) : _mm256_sub_ps(ai, bi);
                         }
                     }
-                    // Keep the three streams contiguous for separate kernel calls
                     _mm256_storeu_ps(out + 24ULL * p + half, ar);
                     _mm256_storeu_ps(out + 24ULL * (count + p) + half, ai);
                     _mm256_storeu_ps(out + 24ULL * (2 * count + p) + half,
@@ -240,21 +186,15 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
                 }
         }
 
-        // Share four-column B panels between workers
-        // The barrier at the end waits for all A and B packing to finish
 #pragma omp for schedule(static)
-        for (int col = 0; col < cols; col += 4) {
-            // Each B stream has 4*count floats
-            float *out = packedB + 3ULL * col * count;
-            // Load four contiguous complex rows from each column
+        for (int col = vectorFirst; col < vectorLast; col += 4) {
+            float *out = packedB + 3ULL * (col - vectorFirst) * count;
             const int vectorCount = count & ~3;
             for (int p = 0; p < vectorCount; p += 4) {
                 __m256 columns[4];
-                // Gather the four columns before transposing their components
                 for (int j = 0; j < 4; ++j) {
                     const size_t offset = 2ULL * (k + p + (col + j) * n);
                     columns[j] = _mm256_loadu_ps(b + offset);
-                    // Form Strassen sums before packing, without extra storage
                     if (otherB) {
                         const __m256 next = _mm256_loadu_ps(otherB + offset);
                         columns[j] = B.sign > 0 ? _mm256_add_ps(columns[j], next)
@@ -264,11 +204,8 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
                 packB4(out + 4ULL * p, count,
                        columns[0], columns[1], columns[2], columns[3]);
             }
-            // Pack the last zero to three rows without reading past the slice
             for (int p = vectorCount; p < count; ++p)
-                // Store four adjacent columns for the kernel's scalar broadcasts
                 for (int j = 0; j < 4; ++j) {
-                    // Form B's optional sum without a separate matrix pass
                     const floatType value = B.at(k + p + (col + j) * n);
                     out[4ULL * p + j] = value.real();
                     out[4ULL * (count + p) + j] = value.imag();
@@ -276,28 +213,19 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
                 }
         }
 
-        // Share NC-column bands split into MC-row tiles, with no overlapping writes
-        // The end barrier keeps packed data alive until every reader is finished
 #pragma omp for collapse(2) schedule(static)
-        for (int col = 0; col < cols; col += NC)
-            // Split each column band into row tiles for the workers
+        for (int col = vectorFirst; col < vectorLast; col += NC)
             for (int row = 0; row < rows; row += MC) {
-                // Trim the last work tile to the vector-covered part of C
-                const int width = cols - col < NC ? cols - col : NC;
+                const int width = vectorLast - col < NC ? vectorLast - col : NC;
                 const int height = rows - row < MC ? rows - row : MC;
-                // Walk 24-row microtiles within this work tile
                 for (int i = row; i < row + height; i += 24) {
-                    // Finish each real product across the band before switching A streams
                     for (int term = 0; term < 3; ++term)
-                        // Reuse one packed A component across four-column microtiles
                         for (int j = col; j < col + width; j += 4)
                             multiply24x4(count,
                                 packed + (3ULL * i + 24 * term) * count,
-                                packedB + (3ULL * j + 4 * term) * count,
+                                packedB + (3ULL * (j - vectorFirst) + 4 * term) * count,
                                 products[term] + 24 * (j - col));
-                    // Combine only the columns filled in this band
                     for (int j = col; j < col + width; ++j)
-                        // Store eight valid rows at a time and skip padded groups
                         for (int half = 0; half < 24 && i + half < rows; half += 8) {
                             const int offset = 24 * (j - col) + half;
                             const size_t index = 2ULL * (i + half + j * n);
@@ -305,7 +233,6 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
                             const __m256 q = _mm256_loadu_ps(products[1] + offset);
                             const __m256 s = _mm256_loadu_ps(products[2] + offset);
                             finishSums(c + index, C.first && k == 0, C.sign, p, q, s);
-                            // The same worker owns both destinations for this tile
                             if (d)
                                 finishSums(d + index, D.first && k == 0, D.sign, p, q, s);
                         }
@@ -313,18 +240,14 @@ multiplyBlock(int N, size_t n, InputBlock A, InputBlock B,
             }
     }
 
-    // Share scalar edges, then wait before the next product reuses packed inputs
-    // This barrier also orders contributions when products share a C quadrant
 #pragma omp for schedule(static)
-    for (int col = 0; col < N; ++col)
-        // Vector-covered columns need bottom rows only
-        // Leftover columns need every row
-        for (int row = col < cols ? rows : 0; row < N; ++row)
+    for (int col = firstCol; col < lastCol; ++col)
+        for (int row = col >= vectorFirst && col < vectorLast ? rows : 0;
+             row < N; ++row)
             scalar(row, col);
 }
 
-// Use one Strassen level at N>=2048 when the matrix splits evenly
-// ponytail: one level stays O(N^3), only recurse deeper if measurements justify it
+// Seven half-size products replace eight for even matrices of at least 2048
 int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                    int *args, int argCount) {
     if (N <= 0)
@@ -333,18 +256,14 @@ int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
     const bool split = N >= 2048 && N % 2 == 0;
     const int blockSize = split ? N / 2 : N;
     const int rows = blockSize & ~7, cols = blockSize & ~3;
-    // Allocate one leaf-sized slice and reuse it across all seven products
     const size_t packedRows = (rows + 23ULL) / 24 * 24;
     const int depth = blockSize < KC ? blockSize : KC;
     float *packed =
         rows ? static_cast<float *>(_mm_malloc(
                    (3ULL * packedRows + 3ULL * cols) * depth * sizeof(float), 64))
              : nullptr;
-    // B follows the reserved A space even when the final depth slice is shorter
     float *packedB = packed ? packed + 3ULL * packedRows * depth : nullptr;
 
-    // Keep one team alive for every product, with private scratch for each worker
-    // Blocks below eight rows and allocation failures use one scalar worker
 #pragma omp parallel if(packed != nullptr)
     {
         alignas(32) float products[3][24 * NC];
@@ -352,13 +271,11 @@ int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
             multiplyBlock(N, n, {A, nullptr, 1}, {B, nullptr, 1},
                           {C, 1, true}, {nullptr, 1, false}, packed, packedB, products);
         } else {
-            // Quadrant pointers keep the full matrix stride, not the half-size stride
             const int h = N / 2;
             const floatType *a00 = A, *a01 = A + h * n, *a10 = A + h, *a11 = a01 + h;
             const floatType *b00 = B, *b01 = B + h * n, *b10 = B + h, *b11 = b01 + h;
             floatType *c00 = C, *c01 = C + h * n, *c10 = C + h, *c11 = c01 + h;
 
-            // Every worker follows this order and each helper ends with a barrier
             // M0 = (A00+A11)(B00+B11), initialise C00 and C11
             multiplyBlock(h, n, {a00, a11, 1}, {b00, b11, 1},
                           {c00, 1, true}, {c11, 1, true}, packed, packedB, products);
@@ -382,7 +299,32 @@ int matrixMultiply(int N, const floatType *A, const floatType *B, floatType *C,
                           {c00, 1, false}, {nullptr, 1, false}, packed, packedB, products);
         }
     }
-    // No worker can still read the shared slice after the team joins
     _mm_free(packed);
     return STUDENTID;
+}
+
+__attribute__((target("avx2,fma"))) void
+matrixMultiplyColumns(int N, const floatType *A, const floatType *B,
+                      floatType *C, int firstCol, int lastCol) {
+    if (N <= 0 || firstCol >= lastCol)
+        return;
+    const int rows = N & ~7;
+    int vectorFirst = (firstCol + 3) & ~3;
+    const int vectorLast = lastCol & ~3;
+    if (vectorFirst > vectorLast)
+        vectorFirst = vectorLast;
+    const int cols = vectorLast - vectorFirst;
+    const size_t packedRows = (rows + 23ULL) / 24 * 24;
+    const int depth = N < KC ? N : KC;
+    float *packed = rows && cols ? static_cast<float *>(_mm_malloc(
+        (3ULL * packedRows + 3ULL * cols) * depth * sizeof(float), 64)) : nullptr;
+    float *packedB = packed ? packed + 3ULL * packedRows * depth : nullptr;
+#pragma omp parallel if(packed != nullptr)
+    {
+        alignas(32) float products[3][24 * NC];
+        multiplyBlock(N, N, {A, nullptr, 1}, {B, nullptr, 1},
+                      {C, 1, true}, {nullptr, 1, false},
+                      packed, packedB, products, firstCol, lastCol);
+    }
+    _mm_free(packed);
 }
