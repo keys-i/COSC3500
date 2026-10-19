@@ -1,2 +1,3 @@
+cache-dir = ".cache/ruff"
 line-length = 80
 extend-exclude = ["assign", "build", "third_party"]
